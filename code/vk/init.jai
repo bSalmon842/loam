@@ -42,6 +42,8 @@ init_vk :: (vk : *Vk, window : Window_Type) {
     check_vk(vkAllocateCommandBuffers(vk.device, *immCmdBufferAllocInfo, *vk.immCmdBuffer), "Failed to allocate Command Buffer for Immediate Submit");
 
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
+
+    init_pipelines(vk);
 }
 
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
@@ -330,4 +332,30 @@ resize_swapchain :: (vk : *Vk) {
     vkDeviceWaitIdle(vk.device);
     check_vk(create_vk_swapchain(vk), "Failed to recreate swapchain when reizing window");
     vk.resizeRequested = false;
+}
+
+init_pipelines :: (vk : *Vk) {
+    // Test Triangle Pipeline
+    vertShader := load_shader_module(vk.device, MESH_VERTEX_SHADER);
+    fragShader := load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+
+    layout := VkPipelineLayoutCreateInfo.{};
+    check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.triPipelineLayout), "Failed to create pipeline layout for test triangle");
+
+    builder : GraphicsPipelineInfo;
+    builder.layout = vk.triPipelineLayout;
+
+    set_pipeline_shaders(*builder, vertShader, fragShader);
+    set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+    set_pipeline_polygon_mode(*builder, .FILL);
+    set_pipeline_cull_mode(*builder, .NONE, .CLOCKWISE);
+    set_pipeline_multisampling_mode(*builder, .None);
+    set_pipeline_blending_mode(*builder, false);
+    set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+    set_pipeline_depth_format(*builder, .UNDEFINED);
+
+    vk.triPipeline = build_graphics_pipeline(vk, *builder);
+
+    vkDestroyShaderModule(vk.device, vertShader, null);
+    vkDestroyShaderModule(vk.device, fragShader, null);
 }

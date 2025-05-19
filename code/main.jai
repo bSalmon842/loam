@@ -15,10 +15,22 @@ windowWidth  := 1920;
 windowHeight := 1080;
 deltaTime : float64 = 0;
 
+// Compiled Shaders
+#if OS == .WINDOWS {
+    MESH_VERTEX_SHADER   :: #run compile_hlsl_to_spirv("tri_vertex");
+    MESH_FRAGMENT_SHADER :: #run compile_hlsl_to_spirv("tri_fragment");
+} else #if OS == .ANDROID {
+    MESH_VERTEX_SHADER   : CompiledShader;
+    MESH_FRAGMENT_SHADER : CompiledShader;
+}
+
 main :: () {
     #if OS == .WINDOWS {
         Windows.SetProcessDPIAware();
         Windows.timeBeginPeriod(1);
+    } else #if OS == .ANDROID {
+	MESH_VERTEX_SHADER   = load_spirv_for_android("tri_vertex");
+	MESH_FRAGMENT_SHADER = load_spirv_for_android("tri_fragment");
     }
 
     make_log_file("loam", .YEAR | .MONTH | .DAY | .HOUR);
@@ -59,12 +71,18 @@ main :: () {
 
 #load "vk/descriptors.jai";
 #load "vk/init.jai";
+#load "vk/pipelines.jai";
 #load "vk/render.jai";
+#load "vk/shaders.jai";
 #load "vk/util.jai";
 
 #import "Basic";
+#import "File";
+#import "File_Utilities";
 #import "Input";
 #import "Math";
+#import "Print_Color"() (USE_ANSI_CODES_ON_WINDOWS=true);
+#import "Process";
 #import "Reflection";
 Simp :: #import "Simp";
 #import "String";

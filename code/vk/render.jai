@@ -39,23 +39,34 @@ draw_frame :: (vk : *Vk) {
 
     transition_image(cmdBuffer, vk.drawImage.image, .UNDEFINED, .GENERAL);
 
-    render_clear(cmdBuffer, vk.drawImage.image, .{0.5, 0.125, 1.0, 1.0});
+    render_clear(cmdBuffer, vk.drawImage.image, .{0.2, 0.2, 0.2, 1.0});
     
-    transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .TRANSFER_SRC_OPTIMAL);
+    transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
+
+    // Draw Triangle Shader
+    {
+	colourAttachment := make_rendering_attachment_info(vk.drawImage.view, layout=.GENERAL);
+	renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
+
+	vkCmdBeginRendering(cmdBuffer, *renderInfo);
+	vkCmdBindPipeline(cmdBuffer, .GRAPHICS, vk.triPipeline);
+
+	viewport := VkViewport.{ width = cast(float) drawExtent.width, height = cast(float) drawExtent.height, minDepth = 0, maxDepth = 1 };
+	vkCmdSetViewport(cmdBuffer, 0, 1, *viewport);
+
+	scissor := VkRect2D.{ .{}, drawExtent };
+	vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
+
+	vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+	vkCmdEndRendering(cmdBuffer);
+    }
+    
+    transition_image(cmdBuffer, vk.drawImage.image, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL);
     transition_image(cmdBuffer, currentSwapchainImage, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
 
     copy_image(cmdBuffer, vk.drawImage.image, drawExtent, currentSwapchainImage, vk.swapchainExtent);
 
-    #if IS_DEBUG {
-	// Draw ImGui
-	transition_image(cmdBuffer, currentSwapchainImage, .TRANSFER_DST_OPTIMAL, .COLOR_ATTACHMENT_OPTIMAL);
-
-	draw_imgui(vk, cmdBuffer, vk.swapchainImageViews[swapchainImageIndex]);
-	
-	transition_image(cmdBuffer, currentSwapchainImage, .COLOR_ATTACHMENT_OPTIMAL, .PRESENT_SRC_KHR);
-    } else {
-	transition_image(cmdBuffer, currentSwapchainImage, .TRANSFER_DST_OPTIMAL, .PRESENT_SRC_KHR);
-    }
+    transition_image(cmdBuffer, currentSwapchainImage, .TRANSFER_DST_OPTIMAL, .PRESENT_SRC_KHR);
     
     check_vk(vkEndCommandBuffer(cmdBuffer), tprint("Failed to end Command Buffer for frame %", vk.currentFrame));
 
@@ -94,15 +105,6 @@ copy_image :: (cmdBuffer : VkCommandBuffer, srcImage : VkImage, srcExtent : VkEx
     blitRegion := VkImageBlit2.{ .IMAGE_BLIT_2, null, .{ .COLOR_BIT, 0, 0, 1 }, .[ .{}, srcOffset ], .{ .COLOR_BIT, 0, 0, 1 }, .[ .{}, dstOffset ] };
     blitInfo := VkBlitImageInfo2.{ .BLIT_IMAGE_INFO_2, null, srcImage, .TRANSFER_SRC_OPTIMAL, dstImage, .TRANSFER_DST_OPTIMAL, 1, *blitRegion, .LINEAR };
     vkCmdBlitImage2(cmdBuffer, *blitInfo);
-}
-
-draw_imgui :: (vk : *Vk, cmdBuffer : VkCommandBuffer, imageView : VkImageView) {
-    colourAttachment := VkRenderingAttachmentInfo.{ .RENDERING_ATTACHMENT_INFO, null, imageView, .GENERAL, 0, null, 0, .LOAD, .STORE, .{} };
-    renderInfo := VkRenderingInfo.{ .RENDERING_INFO, null, 0, .{ .{}, vk.swapchainExtent }, 1, 0, 1, *colourAttachment, null, null };
-
-    vkCmdBeginRendering(cmdBuffer, *renderInfo);
-    ImGui.ImplVulkan_RenderDrawData(ImGui.GetDrawData(), cmdBuffer);
-    vkCmdEndRendering(cmdBuffer);
 }
 
 // Render Commands

@@ -52,6 +52,10 @@ Vk :: struct {
     immCmdPool   : VkCommandPool;
     ///////////////////
 
+    // Test Triangle
+    triPipeline       : VkPipeline;
+    triPipelineLayout : VkPipelineLayout;
+
     // Optional Stuff
     enableVkVideo : bool;
 }
@@ -69,7 +73,7 @@ AllocatedImageInfo :: struct {
     image  : VkImage;
     view   : VkImageView;
     extent : VkExtent2D;
-    //format : VkFormat;
+    format : VkFormat;
 
     allocation : VmaAllocation;
 }
@@ -328,6 +332,7 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
     check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
 
     image.extent = extent;
+    image.format = format;
     
     aspectMask : VkImageAspectFlags = ifx format == .D32_SFLOAT then .DEPTH_BIT else .COLOR_BIT;
     viewCreateInfo := VkImageViewCreateInfo.{ .IMAGE_VIEW_CREATE_INFO, null, 0, image.image, ._2D, format, .{}, make_image_subresource_range(aspectMask, 1, 1) };
@@ -342,6 +347,30 @@ make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u
 
 make_semaphore_submit_info :: (semaphore : VkSemaphore, stageMask : VkPipelineStageFlags2) -> VkSemaphoreSubmitInfo #must {
     return VkSemaphoreSubmitInfo.{ .SEMAPHORE_SUBMIT_INFO, null, semaphore, 1, stageMask, 0 };
+}
+
+make_shader_stage_info :: (shaderStageFlags : VkShaderStageFlags, shader : VkShaderModule) -> VkPipelineShaderStageCreateInfo #must {
+    return VkPipelineShaderStageCreateInfo.{ .PIPELINE_SHADER_STAGE_CREATE_INFO, null, 0, shaderStageFlags, shader, "main\0".data, null };
+}
+
+make_rendering_attachment_info :: (view : VkImageView, clear : *VkClearValue = null, layout : VkImageLayout = .COLOR_ATTACHMENT_OPTIMAL) -> VkRenderingAttachmentInfo #must {
+    return VkRenderingAttachmentInfo.{
+        imageView = view,
+        imageLayout = layout,
+        loadOp = ifx clear then .CLEAR else .LOAD,
+        storeOp = .STORE,
+        clearValue = ifx clear then clear.* else .{},
+    };
+}
+
+make_rendering_info :: (renderExtent : VkExtent2D, colourAttachment : *VkRenderingAttachmentInfo, depthAttachment : *VkRenderingAttachmentInfo) -> VkRenderingInfo #must {
+    return VkRenderingInfo.{
+        renderArea = .{ .{}, renderExtent },
+        layerCount = 1,
+        colorAttachmentCount = 1,
+        pColorAttachments = colourAttachment,
+        pDepthAttachment = depthAttachment,
+    };
 }
 
 vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, messageType : VkDebugUtilsMessageTypeFlagsEXT, pCallbackData : *VkDebugUtilsMessengerCallbackDataEXT, pUserData : *void) -> VkBool32 #c_call {
