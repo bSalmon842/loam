@@ -1,8 +1,8 @@
 /*
-Project: SH
+Project: Loam
 File: math.jai
 Author: Brock Salmon
-Created: 15FEB2025
+Created: 17MAY2025
 */
 
 Radians :: #type,isa float;
@@ -34,4 +34,8 @@ convert_angle :: (angle : Radians) -> Degrees #must {
 
 convert_angle :: (angle : Degrees) -> Radians #must {
     return cast(Radians) (angle * (TAU / 360.0));
+}
+
+log2 :: (x : float) -> float #must {
+    return log(x) / log(2);
 }

@@ -26,15 +26,7 @@ main :: () {
     window := create_window(windowWidth, windowHeight, "loam");
 
     vk := New(Vk);
-    check_vk(create_vk_instance(vk, "Test App"), "create_vk_instance failed: ");
-    check_vk(create_vk_surface(vk, window), "create_vk_surface failed: ");
-    check_vk(get_vk_physical_device(vk), "get_vk_physical_device failed: ");
-    check_vk(create_vk_device(vk), "create_vk_devices failed: ");
-
-    vk.graphicsCmdPool = create_command_pool(vk.device, vk.queueFamilyIndices.graphics);
-    vkGetDeviceQueue(vk.device, vk.queueFamilyIndices.graphics, 0, *vk.graphicsQueue);
-
-    check_vk(create_vk_swapchain(vk), "create_vk_swapchain failed: ");
+    init_vk(vk, window);
     
     deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
@@ -44,13 +36,17 @@ main :: () {
         for get_window_resizes() {
             windowWidth, windowHeight = Simp.get_render_dimensions(it.window);
         }
-        
+
+	if vk.resizeRequested then resize_swapchain(vk);
+	
         for events_this_frame {
             if it.type == {
                 case .QUIT; break running;
             }
         }
-        
+
+	draw_frame(vk);
+	
         deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
         
@@ -58,9 +54,12 @@ main :: () {
     }
 }
 
+#load "math.jai";
 #load "utility.jai";
 
+#load "vk/descriptors.jai";
 #load "vk/init.jai";
+#load "vk/render.jai";
 #load "vk/util.jai";
 
 #import "Basic";
@@ -81,6 +80,6 @@ Simp :: #import "Simp";
 
 // BS_Modules
 //cgltf :: #import "cgltf";
-//ImGui :: #import "ImGui_1_9";
 #import "Logger" (IS_DEBUG);
+#import "VMA";
 #import "Vulkan_1_3";

@@ -5,6 +5,45 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
+init_vk :: (vk : *Vk, window : Window_Type) {
+    check_vk(create_vk_instance(vk, "Test App"), "create_vk_instance failed: ");
+    check_vk(create_vk_surface(vk, window), "create_vk_surface failed: ");
+    check_vk(get_vk_physical_device(vk), "get_vk_physical_device failed: ");
+    check_vk(create_vk_device(vk), "create_vk_devices failed: ");
+    check_vk(create_vk_swapchain(vk), "create_vk_swapchain failed: ");
+
+    vkGetDeviceQueue(vk.device, vk.queueFamilyIndices.graphics, 0, *vk.graphicsQueue);
+    
+    allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
+    vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator);
+
+    // Make Draw Image
+    // TODO: Make Depth Image
+    drawImageExtent := VkExtent2D.{ cast(u32) windowWidth, cast(u32) windowHeight };
+    vk.drawImage = create_vk_image(vk, drawImageExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT);
+
+    cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
+    fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
+    semaphoreCreateInfo := VkSemaphoreCreateInfo.{};
+    for * vk.frames {
+	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
+
+	cmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, it.cmdPool, .PRIMARY, 1 };
+	check_vk(vkAllocateCommandBuffers(vk.device, *cmdBufferAllocInfo, *it.cmdBuffer), tprint("Failed to create Command Buffer for Frame %", it_index));
+
+	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.swapSemaphore), tprint("Failed to create Swap Semaphore for Frame %", it_index));
+	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.renderSemaphore), tprint("Failed to create Render Semaphore for Frame %", it_index));
+	check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *it.renderFence), tprint("Failed to create Render Fence for Frame %", it_index));
+    }
+
+    // Immediate Submit
+    check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.immCmdPool), "Failed to create Command Pool for Immediate Submit");
+    immCmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, vk.immCmdPool, .PRIMARY, 1 };
+    check_vk(vkAllocateCommandBuffers(vk.device, *immCmdBufferAllocInfo, *vk.immCmdBuffer), "Failed to allocate Command Buffer for Immediate Submit");
+
+    check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
+}
+
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
     array_add(*vk.instanceExtensions, VK_KHR_SURFACE_EXTENSION_NAME.data);
     array_add(*vk.instanceExtensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME.data);
@@ -159,10 +198,10 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
     check_vk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.physicalDevice, vk.surface, *surfaceCaps), "Failed to get surface capabilities");
 
     // Set swapchain extent
-    swapchainExtent := surfaceCaps.currentExtent;
-    if swapchainExtent.width == U32_MAX || swapchainExtent.height == U32_MAX {
-	swapchainExtent.width  = cast(u32) clamp(windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
-	swapchainExtent.height = cast(u32) clamp(windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
+    vk.swapchainExtent = surfaceCaps.currentExtent;
+    if vk.swapchainExtent.width == U32_MAX || vk.swapchainExtent.height == U32_MAX {
+	vk.swapchainExtent.width  = cast(u32) clamp(windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
+	vk.swapchainExtent.height = cast(u32) clamp(windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
     }
 
     // Get best present mode for our purposes
@@ -223,7 +262,7 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
     check_vk(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physicalDevice, vk.surface, *formatCount, surfaceFormats.data), "Failed to get supported surface formats");
 
     selectedFormat := surfaceFormats[0];
-    preferredFormats := VkFormat.[ .B8G8R8A8_UNORM, .R8G8B8A8_UNORM ];
+    preferredFormats := VkFormat.[ .R8G8B8A8_UNORM, .B8G8R8A8_UNORM ];
     for supportedFormat : surfaceFormats {
 	for preferredFormats {
 	    if supportedFormat.format == it && supportedFormat.colorSpace == .COLOR_SPACE_SRGB_NONLINEAR_KHR {
@@ -243,12 +282,14 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
     if surfaceCaps.supportedUsageFlags & .TRANSFER_DST_BIT then usageFlags |= .TRANSFER_DST_BIT;
     
     createInfo := VkSwapchainCreateInfoKHR.{ .SWAPCHAIN_CREATE_INFO_KHR, null, 0,
-	vk.surface, swapchainImageCount, colourFormat, colourSpace, .{ swapchainExtent.width, swapchainExtent.height }, 1, usageFlags, .EXCLUSIVE,
+	vk.surface, swapchainImageCount, colourFormat, colourSpace, .{ vk.swapchainExtent.width, vk.swapchainExtent.height }, 1, usageFlags, .EXCLUSIVE,
 	0, null, preTransform, windowCompositeAlpha, selectedPresentMode, VK_TRUE, oldSwapchain };
     check_vk(vkCreateSwapchainKHR(vk.device, *createInfo, null, *vk.swapchain), "Failed to create swapchain");
 
+    vk.swapchainFormat = colourFormat;
+
     log_vk(.INFO, "Created Swapchain");
-    log_vk(.INFO, tprint("Swapchain Extent: %", swapchainExtent));
+    log_vk(.INFO, tprint("Swapchain Extent: %", vk.swapchainExtent));
     log_vk(.INFO, tprint("Swapchain Present Mode: %", selectedPresentMode));
     log_vk(.INFO, tprint("Swapchain Image Count: %", swapchainImageCount));
     log_vk(.INFO, tprint("Swapchain Transform: %", preTransform));
@@ -258,7 +299,6 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
     log_vk(.INFO, tprint("Swapchain Usage Flags: %", usageFlags));
 
     // Clear out the old swapchain
-    // NOTE: This isn't very useful currently but will be once we need to be recreating the swapchain
     // NOTE: We don't need to destroy the images because they're owned by the swapchain itself
     if oldSwapchain {
 	for * vk.swapchainImageViews {
@@ -284,4 +324,10 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
     }
     
     return .SUCCESS;
+}
+
+resize_swapchain :: (vk : *Vk) {
+    vkDeviceWaitIdle(vk.device);
+    check_vk(create_vk_swapchain(vk), "Failed to recreate swapchain when reizing window");
+    vk.resizeRequested = false;
 }

@@ -5,6 +5,8 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
+FRAMES_IN_FLIGHT :: 2;
+
 Vk :: struct {
     // Requested options
     instanceExtensions : [..] *u8;
@@ -24,8 +26,16 @@ Vk :: struct {
 
     swapchainImages : [..] VkImage;
     swapchainImageViews : [..] VkImageView;
+    swapchainExtent : VkExtent2D;
+    swapchainFormat : VkFormat;
+    resizeRequested : bool;
 
-    graphicsCmdPool : VkCommandPool;
+    allocator : VmaAllocator;
+
+    currentFrame : u64;
+    frames : [FRAMES_IN_FLIGHT] FrameCommandInfo;
+    drawImage : AllocatedImageInfo;
+    
     graphicsQueue : VkQueue;
 
     QueueFamilyIndices :: struct {
@@ -36,17 +46,49 @@ Vk :: struct {
     }
     queueFamilyIndices : QueueFamilyIndices;
 
-    SyncStructures :: struct {
-	renderSem  : VkSemaphore;
-	presentSem : VkSemaphore;
-	fences : [..] VkFence;
-    }
-    sync : SyncStructures;
-
-    submitInfo : VkSubmitInfo;
+    // Immediate Submit
+    immFence     : VkFence;
+    immCmdBuffer : VkCommandBuffer;
+    immCmdPool   : VkCommandPool;
+    ///////////////////
 
     // Optional Stuff
     enableVkVideo : bool;
+}
+
+FrameCommandInfo :: struct {
+    cmdPool : VkCommandPool;
+    cmdBuffer : VkCommandBuffer;
+    
+    swapSemaphore : VkSemaphore;
+    renderSemaphore : VkSemaphore;
+    renderFence : VkFence;
+}
+
+AllocatedImageInfo :: struct {
+    image  : VkImage;
+    view   : VkImageView;
+    extent : VkExtent2D;
+    //format : VkFormat;
+
+    allocation : VmaAllocation;
+}
+
+ImmediateSubmitFunc :: #type (VkCommandBuffer, *void);
+immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {
+    check_vk(vkResetFences(vk.device, 1, *vk.immFence), "(Imm Submit) Failed to reset fence");
+    check_vk(vkResetCommandBuffer(vk.immCmdBuffer, 0), "(Imm Submit) Failed to reset Command Buffer");
+
+    cmdBufferBeginInfo := VkCommandBufferBeginInfo.{ .COMMAND_BUFFER_BEGIN_INFO, null, .ONE_TIME_SUBMIT_BIT, null };
+    check_vk(vkBeginCommandBuffer(vk.immCmdBuffer, *cmdBufferBeginInfo), "(Imm Submit) Failed to begin Command Buffer");
+    submissionFunc(vk.immCmdBuffer, funcData);
+    check_vk(vkEndCommandBuffer(vk.immCmdBuffer), "(Imm Submit) Failed to end Command Buffer");
+
+    cmdInfo := VkCommandBufferSubmitInfo.{ .COMMAND_BUFFER_SUBMIT_INFO, null, vk.immCmdBuffer, 0 };
+    submitInfo := VkSubmitInfo2.{ .SUBMIT_INFO_2, null, 0, 0, null, 1, *cmdInfo, 0, null };
+    check_vk(vkQueueSubmit2(vk.graphicsQueue, 1, *submitInfo, vk.immFence), "(Imm Submit) Failed to submit Queue");
+    
+    check_vk(vkWaitForFences(vk.device, 1, *vk.immFence, VK_TRUE, seconds_to_nanoseconds(1)), "(Imm Submit) vkWaitForFences failed");
 }
 
 find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevice) -> VkPhysicalDevice {
@@ -277,13 +319,29 @@ queue_create_info :: (familyIndex : u32) -> VkDeviceQueueCreateInfo #must {
     return queueInfo;
 }
 
-create_command_pool :: (device : VkDevice, queueFamilyIndex : u32, flags : VkCommandPoolCreateFlags = .RESET_COMMAND_BUFFER_BIT) -> VkCommandPool #must {
-    info : VkCommandPoolCreateInfo;
-    info.flags = flags;
-    info.queueFamilyIndex = queueFamilyIndex;
-    cmdPool : VkCommandPool;
-    check_vk(vkCreateCommandPool(device, *info, null, *cmdPool), "Failed to create Command Pool");
-    return cmdPool;
+create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> AllocatedImageInfo #must {
+    createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D, format, .{ extent.width, extent.height, 1 }, 1, 1, ._1_BIT, .OPTIMAL, usage, .EXCLUSIVE, 0, null, .UNDEFINED };
+    if mipmapped then createInfo.mipLevels = cast(u32) floor(log2(cast(float) max(extent.width, extent.height))) + 1;
+    allocationCreateInfo := VmaAllocationCreateInfo.{ 0, .GPU_ONLY, .DEVICE_LOCAL_BIT, 0, 0, null, null, 0 };
+
+    image := AllocatedImageInfo.{};
+    check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
+
+    image.extent = extent;
+    
+    aspectMask : VkImageAspectFlags = ifx format == .D32_SFLOAT then .DEPTH_BIT else .COLOR_BIT;
+    viewCreateInfo := VkImageViewCreateInfo.{ .IMAGE_VIEW_CREATE_INFO, null, 0, image.image, ._2D, format, .{}, make_image_subresource_range(aspectMask, 1, 1) };
+    check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
+    
+    return image;
+}
+
+make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u32 = 0xffffffff, layerCount : u32 = 0xffffffff) -> VkImageSubresourceRange #must {
+    return VkImageSubresourceRange.{ aspectMask, 0, levelCount, 0, layerCount };
+}
+
+make_semaphore_submit_info :: (semaphore : VkSemaphore, stageMask : VkPipelineStageFlags2) -> VkSemaphoreSubmitInfo #must {
+    return VkSemaphoreSubmitInfo.{ .SEMAPHORE_SUBMIT_INFO, null, semaphore, 1, stageMask, 0 };
 }
 
 vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, messageType : VkDebugUtilsMessageTypeFlagsEXT, pCallbackData : *VkDebugUtilsMessengerCallbackDataEXT, pUserData : *void) -> VkBool32 #c_call {
