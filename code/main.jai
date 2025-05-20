@@ -93,7 +93,8 @@ Simp :: #import "Simp";
 } else #if OS == .LINUX {
     X11 :: #import "X11";
 } else #if OS == .ANDROID {
-    #import "Android"()(main);
+#import "Android"()(main);
+    #import "Android/File";
 }
 
 // BS_Modules

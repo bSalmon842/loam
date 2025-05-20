@@ -69,26 +69,26 @@ compile_hlsl_to_spirv :: (hlslName : string) -> CompiledShader #must {
 
     spvContents, foundFile := read_entire_file(outFile);
     if foundFile && !alreadyCompiled {
-	print_color("%\n", tprint("\tShader \"%\" was successfully compiled.", hlslName), color=.HI_GREEN);
+	print_color("%\n", tprint("\tShader \"%\" was successfully compiled.", outFile), color=.HI_GREEN);
 	copy_file(inFile, lastFile);
     } else if foundFile && alreadyCompiled {
-	print_color("%\n", tprint("\tShader \"%\" unchanged, skipping.", hlslName), color=.HI_CYAN);
+	print_color("%\n", tprint("\tShader \"%\" unchanged, skipping.", inFile), color=.HI_CYAN);
     } else {
-	print_color("%\n", tprint("\tShader \"%\" failed to compile.", hlslName), color=.HI_RED);
+	print_color("%\n", tprint("\tShader \"%\" failed to compile.", inFile), color=.HI_RED);
     }
 
     return CompiledShader.{ hlslName, spvContents, foundFile };
 }
 
 #if OS == .ANDROID {
-    SHADER_FOLDER_PATH             :: "/shaders";
     load_spirv_for_android :: (hlslName : string) -> CompiledShader #must {
-	spvContents, foundFile := read_entire_file(tprint("%1%2/%.spv", to_string(context.android_app.activity.externalDataPath), SHADER_FOLDER_PATH, hlslName));
+	spvContents, foundFile := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
 	return CompiledShader.{ hlslName, spvContents, foundFile };
     }
 } else {
-    SHADER_FOLDER_PATH             :: "shaders/";
     COMPILED_SHADER_FOLDER_PATH    :: "shaders/compiled/";
     LAST_COMPILED_HLSL_FOLDER_PATH :: "shaders/last_files/";
     DXC_PATH                       :: "C:/work/spirv/dxc/bin/x64/dxc.exe";
 }
+
+SHADER_FOLDER_PATH :: "shaders/";
