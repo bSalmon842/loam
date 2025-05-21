@@ -52,9 +52,11 @@ Vk :: struct {
     immCmdPool   : VkCommandPool;
     ///////////////////
 
-    // Test Triangle
-    triPipeline       : VkPipeline;
-    triPipelineLayout : VkPipelineLayout;
+    // Pipelines
+    meshPipeline       : VkPipeline;
+    meshPipelineLayout : VkPipelineLayout;
+
+    testRect : MeshBuffers;
 
     // Optional Stuff
     enableVkVideo : bool;
@@ -76,6 +78,12 @@ AllocatedImageInfo :: struct {
     format : VkFormat;
 
     allocation : VmaAllocation;
+}
+
+AllocatedBufferInfo :: struct {
+    buffer         : VkBuffer;
+    allocation     : VmaAllocation;
+    allocationInfo : VmaAllocationInfo;
 }
 
 ImmediateSubmitFunc :: #type (VkCommandBuffer, *void);
@@ -326,9 +334,9 @@ queue_create_info :: (familyIndex : u32) -> VkDeviceQueueCreateInfo #must {
 create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> AllocatedImageInfo #must {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D, format, .{ extent.width, extent.height, 1 }, 1, 1, ._1_BIT, .OPTIMAL, usage, .EXCLUSIVE, 0, null, .UNDEFINED };
     if mipmapped then createInfo.mipLevels = cast(u32) floor(log2(cast(float) max(extent.width, extent.height))) + 1;
-    allocationCreateInfo := VmaAllocationCreateInfo.{ 0, .GPU_ONLY, .DEVICE_LOCAL_BIT, 0, 0, null, null, 0 };
+    allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .GPU_ONLY, requiredFlags = .DEVICE_LOCAL_BIT };
 
-    image := AllocatedImageInfo.{};
+    image : AllocatedImageInfo;
     check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
 
     image.extent = extent;
@@ -339,6 +347,15 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
     check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
     
     return image;
+}
+
+create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, memUsage : VmaMemoryUsage) -> AllocatedBufferInfo #must {
+    createInfo := VkBufferCreateInfo.{ size = size, usage = usage };
+    allocationCreateInfo := VmaAllocationCreateInfo.{ flags = .MAPPED_BIT, usage = memUsage };
+
+    buffer : AllocatedBufferInfo;
+    check_vk(vmaCreateBuffer(vk.allocator, *createInfo, *allocationCreateInfo, *buffer.buffer, *buffer.allocation, *buffer.allocationInfo), "Failed to create Buffer");
+    return buffer;
 }
 
 make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u32 = 0xffffffff, layerCount : u32 = 0xffffffff) -> VkImageSubresourceRange #must {

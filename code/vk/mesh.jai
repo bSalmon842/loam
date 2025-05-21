@@ -1,0 +1,66 @@
+/*
+Project: Loam
+File: mesh.jai
+Author: Brock Salmon
+Created: 20MAY2025
+*/
+
+Vertex :: struct {
+    position : Vector3 #align 16;
+    normal   : Vector3 #align 16;
+    uv       : Vector2 #align 16;
+    colour   := Vector4.{1,1,1,1} #align 16;
+}
+
+MeshBuffers :: struct {
+    indexBuffer         : AllocatedBufferInfo;
+    vertexBuffer        : AllocatedBufferInfo;
+    vertexBufferAddress : VkDeviceAddress;
+}
+
+MeshPushConstants :: struct {
+    worldMatrix  : Matrix4;
+    vertexBuffer : VkDeviceAddress;
+}
+
+// TODO: (Per vkguide) Note that this pattern is not very efficient, as we are waiting for the GPU command to fully execute before continuing with our CPU side logic.
+//                     This is something people generally put on a background thread, whose sole job is to execute uploads like this one, and deleting/reusing the staging buffers.
+upload_mesh :: (vk : *Vk, indices : [] u32, vertices : [] Vertex) -> MeshBuffers {
+    indexBufferSize := cast(u64) (indices.count * size_of(u32));
+    vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
+
+    buffers : MeshBuffers;
+    buffers.indexBuffer  = create_vk_buffer(vk, indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY);
+    buffers.vertexBuffer = create_vk_buffer(vk, vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT, .GPU_ONLY);
+    deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertexBuffer.buffer };
+    buffers.vertexBufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
+
+    // Set up staging buffer and copy to buffers
+    stagingBuffer := create_vk_buffer(vk, indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT, .CPU_ONLY);
+    defer vmaDestroyBuffer(vk.allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+
+    memcpy(stagingBuffer.allocationInfo.pMappedData, cast(*u8) vertices.data, cast(s64) vertexBufferSize);
+    memcpy(cast(*u8) stagingBuffer.allocationInfo.pMappedData + vertexBufferSize, cast(*u8) indices.data, cast(s64) indexBufferSize);
+
+    MeshCopyData :: struct {
+	vertexBufferSize : u64;
+	indexBufferSize  : u64;
+	stagingBuffer    : *AllocatedBufferInfo;
+	buffers          : *MeshBuffers;
+    }
+
+    gpu_mesh_copy :: (cmdBuffer : VkCommandBuffer, data : *void) {
+	meshData := cast(*MeshCopyData) data;
+
+	vertexCopy := VkBufferCopy.{ 0, 0, meshData.vertexBufferSize };
+	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.vertexBuffer.buffer, 1, *vertexCopy);
+	
+	indexCopy := VkBufferCopy.{ meshData.vertexBufferSize, 0, meshData.indexBufferSize };
+	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.indexBuffer.buffer, 1, *indexCopy);
+    }
+
+    meshData := MeshCopyData.{ vertexBufferSize, indexBufferSize, *stagingBuffer, *buffers };
+    immediate_submit(vk, gpu_mesh_copy, *meshData);
+
+    return buffers;
+}

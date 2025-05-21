@@ -49,7 +49,7 @@ draw_frame :: (vk : *Vk) {
 	renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
 
 	vkCmdBeginRendering(cmdBuffer, *renderInfo);
-	vkCmdBindPipeline(cmdBuffer, .GRAPHICS, vk.triPipeline);
+	vkCmdBindPipeline(cmdBuffer, .GRAPHICS, vk.meshPipeline);
 
 	viewport := VkViewport.{ width = cast(float) drawExtent.width, height = cast(float) drawExtent.height, minDepth = 0, maxDepth = 1 };
 	vkCmdSetViewport(cmdBuffer, 0, 1, *viewport);
@@ -57,7 +57,12 @@ draw_frame :: (vk : *Vk) {
 	scissor := VkRect2D.{ .{}, drawExtent };
 	vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
 
-	vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+	pushConstants := MeshPushConstants.{ Matrix4_Identity, vk.testRect.vertexBufferAddress };
+	vkCmdPushConstants(cmdBuffer, vk.meshPipelineLayout, .VERTEX_BIT, 0, size_of(MeshPushConstants), *pushConstants );
+
+	vkCmdBindIndexBuffer(cmdBuffer, vk.testRect.indexBuffer.buffer, 0, .UINT32);
+	vkCmdDrawIndexed(cmdBuffer, 6, 1, 0, 0, 0);
+	
 	vkCmdEndRendering(cmdBuffer);
     }
     

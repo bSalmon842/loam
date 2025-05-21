@@ -44,6 +44,18 @@ init_vk :: (vk : *Vk, window : Window_Type) {
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
 
     init_pipelines(vk);
+
+    // Create a temp mesh
+    rectVertices := Vertex.[
+	.{ position=.{  0.75, -0.75, 0 }, colour=.{ 1, 0, 0, 1 } },
+	.{ position=.{  0.75,  0.75, 0 }, colour=.{ 0, 1, 0, 1 } },
+	.{ position=.{ -0.75, -0.75, 0 }, colour=.{ 0, 0, 1, 1 } },
+	.{ position=.{ -0.75,  0.75, 0 }, colour=.{ 1, 1, 0, 1 } },
+    ];
+    rectIndices := u32.[0, 1, 2,
+		        2, 1, 3];
+
+    vk.testRect = upload_mesh(vk, rectIndices, rectVertices);
 }
 
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
@@ -139,6 +151,7 @@ create_vk_surface :: (vk : *Vk, window : Window_Type) -> VkResult {
 get_vk_physical_device :: (vk : *Vk) -> VkResult {
     array_add(*vk.deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME.data);
 
+    vk.reqFeatures_1_0.shaderInt64 = 1;
     vk.reqFeatures_1_2.bufferDeviceAddress = 1;
     vk.reqFeatures_1_2.descriptorIndexing = 1;
     vk.reqFeatures_1_3.dynamicRendering = 1;
@@ -335,15 +348,16 @@ resize_swapchain :: (vk : *Vk) {
 }
 
 init_pipelines :: (vk : *Vk) {
-    // Test Triangle Pipeline
+    // Mesh Pipeline
     vertShader := load_shader_module(vk.device, MESH_VERTEX_SHADER);
     fragShader := load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
 
-    layout := VkPipelineLayoutCreateInfo.{};
-    check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.triPipelineLayout), "Failed to create pipeline layout for test triangle");
+    bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(MeshPushConstants) };
+    layout := VkPipelineLayoutCreateInfo.{ pushConstantRangeCount = 1, pPushConstantRanges = *bufferRange };
+    check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.meshPipelineLayout), "Failed to create pipeline layout for test triangle");
 
     builder : GraphicsPipelineInfo;
-    builder.layout = vk.triPipelineLayout;
+    builder.layout = vk.meshPipelineLayout;
 
     set_pipeline_shaders(*builder, vertShader, fragShader);
     set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
@@ -354,7 +368,7 @@ init_pipelines :: (vk : *Vk) {
     set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
     set_pipeline_depth_format(*builder, .UNDEFINED);
 
-    vk.triPipeline = build_graphics_pipeline(vk, *builder);
+    vk.meshPipeline = build_graphics_pipeline(vk, *builder);
 
     vkDestroyShaderModule(vk.device, vertShader, null);
     vkDestroyShaderModule(vk.device, fragShader, null);

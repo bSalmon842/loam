@@ -29,39 +29,39 @@ load_shader_module :: (device : VkDevice, shaderToLoad : CompiledShader) -> VkSh
     return shaderModule;
 }
 
-shader_file_already_compiled :: (hlslName : string) -> bool #must {
-    lastFile := tprint("%1%2.hlsl", LAST_COMPILED_HLSL_FOLDER_PATH, hlslName);
-    inFile := tprint("%1%2.hlsl", SHADER_FOLDER_PATH, hlslName);
+shader_file_already_compiled :: (glslName : string) -> bool #must {
+    lastFile := tprint("%1%2.glsl", LAST_COMPILED_GLSL_FOLDER_PATH, glslName);
+    inFile := tprint("%1%2.glsl", SHADER_FOLDER_PATH, glslName);
 
     lastContents, foundLastFile := read_entire_file(lastFile, log_errors=false);
     if !foundLastFile then return false;
 
     inContents, foundInFile := read_entire_file(inFile, log_errors=false);
     if !foundInFile {
-	print_color("%\n", tprint("\tShader \"%\" does not exist.", hlslName), color=.HI_RED);
+	print_color("%\n", tprint("\tShader \"%\" does not exist.", glslName), color=.HI_RED);
 	return false;
     }
     
     return compare(lastContents, inContents) == 0;
 }
 
-compile_hlsl_to_spirv :: (hlslName : string) -> CompiledShader #must {
-    if !#compile_time then assert(false, tprint("% can only be called at compile time (%)\n", #this, hlslName));
+compile_glsl_to_spirv :: (glslName : string) -> CompiledShader #must {
+    if !#compile_time then assert(false, tprint("% can only be called at compile time (%)\n", #this, glslName));
 
     make_directory_if_it_does_not_exist(COMPILED_SHADER_FOLDER_PATH);
-    make_directory_if_it_does_not_exist(LAST_COMPILED_HLSL_FOLDER_PATH);
+    make_directory_if_it_does_not_exist(LAST_COMPILED_GLSL_FOLDER_PATH);
 
-    inFile := tprint("%1%2.hlsl", SHADER_FOLDER_PATH, hlslName);
-    outFile := tprint("%1%2.spv", COMPILED_SHADER_FOLDER_PATH, hlslName);
-    lastFile := tprint("%1%2.hlsl", LAST_COMPILED_HLSL_FOLDER_PATH, hlslName);
-    alreadyCompiled := shader_file_already_compiled(hlslName) && !FORCE_SHADER_REBUILD;
+    inFile := tprint("%1%2.glsl", SHADER_FOLDER_PATH, glslName);
+    outFile := tprint("%1%2.spv", COMPILED_SHADER_FOLDER_PATH, glslName);
+    lastFile := tprint("%1%2.glsl", LAST_COMPILED_GLSL_FOLDER_PATH, glslName);
+    alreadyCompiled := shader_file_already_compiled(glslName) && !FORCE_SHADER_REBUILD;
 
     if !alreadyCompiled {
 	if file_exists(outFile) then file_delete(outFile);
-	if ends_with(hlslName, "vertex") {
-	    run_command(DXC_PATH, "-spirv", "-T", "vs_6_4", "-E", "main", inFile, "-Fo", outFile);
-	} else if ends_with(hlslName, "fragment") {
-	    run_command(DXC_PATH, "-spirv", "-T", "ps_6_4", "-E", "main", inFile, "-Fo", outFile);
+	if ends_with(glslName, "vertex") {
+	    run_command(GLSLC_PATH, "-fshader-stage=vertex", inFile, tprint("-o%", outFile));
+	} else if ends_with(glslName, "fragment") {
+	    run_command(GLSLC_PATH, "-fshader-stage=fragment", inFile, tprint("-o%", outFile));
 	} else {
 	    assert(false, "Invalid shader name, does not include shader type");
 	}
@@ -77,7 +77,7 @@ compile_hlsl_to_spirv :: (hlslName : string) -> CompiledShader #must {
 	print_color("%\n", tprint("\tShader \"%\" failed to compile.", inFile), color=.HI_RED);
     }
 
-    return CompiledShader.{ hlslName, spvContents, foundFile };
+    return CompiledShader.{ glslName, spvContents, foundFile };
 }
 
 #if OS == .ANDROID {
@@ -87,8 +87,8 @@ compile_hlsl_to_spirv :: (hlslName : string) -> CompiledShader #must {
     }
 } else {
     COMPILED_SHADER_FOLDER_PATH    :: "shaders/compiled/";
-    LAST_COMPILED_HLSL_FOLDER_PATH :: "shaders/last_files/";
-    DXC_PATH                       :: "C:/work/spirv/dxc/bin/x64/dxc.exe";
+    LAST_COMPILED_GLSL_FOLDER_PATH :: "shaders/last_files/";
+    GLSLC_PATH                     :: "C:/work/spirv/glslc/bin/glslc.exe";
 }
 
 SHADER_FOLDER_PATH :: "shaders/";

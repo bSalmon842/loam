@@ -17,8 +17,8 @@ deltaTime : float64 = 0;
 
 // Compiled Shaders
 #if OS == .WINDOWS {
-    MESH_VERTEX_SHADER   :: #run compile_hlsl_to_spirv("tri_vertex");
-    MESH_FRAGMENT_SHADER :: #run compile_hlsl_to_spirv("tri_fragment");
+    MESH_VERTEX_SHADER   :: #run compile_glsl_to_spirv("mesh_vertex");
+    MESH_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("mesh_fragment");
 } else #if OS == .ANDROID {
     MESH_VERTEX_SHADER   : CompiledShader;
     MESH_FRAGMENT_SHADER : CompiledShader;
@@ -29,8 +29,8 @@ main :: () {
         Windows.SetProcessDPIAware();
         Windows.timeBeginPeriod(1);
     } else #if OS == .ANDROID {
-	MESH_VERTEX_SHADER   = load_spirv_for_android("tri_vertex");
-	MESH_FRAGMENT_SHADER = load_spirv_for_android("tri_fragment");
+	MESH_VERTEX_SHADER   = load_spirv_for_android("mesh_vertex");
+	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
     }
 
     make_log_file("loam", .YEAR | .MONTH | .DAY | .HOUR);
@@ -71,6 +71,7 @@ main :: () {
 
 #load "vk/descriptors.jai";
 #load "vk/init.jai";
+#load "vk/mesh.jai";
 #load "vk/pipelines.jai";
 #load "vk/render.jai";
 #load "vk/shaders.jai";
