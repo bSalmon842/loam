@@ -33,9 +33,9 @@ main :: () {
 	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
     }
 
-    make_log_file("loam", .YEAR | .MONTH | .DAY | .HOUR);
+    make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR);
     
-    window := create_window(windowWidth, windowHeight, "loam");
+    window := create_window(windowWidth, windowHeight, APP_NAME);
 
     vk := New(Vk);
     init_vk(vk, window);
@@ -66,6 +66,7 @@ main :: () {
     }
 }
 
+#load "assets.jai";
 #load "math.jai";
 #load "utility.jai";
 
@@ -100,6 +101,7 @@ Simp :: #import "Simp";
 
 // BS_Modules
 //cgltf :: #import "cgltf";
+#import "ktx";
 #import "Logger" (IS_DEBUG);
 #import "VMA";
 #import "Vulkan_1_3";

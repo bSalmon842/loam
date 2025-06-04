@@ -19,12 +19,17 @@ APP_NAME :: "loam";
 
 Build_Release :: false;
 
-Build_Windows       :: false;
+Build_Windows       :: true;
 Build_Linux         :: false;
 Build_Android_X64   :: false;
-Build_Android_ARM64 :: true;
+Build_Android_ARM64 :: false;
 
-#run {
+#run build_main();
+#if OS == .WINDOWS {
+    #run build_asset_packer();
+}
+
+build_main :: () {
     os_targets, cpu_targets := get_os_targets();
     if os_targets.count == 0 {
         assert(false, "No Compile Targets defined.");
@@ -96,6 +101,7 @@ Build_Android_ARM64 :: true;
             targetOptions.use_custom_link_command = true;
             targetOptions.output_path = androidBuildOutputDirectory;
         }
+	targetOptions.text_output_flags = .OUTPUT_TIMING_INFO;
         add_generic_build_options(*targetOptions);
         set_optimization(*targetOptions, ifx Build_Release then .VERY_OPTIMIZED else .VERY_DEBUG);
         set_build_options(targetOptions, workspace);
@@ -136,10 +142,52 @@ Build_Android_ARM64 :: true;
     }
 }
 
+build_asset_packer :: () {    
+    buildFolderPath := "../build/";
+    make_directory_if_it_does_not_exist(buildFolderPath);
+
+    osString := enum_names(Operating_System_Tag)[Operating_System_Tag.WINDOWS];
+    osString = to_lower_copy(osString);
+    buildFolderPath = join(buildFolderPath, osString, "/");
+    make_directory_if_it_does_not_exist(buildFolderPath);
+    
+    buildModeString := ifx Build_Release then "release" else "debug";
+    buildFolderPath = join(buildFolderPath, buildModeString);
+    make_directory_if_it_does_not_exist(buildFolderPath);
+
+    buildFolderPath = join(buildFolderPath, "/asset_packer/");
+    make_directory_if_it_does_not_exist(buildFolderPath);
+    
+    workspaceName := tprint("%_assetpacker_%", osString, buildModeString);
+    workspace := compiler_create_workspace(workspaceName);
+    if !workspace {
+        compiler_report(tprint("Failed to create workspace: %", workspaceName));
+        return;
+    }
+    
+    dt := to_calendar(current_time_consensus(), .LOCAL);
+    dtString := tprint("(%/%/% %:%:%)", dt.year, formatInt(dt.month_starting_at_0 + 1, minimum_digits=2), formatInt(dt.day_of_month_starting_at_0 + 1, minimum_digits=2), formatInt(dt.hour, minimum_digits=2), formatInt(dt.minute, minimum_digits=2), formatInt(dt.second, minimum_digits=2));
+    print("Compiling % @ %\n", workspaceName, dtString);
+    
+    targetOptions := get_build_options(workspace);
+    targetOptions.output_executable_name = tprint(ifx Build_Release then "%" else "debug_%", tprint("%_%", APP_NAME, "assetpacker"));
+    targetOptions.output_path = buildFolderPath;
+    targetOptions.os_target = .WINDOWS;
+    targetOptions.text_output_flags = 0;
+    
+    add_generic_build_options(*targetOptions);
+    set_optimization(*targetOptions, ifx Build_Release then .VERY_OPTIMIZED else .VERY_DEBUG);
+    set_build_options(targetOptions, workspace);
+    add_build_file(tprint("%/%", #filepath, "asset_packer/asset_packer.jai"), workspace);
+    
+    set_build_options_dc(.{do_output=false, append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup"]});
+}
+
 add_generic_build_options :: (options : *Build_Options) {
     options.text_output_flags = 2;
     options.dead_code_elimination = .ALL;
     options.use_visual_studio_message_format = false;
+    options.additional_linker_arguments = .[ "/NOIMPLIB", "/NOEXP" ];
     
     modulesPaths : [..] string;
     array_add(*modulesPaths, ..options.import_path);
