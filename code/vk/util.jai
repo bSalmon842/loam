@@ -56,6 +56,15 @@ Vk :: struct {
     meshPipeline       : VkPipeline;
     meshPipelineLayout : VkPipelineLayout;
 
+    // Sampler for each member of VkFilter (we don't care about CUBIC)
+    defaultSampler_Nearest : VkSampler;
+    defaultSampler_Linear  : VkSampler;
+
+    // Built in error texture
+    errorCheckerboard : AllocatedImageInfo;
+    
+    singleTextureDescriptorLayout : VkDescriptorSetLayout;
+    
     testRect : MeshBuffers;
 
     // Optional Stuff
@@ -69,6 +78,8 @@ FrameCommandInfo :: struct {
     swapSemaphore : VkSemaphore;
     renderSemaphore : VkSemaphore;
     renderFence : VkFence;
+
+    descriptors : DynamicDescriptorPoolAllocator;
 }
 
 AllocatedImageInfo :: struct {
@@ -346,6 +357,35 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
     viewCreateInfo := VkImageViewCreateInfo.{ .IMAGE_VIEW_CREATE_INFO, null, 0, image.image, ._2D, format, .{}, make_image_subresource_range(aspectMask, 1, 1) };
     check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
     
+    return image;
+}
+
+create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> AllocatedImageInfo {
+    dataSize := extent.width * extent.height * 4;
+    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
+    defer vmaDestroyBuffer(vk.allocator, uploadBuffer.buffer, uploadBuffer.allocation);
+    memcpy(uploadBuffer.allocationInfo.pMappedData, data, dataSize);
+
+    image := create_vk_image(vk, extent, format, usage, mipmapped);
+
+    CopyData :: struct {
+	buffer : AllocatedBufferInfo;
+	image : AllocatedImageInfo;
+	extent : VkExtent2D;
+    }
+
+    imm_copy_into_image :: (cmdBuffer : VkCommandBuffer, data : *void) {
+	copyData := cast(*CopyData) data;
+
+	transition_image(cmdBuffer, copyData.image.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
+	copyRegion := VkBufferImageCopy.{ 0, 0, 0, VkImageSubresourceLayers.{ .COLOR_BIT, 0, 0, 1 }, .{}, .{ copyData.extent.width, copyData.extent.height, 1 } };
+	vkCmdCopyBufferToImage(cmdBuffer, copyData.buffer.buffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, 1, *copyRegion);
+	transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
+    }
+    
+    imageCopyData := CopyData.{ uploadBuffer, image, extent };
+    immediate_submit(vk, imm_copy_into_image, *imageCopyData);
+
     return image;
 }
 

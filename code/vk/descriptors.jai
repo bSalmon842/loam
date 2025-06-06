@@ -45,7 +45,7 @@ create_descriptor_pool :: (device : VkDevice, maxSets : u32, poolRatios : [] Poo
     createInfo := VkDescriptorPoolCreateInfo.{ maxSets = maxSets, poolSizeCount = cast(u32) poolSizes.count, pPoolSizes = poolSizes.data };
 
     pool : VkDescriptorPool;
-    check_vk(vkCreateDescriptorPool(device, *poolCreateInfo, null, *pool), "Failed to create Descriptor Pool");
+    check_vk(vkCreateDescriptorPool(device, *createInfo, null, *pool), "Failed to create Descriptor Pool");
     return pool;
 }
 
@@ -150,6 +150,6 @@ clear_descriptor_writer :: (using writer : *DescriptorWriter) {
 }
 
 descriptor_writer_update_sets :: (writer : *DescriptorWriter, device : VkDevice, set : VkDescriptorSet) {
-    for * writes { it.dstSet = set; }
+    for * writer.writes { it.dstSet = set; }
     vkUpdateDescriptorSets(device, cast(u32) writer.writes.count, writer.writes.data, 0, null);
 }

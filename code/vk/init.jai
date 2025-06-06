@@ -25,6 +25,13 @@ init_vk :: (vk : *Vk, window : Window_Type) {
     cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
     fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
     semaphoreCreateInfo := VkSemaphoreCreateInfo.{};
+    frameRatios := PoolSizeRatio.[
+	.{ .STORAGE_IMAGE, 3 },
+	.{ .STORAGE_BUFFER, 3 },
+	.{ .UNIFORM_BUFFER, 3 },
+	.{ .COMBINED_IMAGE_SAMPLER, 4 },
+    ];
+    
     for * vk.frames {
 	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
 
@@ -34,28 +41,54 @@ init_vk :: (vk : *Vk, window : Window_Type) {
 	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.swapSemaphore), tprint("Failed to create Swap Semaphore for Frame %", it_index));
 	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.renderSemaphore), tprint("Failed to create Render Semaphore for Frame %", it_index));
 	check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *it.renderFence), tprint("Failed to create Render Fence for Frame %", it_index));
+
+	dynamic_descriptor_pool_allocator_init(*it.descriptors, vk.device, 1000, frameRatios);
     }
 
     // Immediate Submit
     check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.immCmdPool), "Failed to create Command Pool for Immediate Submit");
     immCmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, vk.immCmdPool, .PRIMARY, 1 };
     check_vk(vkAllocateCommandBuffers(vk.device, *immCmdBufferAllocInfo, *vk.immCmdBuffer), "Failed to allocate Command Buffer for Immediate Submit");
-
+    
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
 
+    // Descriptors
+    {
+	bindings : DescriptorSetBindings;
+	add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
+	vk.singleTextureDescriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
+    }
+    
     init_pipelines(vk);
 
     // Create a temp mesh
     rectVertices := Vertex.[
-	.{ position=.{  0.75, -0.75, 0 }, colour=.{ 1, 0, 0, 1 } },
-	.{ position=.{  0.75,  0.75, 0 }, colour=.{ 0, 1, 0, 1 } },
-	.{ position=.{ -0.75, -0.75, 0 }, colour=.{ 0, 0, 1, 1 } },
-	.{ position=.{ -0.75,  0.75, 0 }, colour=.{ 1, 1, 0, 1 } },
+	.{ position=.{  0.75, -0.75, 0 }, uv=.{ 1, 0 } },
+	.{ position=.{  0.75,  0.75, 0 }, uv=.{ 1, 1 } },
+	.{ position=.{ -0.75, -0.75, 0 }, uv=.{ 0, 0 } },
+	.{ position=.{ -0.75,  0.75, 0 }, uv=.{ 0, 1 } },
     ];
     rectIndices := u32.[0, 1, 2,
 		        2, 1, 3];
 
     vk.testRect = upload_mesh(vk, rectIndices, rectVertices);
+
+    // Write error checkerboard texture
+    pixels : [256] u32;
+    for * pixels {
+        it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
+    }
+    vk.errorCheckerboard = create_vk_image_from_data(vk, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_UNORM, .SAMPLED_BIT | .TRANSFER_DST_BIT);
+
+    samplerCreateInfo : VkSamplerCreateInfo;
+
+    samplerCreateInfo.minFilter = .NEAREST;
+    samplerCreateInfo.magFilter = .NEAREST;
+    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Nearest);
+
+    samplerCreateInfo.minFilter = .LINEAR;
+    samplerCreateInfo.magFilter = .LINEAR;
+    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 }
 
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
@@ -353,7 +386,7 @@ init_pipelines :: (vk : *Vk) {
     fragShader := load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
 
     bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(MeshPushConstants) };
-    layout := VkPipelineLayoutCreateInfo.{ pushConstantRangeCount = 1, pPushConstantRanges = *bufferRange };
+    layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.singleTextureDescriptorLayout, 1, *bufferRange };
     check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.meshPipelineLayout), "Failed to create pipeline layout for test triangle");
 
     builder : GraphicsPipelineInfo;

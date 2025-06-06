@@ -63,6 +63,10 @@ main :: () {
         lastTime = seconds_since_init();
         
         reset_temporary_storage();
+
+	#if IS_DEBUG {
+	    memory_visualizer_per_frame_update();
+	}
     }
 }
 
@@ -78,7 +82,7 @@ main :: () {
 #load "vk/shaders.jai";
 #load "vk/util.jai";
 
-#import "Basic";
+#import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG);
 #import "File";
 #import "File_Utilities";
 #import "Input";

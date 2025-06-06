@@ -15,6 +15,8 @@ draw_frame :: (vk : *Vk) {
     check_vk(vkWaitForFences(vk.device, 1, *currentFrame.renderFence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
     check_vk(vkResetFences(vk.device, 1, *currentFrame.renderFence), "vkWaitForFences failed");
 
+    dynamic_descriptor_pool_allocator_reset_pools(*currentFrame.descriptors, vk.device);
+
     swapchainImageIndex : u32;
     acquireResult := vkAcquireNextImageKHR(vk.device, vk.swapchain, seconds_to_nanoseconds(1), currentFrame.swapSemaphore, null, *swapchainImageIndex);
     if acquireResult == .ERROR_OUT_OF_DATE_KHR {
@@ -44,6 +46,7 @@ draw_frame :: (vk : *Vk) {
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
 
     // Draw Triangle Shader
+    
     {
 	colourAttachment := make_rendering_attachment_info(vk.drawImage.view, layout=.GENERAL);
 	renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
@@ -56,7 +59,15 @@ draw_frame :: (vk : *Vk) {
 
 	scissor := VkRect2D.{ .{}, drawExtent };
 	vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
+	
+	imageSet := dynamic_descriptor_pool_allocator_allocate(*currentFrame.descriptors, vk.device, vk.singleTextureDescriptorLayout);
+	writer : DescriptorWriter;
+	defer clear_descriptor_writer(*writer);
+	descriptor_write_image(*writer, 0, vk.errorCheckerboard.view, .SHADER_READ_ONLY_OPTIMAL, vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
+	descriptor_writer_update_sets(*writer, vk.device, imageSet);
 
+	vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, vk.meshPipelineLayout, 0, 1, *imageSet, 0, null );
+	
 	pushConstants := MeshPushConstants.{ Matrix4_Identity, vk.testRect.vertexBufferAddress };
 	vkCmdPushConstants(cmdBuffer, vk.meshPipelineLayout, .VERTEX_BIT, 0, size_of(MeshPushConstants), *pushConstants );
 
@@ -65,6 +76,7 @@ draw_frame :: (vk : *Vk) {
 	
 	vkCmdEndRendering(cmdBuffer);
     }
+    
     
     transition_image(cmdBuffer, vk.drawImage.image, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL);
     transition_image(cmdBuffer, currentSwapchainImage, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
