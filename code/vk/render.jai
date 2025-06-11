@@ -46,7 +46,6 @@ draw_frame :: (vk : *Vk) {
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
 
     // Draw Triangle Shader
-    
     {
 	colourAttachment := make_rendering_attachment_info(vk.drawImage.view, layout=.GENERAL);
 	renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
@@ -63,7 +62,7 @@ draw_frame :: (vk : *Vk) {
 	imageSet := dynamic_descriptor_pool_allocator_allocate(*currentFrame.descriptors, vk.device, vk.singleTextureDescriptorLayout);
 	writer : DescriptorWriter;
 	defer clear_descriptor_writer(*writer);
-	descriptor_write_image(*writer, 0, vk.errorCheckerboard.view, .SHADER_READ_ONLY_OPTIMAL, vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
+	descriptor_write_image(*writer, 0, vk.testTexture.view, .SHADER_READ_ONLY_OPTIMAL, vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
 	descriptor_writer_update_sets(*writer, vk.device, imageSet);
 
 	vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, vk.meshPipelineLayout, 0, 1, *imageSet, 0, null );

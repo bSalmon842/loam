@@ -5,18 +5,21 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
-init_vk :: (vk : *Vk, window : Window_Type) {
+init_vk :: (loam : *LoamState, window : Window_Type) {
+    vk := loam.vk;
     check_vk(create_vk_instance(vk, "Test App"), "create_vk_instance failed: ");
     check_vk(create_vk_surface(vk, window), "create_vk_surface failed: ");
     check_vk(get_vk_physical_device(vk), "get_vk_physical_device failed: ");
     check_vk(create_vk_device(vk), "create_vk_devices failed: ");
     check_vk(create_vk_swapchain(vk), "create_vk_swapchain failed: ");
-
+    
     vkGetDeviceQueue(vk.device, vk.queueFamilyIndices.graphics, 0, *vk.graphicsQueue);
     
     allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
     vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator);
 
+    select_texture_format(vk);
+    
     // Make Draw Image
     // TODO: Make Depth Image
     drawImageExtent := VkExtent2D.{ cast(u32) windowWidth, cast(u32) windowHeight };
@@ -79,6 +82,13 @@ init_vk :: (vk : *Vk, window : Window_Type) {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
     vk.errorCheckerboard = create_vk_image_from_data(vk, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_UNORM, .SAMPLED_BIT | .TRANSFER_DST_BIT);
+
+    textureAsset := request_asset(loam, .Image, "uv_checker");
+    if textureAsset {
+	vk.testTexture = create_vk_image_from_ktx(vk, cast(*ktxTexture2) textureAsset.data);
+    } else {
+	vk.testTexture = vk.errorCheckerboard;
+    }
 
     samplerCreateInfo : VkSamplerCreateInfo;
 
@@ -374,12 +384,6 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
     return .SUCCESS;
 }
 
-resize_swapchain :: (vk : *Vk) {
-    vkDeviceWaitIdle(vk.device);
-    check_vk(create_vk_swapchain(vk), "Failed to recreate swapchain when reizing window");
-    vk.resizeRequested = false;
-}
-
 init_pipelines :: (vk : *Vk) {
     // Mesh Pipeline
     vertShader := load_shader_module(vk.device, MESH_VERTEX_SHADER);
@@ -405,4 +409,26 @@ init_pipelines :: (vk : *Vk) {
 
     vkDestroyShaderModule(vk.device, vertShader, null);
     vkDestroyShaderModule(vk.device, fragShader, null);
+}
+
+select_texture_format :: (vk : *Vk) {
+    acceptableFormats := VkFormat.[
+	.BC7_UNORM_BLOCK, // PC
+	.BC3_UNORM_BLOCK, // PC
+	.ASTC_4x4_UNORM_BLOCK, // Android
+	.ETC2_R8G8B8A8_UNORM_BLOCK, // Android
+    ];
+
+    for acceptableFormats {
+	formatProperties : VkFormatProperties;
+	vkGetPhysicalDeviceFormatProperties(vk.physicalDevice, it, *formatProperties);
+
+	supportsTransfer := formatProperties.optimalTilingFeatures & VkFormatFeatureFlags.TRANSFER_DST_BIT  != 0;
+	supportsSampled  := formatProperties.optimalTilingFeatures & VkFormatFeatureFlags.SAMPLED_IMAGE_BIT != 0;
+
+	if supportsTransfer && supportsSampled {
+	    vk.textureFormat = it;
+	    return;
+	}
+    }
 }

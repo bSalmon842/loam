@@ -5,98 +5,6 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
-FRAMES_IN_FLIGHT :: 2;
-
-Vk :: struct {
-    // Requested options
-    instanceExtensions : [..] *u8;
-    deviceExtensions : [..] *u8;
-    
-    reqFeatures_1_0 : VkPhysicalDeviceFeatures;
-    reqFeatures_1_1 : VkPhysicalDeviceVulkan11Features;
-    reqFeatures_1_2 : VkPhysicalDeviceVulkan12Features;
-    reqFeatures_1_3 : VkPhysicalDeviceVulkan13Features;
-
-    // Base Vulkan structs
-    instance : VkInstance;
-    surface : VkSurfaceKHR;
-    physicalDevice : VkPhysicalDevice;
-    device : VkDevice;
-    swapchain : VkSwapchainKHR;
-
-    swapchainImages : [..] VkImage;
-    swapchainImageViews : [..] VkImageView;
-    swapchainExtent : VkExtent2D;
-    swapchainFormat : VkFormat;
-    resizeRequested : bool;
-
-    allocator : VmaAllocator;
-
-    currentFrame : u64;
-    frames : [FRAMES_IN_FLIGHT] FrameCommandInfo;
-    drawImage : AllocatedImageInfo;
-    
-    graphicsQueue : VkQueue;
-
-    QueueFamilyIndices :: struct {
-	// NOTE: We don't store a transfer queue index, as graphics and compute queue families include the same capabilities
-	graphics    : u32;
-	compute     : u32;
-	videoDecode : u32;
-    }
-    queueFamilyIndices : QueueFamilyIndices;
-
-    // Immediate Submit
-    immFence     : VkFence;
-    immCmdBuffer : VkCommandBuffer;
-    immCmdPool   : VkCommandPool;
-    ///////////////////
-
-    // Pipelines
-    meshPipeline       : VkPipeline;
-    meshPipelineLayout : VkPipelineLayout;
-
-    // Sampler for each member of VkFilter (we don't care about CUBIC)
-    defaultSampler_Nearest : VkSampler;
-    defaultSampler_Linear  : VkSampler;
-
-    // Built in error texture
-    errorCheckerboard : AllocatedImageInfo;
-    
-    singleTextureDescriptorLayout : VkDescriptorSetLayout;
-    
-    testRect : MeshBuffers;
-
-    // Optional Stuff
-    enableVkVideo : bool;
-}
-
-FrameCommandInfo :: struct {
-    cmdPool : VkCommandPool;
-    cmdBuffer : VkCommandBuffer;
-    
-    swapSemaphore : VkSemaphore;
-    renderSemaphore : VkSemaphore;
-    renderFence : VkFence;
-
-    descriptors : DynamicDescriptorPoolAllocator;
-}
-
-AllocatedImageInfo :: struct {
-    image  : VkImage;
-    view   : VkImageView;
-    extent : VkExtent2D;
-    format : VkFormat;
-
-    allocation : VmaAllocation;
-}
-
-AllocatedBufferInfo :: struct {
-    buffer         : VkBuffer;
-    allocation     : VmaAllocation;
-    allocationInfo : VmaAllocationInfo;
-}
-
 ImmediateSubmitFunc :: #type (VkCommandBuffer, *void);
 immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {
     check_vk(vkResetFences(vk.device, 1, *vk.immFence), "(Imm Submit) Failed to reset fence");
@@ -112,6 +20,12 @@ immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : 
     check_vk(vkQueueSubmit2(vk.graphicsQueue, 1, *submitInfo, vk.immFence), "(Imm Submit) Failed to submit Queue");
     
     check_vk(vkWaitForFences(vk.device, 1, *vk.immFence, VK_TRUE, seconds_to_nanoseconds(1)), "(Imm Submit) vkWaitForFences failed");
+}
+
+resize_swapchain :: (vk : *Vk) {
+    vkDeviceWaitIdle(vk.device);
+    check_vk(create_vk_swapchain(vk), "Failed to recreate swapchain when reizing window");
+    vk.resizeRequested = false;
 }
 
 find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevice) -> VkPhysicalDevice {
@@ -386,6 +300,60 @@ create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, forma
     imageCopyData := CopyData.{ uploadBuffer, image, extent };
     immediate_submit(vk, imm_copy_into_image, *imageCopyData);
 
+    return image;
+}
+
+create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> AllocatedImageInfo {
+    createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
+				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
+				      .OPTIMAL, .SAMPLED_BIT | .TRANSFER_DST_BIT, .EXCLUSIVE, 0, null, .UNDEFINED };
+    allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .GPU_ONLY, requiredFlags = .DEVICE_LOCAL_BIT };
+
+    image : AllocatedImageInfo;
+    check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
+
+    image.extent = .{ ktx.baseWidth, ktx.baseHeight };
+    image.format = cast(VkFormat) ktx.vkFormat;
+    
+    aspectMask := VkImageAspectFlags.COLOR_BIT;
+    viewCreateInfo := VkImageViewCreateInfo.{ .IMAGE_VIEW_CREATE_INFO, null, 0, image.image, ._2D, cast(VkFormat) ktx.vkFormat, .{}, make_image_subresource_range(aspectMask, 1, 1) };
+    check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
+
+    dataSize := ktxTexture_GetDataSize(ktx);
+    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
+    defer vmaDestroyBuffer(vk.allocator, uploadBuffer.buffer, uploadBuffer.allocation);
+    memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
+    
+    CopyData :: struct {
+	buffer : AllocatedBufferInfo;
+	image : AllocatedImageInfo;
+	ktx : *ktxTexture2;
+    }
+
+    imm_copy_into_image :: (cmdBuffer : VkCommandBuffer, data : *void) {
+	copyData := cast(*CopyData) data;
+
+	transition_image(cmdBuffer, copyData.image.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
+
+	for level : 0 .. copyData.ktx.numLevels-1 {
+	    for layer : 0 .. (copyData.ktx.numLayers * copyData.ktx.numFaces)-1 {
+		offset, imageSize : u64;
+		ktxTexture_GetImageOffset(copyData.ktx, level, layer / copyData.ktx.numFaces, layer % copyData.ktx.numFaces, *offset);
+		imageSize = ktxTexture_GetImageSize(copyData.ktx, level);
+
+		copyRegion := VkBufferImageCopy.{ offset, 0, 0, VkImageSubresourceLayers.{ .COLOR_BIT, level, layer, 1 }, .{},
+						  .{ cast(u32) max(1, copyData.ktx.baseWidth >> level), cast(u32) max(1, copyData.ktx.baseHeight >> level), 1 } };
+
+		vkCmdCopyBufferToImage(cmdBuffer, copyData.buffer.buffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, 1, *copyRegion);
+	    }
+	}
+	
+	transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
+    }
+    
+    imageCopyData := CopyData.{ uploadBuffer, image, ktx };
+    immediate_submit(vk, imm_copy_into_image, *imageCopyData);
+    
     return image;
 }
 

@@ -37,19 +37,18 @@ main :: () {
     
     window := create_window(windowWidth, windowHeight, APP_NAME);
 
-    vk := New(Vk);
-    init_vk(vk, window);
+    loam := init_loam(window);
     
     deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
     while running := true {
         update_window_events();
         
-        for get_window_resizes() {
+        for get_window_resizes() {	
             windowWidth, windowHeight = Simp.get_render_dimensions(it.window);
         }
 
-	if vk.resizeRequested then resize_swapchain(vk);
+	if loam.vk.resizeRequested then resize_swapchain(loam.vk);
 	
         for events_this_frame {
             if it.type == {
@@ -57,7 +56,7 @@ main :: () {
             }
         }
 
-	draw_frame(vk);
+	draw_frame(loam.vk);
 	
         deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
@@ -68,44 +67,9 @@ main :: () {
 	    memory_visualizer_per_frame_update();
 	}
     }
+
+    deinit(loam.assets.directory);
+    free(loam.assets.directory);
 }
 
-#load "assets.jai";
-#load "math.jai";
-#load "utility.jai";
-
-#load "vk/descriptors.jai";
-#load "vk/init.jai";
-#load "vk/mesh.jai";
-#load "vk/pipelines.jai";
-#load "vk/render.jai";
-#load "vk/shaders.jai";
-#load "vk/util.jai";
-
-#import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG);
-#import "File";
-#import "File_Utilities";
-#import "Input";
-#import "Math";
-#import "Print_Color"() (USE_ANSI_CODES_ON_WINDOWS=true);
-#import "Process";
-#import "Reflection";
-Simp :: #import "Simp";
-#import "String";
-#import "Window_Creation";
-
-#if OS == .WINDOWS {
-    Windows :: #import "Windows";
-} else #if OS == .LINUX {
-    X11 :: #import "X11";
-} else #if OS == .ANDROID {
-#import "Android"()(main);
-    #import "Android/File";
-}
-
-// BS_Modules
-//cgltf :: #import "cgltf";
-#import "ktx";
-#import "Logger" (IS_DEBUG);
-#import "VMA";
-#import "Vulkan_1_3";
+#load "engine.jai";

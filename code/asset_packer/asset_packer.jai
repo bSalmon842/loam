@@ -9,6 +9,8 @@ windowWidth  := 1280;
 windowHeight := 720;
 deltaTime : float64;
 
+// TODO: Make sure that assets with the same name are impossible
+
 // NOTE: We set this for get_packaged_assets_path as we will always be packaging into the dev data folders
 IS_DEBUG :: true;
 
@@ -20,7 +22,7 @@ State :: enum {
 
 AssetBeingAdded :: struct {
     filepath : string;
-    asset    : Asset;
+    asset    : AssetHeader;
 }
 
 PackerState :: struct {
@@ -276,6 +278,7 @@ process_asset_from_file :: (packer : *PackerState) {
 	    result := ktxTexture2_CreateFromMemory(ktxFile.data, cast(u64) ktxFile.count, .LOAD_IMAGE_DATA_BIT | .CHECK_GLTF_BASISU_BIT, *texture);
 	    if result != .SUCCESS {
 		print_color("\n\tFailed to create ktx texture from \"%\" with error: %\n\n", packer.pendingAdd.filepath, result, color = .HI_RED);
+		free(texture);
 		packer.state = .Make_Packets;
 		packer.pendingAdd = .{};
 		return;
@@ -291,10 +294,18 @@ process_asset_from_file :: (packer : *PackerState) {
 	    // Fill out asset info
 	    packer.pendingAdd.asset.Image.width = texture.baseWidth;
 	    packer.pendingAdd.asset.Image.height = texture.baseHeight;
+	    if texture.numLevels == 0 {
+		print_color("\n\tktx texture \"%\" had 0 mip levels\n\n", packer.pendingAdd.filepath, result, color = .HI_RED);
+		free(texture);
+		packer.state = .Make_Packets;
+		packer.pendingAdd = .{};
+		return;
+	    }
 	    packer.pendingAdd.asset.Image.mipLevels = texture.numLevels;
 
 	    if !ktxTexture2_NeedsTranscoding(texture) {
 		print_color("\n\tTexture \"%\" is not Basis encoded.\n\n", packer.pendingAdd.filepath, color = .HI_RED);
+		free(texture);
 		packer.state = .Make_Packets;
 		packer.pendingAdd = .{};
 		return;
@@ -357,7 +368,6 @@ construct_packs :: (packer : *PackerState) {
 
     directory : DirectoryFile;
     directory.fileCode = pack_file_code(ASSET_FILE_CODE);
-    directory.totalAssetCount = packer.assets.count;
     directory.encryptSeed = 0; // 0 is not a valid encryption seed so the files won't be encrypted
     directory.itemCount = packer.assets.count;
     directoryBuilder : String_Builder;
@@ -422,13 +432,13 @@ SupportedFormats :: string.[
 
 #scope_file
 
-#load "../assets.jai";
-#load "../utility.jai";
+#load "../engine.jai";
 
 #import "Basic";
 #import "File";
 #import "File_Utilities";
 GL :: #import "GL";
+#import "Hash_Table";
 #import "Input";
 #import "Print_Color";
 Simp :: #import "Simp";
@@ -438,6 +448,3 @@ Simp :: #import "Simp";
 Windows :: #import "Windows";
 
 ImGui :: #import "ImGui_1_9";
-#import "ktx" ()(INCLUDE_KTX_VULKAN = false);
-#import "Logger" (false);
-#import "Vulkan_1_3";
