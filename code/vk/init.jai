@@ -66,10 +66,10 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 
     // Create a temp mesh
     rectVertices := Vertex.[
-	.{ position=.{  0.75, -0.75, 0 }, uv=.{ 1, 0 } },
-	.{ position=.{  0.75,  0.75, 0 }, uv=.{ 1, 1 } },
-	.{ position=.{ -0.75, -0.75, 0 }, uv=.{ 0, 0 } },
-	.{ position=.{ -0.75,  0.75, 0 }, uv=.{ 0, 1 } },
+	.{ position=.{  2, -2, 1 }, uv=.{ 1, 1 } },
+	.{ position=.{  2,  2, 1 }, uv=.{ 1, 0 } },
+	.{ position=.{ -2, -2, 1 }, uv=.{ 0, 1 } },
+	.{ position=.{ -2,  2, 1 }, uv=.{ 0, 0 } },
     ];
     rectIndices := u32.[0, 1, 2,
 		        2, 1, 3];
@@ -399,7 +399,7 @@ init_pipelines :: (vk : *Vk) {
     set_pipeline_shaders(*builder, vertShader, fragShader);
     set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
     set_pipeline_polygon_mode(*builder, .FILL);
-    set_pipeline_cull_mode(*builder, .NONE, .CLOCKWISE);
+    set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
     set_pipeline_multisampling_mode(*builder, .None);
     set_pipeline_blending_mode(*builder, false);
     set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);

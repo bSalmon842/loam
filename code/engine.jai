@@ -8,9 +8,11 @@ Created: 08JUN2025
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
+
+    camera : *Camera;
 }
 
-init_loam :: (window : Window_Type) -> *LoamState {
+init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) -> *LoamState {
     loam := New(LoamState);
 
     loam.assets = New(AssetState);
@@ -20,11 +22,43 @@ init_loam :: (window : Window_Type) -> *LoamState {
 
     loam.vk = New(Vk);
     init_vk(loam, window);
+
+    loam.camera = New(Camera);
+    loam.camera.verticalFOV = 80.0;
+    loam.camera.dimensions = .{ initialWidth, initialHeight };
     
     return loam;
 }
 
+handle_input :: (loam : *LoamState) {
+    for input_button_states {
+	handle_keyboard_input(loam, it, it_index);
+    }
+    handle_mouse_input(loam);
+}
+
+handle_keyboard_input :: (loam : *LoamState, keyState : Key_Current_State, keyCode : s64) {
+    // TODO: Functors from game
+    if keyState & .DOWN {
+	if keyCode == {
+	    case #char "A"; loam.camera.position.x -= cast(float) (5.0 * deltaTime);
+	    case #char "D"; loam.camera.position.x += cast(float) (5.0 * deltaTime);
+
+	    case #char "Q"; loam.camera.position.y += cast(float) (5.0 * deltaTime);
+	    case #char "Z"; loam.camera.position.y -= cast(float) (5.0 * deltaTime);
+	    
+	    case #char "W"; loam.camera.position.z += cast(float) (5.0 * deltaTime);
+	    case #char "S"; loam.camera.position.z -= cast(float) (5.0 * deltaTime);
+	}
+    }
+}
+
+handle_mouse_input :: (loam : *LoamState) {
+    // TODO: Functors from game
+}
+
 #load "assets.jai";
+#load "camera.jai";
 #load "math.jai";
 #load "utility.jai";
 #load "vk/vk.jai";

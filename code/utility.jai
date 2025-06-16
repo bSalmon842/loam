@@ -34,6 +34,10 @@ to_size_string :: (value : u64) -> string {
     }
 }
 
+to_radians :: (degrees : float) -> float {
+    return degrees * (TAU / 360.0);
+}
+
 is_in_array :: (value : $T, array : [] T) -> bool #must {
     for array { if it == value then return true; }
     return false;

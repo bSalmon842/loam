@@ -33,11 +33,11 @@ main :: () {
 	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
     }
 
-    make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR);
+    make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR); 
     
     window := create_window(windowWidth, windowHeight, APP_NAME);
 
-    loam := init_loam(window);
+    loam := init_loam(window, xx windowWidth, xx windowHeight);
     
     deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
@@ -56,7 +56,9 @@ main :: () {
             }
         }
 
-	draw_frame(loam.vk);
+	handle_input(loam);
+
+	draw_frame(loam);
 	
         deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();

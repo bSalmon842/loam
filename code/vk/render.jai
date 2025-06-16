@@ -9,7 +9,8 @@ get_current_frame :: (vk : *Vk) -> *FrameCommandInfo #must {
     return *vk.frames[vk.currentFrame % FRAMES_IN_FLIGHT];
 }
 
-draw_frame :: (vk : *Vk) {
+draw_frame :: (loam : *LoamState) {
+    vk := loam.vk;
     currentFrame := get_current_frame(vk);
 
     check_vk(vkWaitForFences(vk.device, 1, *currentFrame.renderFence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
@@ -66,8 +67,8 @@ draw_frame :: (vk : *Vk) {
 	descriptor_writer_update_sets(*writer, vk.device, imageSet);
 
 	vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, vk.meshPipelineLayout, 0, 1, *imageSet, 0, null );
-	
-	pushConstants := MeshPushConstants.{ Matrix4_Identity, vk.testRect.vertexBufferAddress };
+
+	pushConstants := MeshPushConstants.{ get_view_matrix(loam.camera) * get_projection_matrix(loam.camera), vk.testRect.vertexBufferAddress };
 	vkCmdPushConstants(cmdBuffer, vk.meshPipelineLayout, .VERTEX_BIT, 0, size_of(MeshPushConstants), *pushConstants );
 
 	vkCmdBindIndexBuffer(cmdBuffer, vk.testRect.indexBuffer.buffer, 0, .UINT32);
