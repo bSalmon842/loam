@@ -21,11 +21,10 @@ Build_Release :: false;
 
 Build_Windows       :: true;
 Build_Linux         :: false;
-Build_Android_X64   :: false;
-Build_Android_ARM64 :: false;
+Build_Android_ARM64 :: true;
 
 #run build_main();
-#if OS == .WINDOWS {
+#if OS == .WINDOWS && Build_Windows {
     #run build_asset_packer();
 }
 
@@ -209,10 +208,6 @@ get_os_targets :: () -> [..] Operating_System_Tag, [..] CPU_Tag #must {
     if Build_Linux {
 	array_add(*arr_os, .LINUX);
 	array_add(*arr_cpu, .X64);
-    }
-    if Build_Android_X64 {
-        array_add(*arr_os, .ANDROID);
-        array_add(*arr_cpu, .X64);
     }
     if Build_Android_ARM64 {
         array_add(*arr_os, .ANDROID);

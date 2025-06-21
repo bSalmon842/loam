@@ -22,9 +22,9 @@ immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : 
     check_vk(vkWaitForFences(vk.device, 1, *vk.immFence, VK_TRUE, seconds_to_nanoseconds(1)), "(Imm Submit) vkWaitForFences failed");
 }
 
-resize_swapchain :: (vk : *Vk) {
+resize_swapchain :: (vk : *Vk, camera : *Camera) {
     vkDeviceWaitIdle(vk.device);
-    check_vk(create_vk_swapchain(vk), "Failed to recreate swapchain when reizing window");
+    check_vk(create_vk_swapchain(vk, camera), "Failed to recreate swapchain when reizing window");
     vk.resizeRequested = false;
 }
 
@@ -272,6 +272,11 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
     check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
     
     return image;
+}
+
+destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {
+    vkDestroyImageView(vk.device, image.view, null);
+    vmaDestroyImage(vk.allocator, image.image, image.allocation);
 }
 
 create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> AllocatedImageInfo {

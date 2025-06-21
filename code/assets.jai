@@ -174,7 +174,7 @@ asset_cache_evict :: (state : *AssetState, asset : *Asset = null) {
 get_packaged_assets_path :: () -> string {
     if IS_DEBUG {
 	if OS == .ANDROID {
-	    return "bin/";
+	    return "data/packaged/";
 	} else if OS == .LINUX {
 	    return "";
 	} else {
@@ -190,9 +190,14 @@ get_packaged_assets_path :: () -> string {
 }
 
 load_asset_directory :: () -> *AssetDirectory {
-    directoryContents, readSuccess := read_entire_file(tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
-    if !readSuccess then log(.FATAL, "Failed to read asset directory file!");
-
+    #if OS == .ANDROID {
+	directoryContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
+	if !readSuccess then log(.FATAL, "Failed to read asset directory file!");
+    } else {
+	directoryContents, readSuccess := read_entire_file(tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
+	if !readSuccess then log(.FATAL, "Failed to read asset directory file!");
+    }
+    
     // Check that the loaded file is big enough to have the file header and at least one item
     if directoryContents.count < size_of(DirectoryFile) + size_of(DirectoryItem) {
 	log(.FATAL, "Loaded asset directory file isn't large enough to be a valid directory");
@@ -218,7 +223,8 @@ load_asset_directory :: () -> *AssetDirectory {
     while index < directoryContents.count {
 	item := cast(*DirectoryItem) (directoryContents.data + index);
 	key := trim(cast(string) item.name, "\0");
-	table_add(directory, key, item.*);
+	table_add(directory, copy_string(key), item.*);
+	log(.INFO, tprint("Added item to asset table: \"%\"", key));
 	index += size_of(DirectoryItem);
     }
 
@@ -285,13 +291,22 @@ request_asset :: (loam : *LoamState, type : AssetType, assetName : string) -> *A
 get_raw_asset_data :: (directory : *AssetDirectory, assetName : string) -> fileContents : string, assetInfo : *AssetHeader {
     item, found := table_find(directory, assetName);
     if !found {
-	log(.FATAL, tprint("Failed to find asset \"%\" in directory", assetName));
+	log(.ERROR, tprint("Failed to find asset \"%\" in directory", assetName));
+	log(.ERROR, "Assets Found:");
+	for directory {
+	    log(.ERROR, tprint("\t%", it_index));
+	}
 	return "", null;
     }
     
     packName := tprint("%1%2_%.%", get_packaged_assets_path(), APP_NAME, item.file, ASSET_PACK_FILE_EXTENSION);
-    
-    packContents, readSuccess := read_entire_file(packName);
+
+    #if OS == .ANDROID {
+	packContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
+    } else {
+	packContents, readSuccess := read_entire_file(packName);
+    }
+
     if !readSuccess {
 	log(.FATAL, tprint("Failed to read asset pack file \"%\"!", packName));
 	free(packContents.data);   
@@ -333,16 +348,16 @@ get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkForm
     // Transcode texture to correct format
     transcodeFormat := ktx_transcode_fmt_e.TTF_RGBA32;
     if textureFormat == {
-	case; log(.WARN, tprint("Suboptimal VkFormat selected: %, transcoding will continue with uncompressed RGBA32"));
-
 	case .BC7_UNORM_BLOCK;           transcodeFormat = .TTF_BC7_RGBA;
 	case .BC3_UNORM_BLOCK;           transcodeFormat = .TTF_BC3_RGBA;
 	case .ASTC_4x4_UNORM_BLOCK;      transcodeFormat = .TTF_ASTC_4x4_RGBA;
 	case .ETC2_R8G8B8A8_UNORM_BLOCK; transcodeFormat = .TTF_ETC2_RGBA;
+
+	case; log(.WARN, tprint("Suboptimal VkFormat selected: %, transcoding will continue with uncompressed RGBA32", textureFormat));
     }
 
     error := ktxTexture2_TranscodeBasis(texture, transcodeFormat, 0);
-    if error != .SUCCESS then cleanup_from_error(tprint("Failed to transcode texture: %", error));
+    if error != .SUCCESS || texture.vkFormat == 0 then cleanup_from_error(tprint("Failed to transcode texture: %", error));
     
     return texture;
 }

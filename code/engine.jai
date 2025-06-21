@@ -20,12 +20,15 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.assets.cacheSentinel.prev = *loam.assets.cacheSentinel;
     loam.assets.cacheSentinel.next = *loam.assets.cacheSentinel;
 
-    loam.vk = New(Vk);
-    init_vk(loam, window);
-
     loam.camera = New(Camera);
     loam.camera.verticalFOV = 80.0;
     loam.camera.dimensions = .{ initialWidth, initialHeight };
+    loam.camera.position.z = -2;
+
+    loam.camera.isOrthographic = false;
+    
+    loam.vk = New(Vk);
+    init_vk(loam, window);
     
     return loam;
 }
@@ -63,7 +66,7 @@ handle_mouse_input :: (loam : *LoamState) {
 #load "utility.jai";
 #load "vk/vk.jai";
 
-#import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG);
+#import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG && OS == .WINDOWS);
 #import "File";
 #import "File_Utilities";
 #import "Hash_Table";

@@ -36,6 +36,8 @@ Vk :: struct {
 
     currentFrame : u64;
     frames : [FRAMES_IN_FLIGHT] FrameCommandInfo;
+
+    drawImageExtent : VkExtent2D;
     drawImage : AllocatedImageInfo;
     
     graphicsQueue : VkQueue;

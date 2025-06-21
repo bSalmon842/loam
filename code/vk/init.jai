@@ -11,19 +11,15 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     check_vk(create_vk_surface(vk, window), "create_vk_surface failed: ");
     check_vk(get_vk_physical_device(vk), "get_vk_physical_device failed: ");
     check_vk(create_vk_device(vk), "create_vk_devices failed: ");
-    check_vk(create_vk_swapchain(vk), "create_vk_swapchain failed: ");
+
+    allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
+    vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator);
+    
+    check_vk(create_vk_swapchain(vk, loam.camera), "create_vk_swapchain failed: ");
     
     vkGetDeviceQueue(vk.device, vk.queueFamilyIndices.graphics, 0, *vk.graphicsQueue);
     
-    allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
-    vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator);
-
     select_texture_format(vk);
-    
-    // Make Draw Image
-    // TODO: Make Depth Image
-    drawImageExtent := VkExtent2D.{ cast(u32) windowWidth, cast(u32) windowHeight };
-    vk.drawImage = create_vk_image(vk, drawImageExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT);
 
     cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
     fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
@@ -65,12 +61,23 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     init_pipelines(vk);
 
     // Create a temp mesh
-    rectVertices := Vertex.[
-	.{ position=.{  2, -2, 1 }, uv=.{ 1, 1 } },
-	.{ position=.{  2,  2, 1 }, uv=.{ 1, 0 } },
-	.{ position=.{ -2, -2, 1 }, uv=.{ 0, 1 } },
-	.{ position=.{ -2,  2, 1 }, uv=.{ 0, 0 } },
-    ];
+    rectVertices : [4] Vertex;
+
+    if loam.camera.isOrthographic {
+	rectVertices = Vertex.[
+		.{ position=.{ 800, 400, 1 }, uv=.{ 1, 1 } },
+		.{ position=.{ 800, 800, 1 }, uv=.{ 1, 0 } },
+		.{ position=.{ 400, 400, 1 }, uv=.{ 0, 1 } },
+		.{ position=.{ 400, 800, 1 }, uv=.{ 0, 0 } },
+	];
+    } else {
+	rectVertices = Vertex.[
+		.{ position=.{  2, -2, 1 }, uv=.{ 1, 1 } },
+		.{ position=.{  2,  2, 1 }, uv=.{ 1, 0 } },
+		.{ position=.{ -2, -2, 1 }, uv=.{ 0, 1 } },
+		.{ position=.{ -2,  2, 1 }, uv=.{ 0, 0 } },
+	];
+    }
     rectIndices := u32.[0, 1, 2,
 		        2, 1, 3];
 
@@ -155,6 +162,7 @@ create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
 
     layerCount : u32;
     vkEnumerateInstanceLayerProperties(*layerCount, null);
+    if layerCount == 0 then log_vk(.ERROR, "No Supported Layers found");
     supportedLayers := NewArray(layerCount, VkLayerProperties);
     defer free(supportedLayers.data);
     vkEnumerateInstanceLayerProperties(*layerCount, supportedLayers.data);
@@ -163,6 +171,7 @@ create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
 	validationLayerName := "VK_LAYER_KHRONOS_validation";
 	for supportedLayers {
     	    layer := from_array_cstr(it.layerName);
+    	    print("\t%\n", layer);
 	    if compare(layer, validationLayerName) == 0 {
 		createInfo.enabledLayerCount = 1;
 		createInfo.ppEnabledLayerNames = *validationLayerName.data;
@@ -170,7 +179,7 @@ create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
 	    }
 	}
 
-	if createInfo.enabledLayerCount == 0 then log(.WARN, "Failed to find validation layer.");
+	if createInfo.enabledLayerCount == 0 then log_vk(.WARN, "Failed to find validation layer.");
     }
 
     return vkCreateInstance(*createInfo, null, *vk.instance);
@@ -249,7 +258,7 @@ create_vk_device :: (vk : *Vk) -> VkResult {
     return vkCreateDevice(vk.physicalDevice, *deviceCreateInfo, null, *vk.device);
 }
 
-create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
+create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
     oldSwapchain := vk.swapchain;
 
     surfaceCaps : VkSurfaceCapabilitiesKHR;
@@ -261,6 +270,10 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
 	vk.swapchainExtent.width  = cast(u32) clamp(windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
 	vk.swapchainExtent.height = cast(u32) clamp(windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
     }
+
+    camera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
+    // NOTE: Draw Image is created/recreated with this value near the bottom of this function
+    vk.drawImageExtent = vk.swapchainExtent;
 
     // Get best present mode for our purposes
     presentModeCount : u32;
@@ -363,6 +376,8 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
 	    vkDestroyImageView(vk.device, it.*, null);
 	}
 	vkDestroySwapchainKHR(vk.device, oldSwapchain, null);
+
+	destroy_vk_image(vk, *vk.drawImage);
     }
 
     imageCount : u32;
@@ -380,6 +395,10 @@ create_vk_swapchain :: (vk : *Vk) -> VkResult #must {
 	imgViewCreateInfo.subresourceRange = .{ .COLOR_BIT, 0, 1, 0, 1 };
 	check_vk(vkCreateImageView(vk.device, *imgViewCreateInfo, null, *vk.swapchainImageViews[it]), tprint("Failed to create image view for swapchain image: %", it));
     }
+
+    // Make Draw Image
+    // TODO: Make Depth Image
+    vk.drawImage = create_vk_image(vk, vk.drawImageExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT);
     
     return .SUCCESS;
 }
@@ -412,12 +431,17 @@ init_pipelines :: (vk : *Vk) {
 }
 
 select_texture_format :: (vk : *Vk) {
-    acceptableFormats := VkFormat.[
-	.BC7_UNORM_BLOCK, // PC
-	.BC3_UNORM_BLOCK, // PC
-	.ASTC_4x4_UNORM_BLOCK, // Android
-	.ETC2_R8G8B8A8_UNORM_BLOCK, // Android
-    ];
+    #if OS == .ANDROID {
+	acceptableFormats := VkFormat.[
+		.ASTC_4x4_UNORM_BLOCK, // Android
+		.ETC2_R8G8B8A8_UNORM_BLOCK, // Android
+	];
+    } else {
+	acceptableFormats := VkFormat.[
+		.BC7_UNORM_BLOCK, // PC
+		.BC3_UNORM_BLOCK, // PC
+	];
+    }
 
     for acceptableFormats {
 	formatProperties : VkFormatProperties;

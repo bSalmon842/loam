@@ -43,12 +43,16 @@ main :: () {
     lastTime := seconds_since_init();
     while running := true {
         update_window_events();
-        
-        for get_window_resizes() {	
-            windowWidth, windowHeight = Simp.get_render_dimensions(it.window);
+
+	resizes := get_window_resizes();
+        for resizes {
+	    if it_index == resizes.count - 1 {
+		windowWidth = it.width;
+		windowHeight = it.height;
+	    }
         }
 
-	if loam.vk.resizeRequested then resize_swapchain(loam.vk);
+	if loam.vk.resizeRequested then resize_swapchain(loam.vk, loam.camera);
 	
         for events_this_frame {
             if it.type == {
@@ -65,7 +69,7 @@ main :: () {
         
         reset_temporary_storage();
 
-	#if IS_DEBUG {
+	#if IS_DEBUG && OS != .ANDROID {
 	    memory_visualizer_per_frame_update();
 	}
     }
