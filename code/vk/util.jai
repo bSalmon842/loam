@@ -48,17 +48,21 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
 	// Check queue families have the queues we need available
 	queueFamilyCount : u32;
 	vkGetPhysicalDeviceQueueFamilyProperties(device, *queueFamilyCount, null);
-	queueFamilies := NewArray(queueFamilyCount, VkQueueFamilyProperties);
-	defer free(queueFamilies.data);
+	queueFamilies, queueArrayData := NewArray(queueFamilyCount, VkQueueFamilyProperties);
+	defer free(queueArrayData);
 	vkGetPhysicalDeviceQueueFamilyProperties(device, *queueFamilyCount, queueFamilies.data);
 
 	usedIndices : [..] u32;
 	if !get_queue_family_index(.GRAPHICS_BIT, queueFamilies, *usedIndices, deviceProperties) {
+	    array_reset(*usedIndices);
 	    continue;
 	}
 	if !get_queue_family_index(.COMPUTE_BIT, queueFamilies, *usedIndices, deviceProperties) {
+	    array_reset(*usedIndices);
 	    continue;
 	}
+
+	array_reset(*usedIndices);
 	
 	// Check features are available
 	// TODO: We probably need a way to establish if a feature is really needed or not.
@@ -121,8 +125,8 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
 	// Check if extensions are available
 	extCount : u32;
 	vkEnumerateDeviceExtensionProperties(device, null, *extCount, null);
-	extensions := NewArray(extCount, VkExtensionProperties);
-	defer free(extensions.data);
+	extensions, extArrayData := NewArray(extCount, VkExtensionProperties);
+	defer free(extArrayData);
 	vkEnumerateDeviceExtensionProperties(device, null, *extCount, extensions.data);
 
 	allExtensionsSupported := true;
@@ -172,14 +176,16 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
 	}
     }
 
+    array_reset(*validGPUs);
+
     if bestGPU {
 	deviceProperties : VkPhysicalDeviceProperties;
 	vkGetPhysicalDeviceProperties(bestGPU, *deviceProperties);
 	
 	queueFamilyCount : u32;
 	vkGetPhysicalDeviceQueueFamilyProperties(bestGPU, *queueFamilyCount, null);
-	queueFamilies := NewArray(queueFamilyCount, VkQueueFamilyProperties);
-	defer free(queueFamilies.data);
+	queueFamilies, queueArrayData := NewArray(queueFamilyCount, VkQueueFamilyProperties);
+	defer free(queueArrayData);
 	vkGetPhysicalDeviceQueueFamilyProperties(bestGPU, *queueFamilyCount, queueFamilies.data);
 
 	// NOTE: We know these all already exist how we want them from the filter stage, so ignore the found result
@@ -187,6 +193,7 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
 	_, vk.queueFamilyIndices.graphics    = get_queue_family_index(.GRAPHICS_BIT, queueFamilies, *usedIndices, deviceProperties);
 	_, vk.queueFamilyIndices.compute     = get_queue_family_index(.COMPUTE_BIT, queueFamilies, *usedIndices, deviceProperties);
 	vk.enableVkVideo, vk.queueFamilyIndices.videoDecode = get_queue_family_index(.VIDEO_DECODE_BIT_KHR, queueFamilies, *usedIndices, deviceProperties);
+	array_reset(*usedIndices);
     }
     
     return bestGPU;
@@ -205,7 +212,7 @@ get_dedicated_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQ
 	    }
 	}
     }
-
+    
     if bestIndex == U32_MAX {
 	return false, 0;
     } else {
@@ -256,12 +263,12 @@ queue_create_info :: (familyIndex : u32) -> VkDeviceQueueCreateInfo #must {
     return queueInfo;
 }
 
-create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> AllocatedImageInfo #must {
+create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D, format, .{ extent.width, extent.height, 1 }, 1, 1, ._1_BIT, .OPTIMAL, usage, .EXCLUSIVE, 0, null, .UNDEFINED };
     if mipmapped then createInfo.mipLevels = cast(u32) floor(log2(cast(float) max(extent.width, extent.height))) + 1;
-    allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .GPU_ONLY, requiredFlags = .DEVICE_LOCAL_BIT };
+    allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .AUTO_PREFER_DEVICE, requiredFlags = .DEVICE_LOCAL_BIT };
 
-    image : AllocatedImageInfo;
+    image := New(AllocatedImageInfo);
     check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
 
     image.extent = extent;
@@ -274,22 +281,32 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
     return image;
 }
 
-destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {
+destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {    
     vkDestroyImageView(vk.device, image.view, null);
     vmaDestroyImage(vk.allocator, image.image, image.allocation);
+    free(image);
 }
 
-create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, mipmapped := false) -> AllocatedImageInfo {
-    dataSize := extent.width * extent.height * 4;
+cleanup_single_frame_images :: (vk : *Vk) {
+    for * vk.imagesToDestroyAtFrameReset {
+	destroy_vk_image(vk, it.*);
+	it = null;
+    }
+
+    array_reset(*vk.imagesToDestroyAtFrameReset);
+}
+
+create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
+    dataSize := extent.width * extent.height * bytesPerPixel;
     uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
-    defer vmaDestroyBuffer(vk.allocator, uploadBuffer.buffer, uploadBuffer.allocation);
-    memcpy(uploadBuffer.allocationInfo.pMappedData, data, dataSize);
+    defer destroy_vk_buffer(vk, uploadBuffer);
+    memcpy(uploadBuffer.allocationInfo.pMappedData, data, cast(s64) dataSize);
 
     image := create_vk_image(vk, extent, format, usage, mipmapped);
 
     CopyData :: struct {
-	buffer : AllocatedBufferInfo;
-	image : AllocatedImageInfo;
+	buffer : *AllocatedBufferInfo;
+	image : *AllocatedImageInfo;
 	extent : VkExtent2D;
     }
 
@@ -308,13 +325,13 @@ create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, forma
     return image;
 }
 
-create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> AllocatedImageInfo {
+create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
 				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
 				      .OPTIMAL, .SAMPLED_BIT | .TRANSFER_DST_BIT, .EXCLUSIVE, 0, null, .UNDEFINED };
     allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .GPU_ONLY, requiredFlags = .DEVICE_LOCAL_BIT };
 
-    image : AllocatedImageInfo;
+    image := New(AllocatedImageInfo);
     check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
 
     image.extent = .{ ktx.baseWidth, ktx.baseHeight };
@@ -326,7 +343,7 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> AllocatedImageInfo
 
     dataSize := ktxTexture_GetDataSize(ktx);
     uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
-    defer vmaDestroyBuffer(vk.allocator, uploadBuffer.buffer, uploadBuffer.allocation);
+    defer destroy_vk_buffer(vk, *uploadBuffer);
     memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
     
     CopyData :: struct {
@@ -362,13 +379,27 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> AllocatedImageInfo
     return image;
 }
 
-create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, memUsage : VmaMemoryUsage) -> AllocatedBufferInfo #must {
+create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, memUsage : VmaMemoryUsage) -> *AllocatedBufferInfo #must {
     createInfo := VkBufferCreateInfo.{ size = size, usage = usage };
     allocationCreateInfo := VmaAllocationCreateInfo.{ flags = .MAPPED_BIT, usage = memUsage };
 
-    buffer : AllocatedBufferInfo;
+    buffer := New(AllocatedBufferInfo);
     check_vk(vmaCreateBuffer(vk.allocator, *createInfo, *allocationCreateInfo, *buffer.buffer, *buffer.allocation, *buffer.allocationInfo), "Failed to create Buffer");
     return buffer;
+}
+
+destroy_vk_buffer :: (vk : *Vk, buffer : *AllocatedBufferInfo) {
+    vmaDestroyBuffer(vk.allocator, buffer.buffer, buffer.allocation);
+    free(buffer);
+}
+
+cleanup_single_frame_buffers :: (vk : *Vk) {
+    for * vk.buffersToDestroyAtFrameReset {
+	destroy_vk_buffer(vk, it.*);
+	it = null;
+    }
+
+    array_reset(*vk.buffersToDestroyAtFrameReset);
 }
 
 make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u32 = 0xffffffff, layerCount : u32 = 0xffffffff) -> VkImageSubresourceRange #must {
@@ -408,7 +439,8 @@ vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, 
     if messageSeverity & .WARNING_BIT_EXT then logType = .WARN;
     if messageSeverity & .ERROR_BIT_EXT then logType = .ERROR;
 
-    push_context {
+    ctx : #Context;
+    push_context ctx {
         print("VALIDATION: %\n", to_string(pCallbackData.pMessage));
         log_vk(logType, tprint("VALIDATION: %", to_string(pCallbackData.pMessage)));
     }

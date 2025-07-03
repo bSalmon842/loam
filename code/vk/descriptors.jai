@@ -1,6 +1,6 @@
 /*
 Project: Loam
-File: descriptors.jai
+File: vk/descriptors.jai
 Author: Brock Salmon
 Created: 18MAY2025
 */

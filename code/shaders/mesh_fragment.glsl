@@ -17,5 +17,5 @@ layout (location = 0) out vec4 fragColour;
 
 void main() {   
   fragColour = vec4(inColour * texture(colourTexture, inUV).xyz, 1);
-  //  fragColour = vec4(inColour, 1);
 }
+

@@ -1,6 +1,6 @@
 /*
 Project: Loam
-File: vk.jai
+File: vk/vk.jai
 Author: Brock Salmon
 Created: 11JUN2025
 */
@@ -37,8 +37,7 @@ Vk :: struct {
     currentFrame : u64;
     frames : [FRAMES_IN_FLIGHT] FrameCommandInfo;
 
-    drawImageExtent : VkExtent2D;
-    drawImage : AllocatedImageInfo;
+    drawImage : *AllocatedImageInfo;
     
     graphicsQueue : VkQueue;
 
@@ -60,20 +59,33 @@ Vk :: struct {
     meshPipeline       : VkPipeline;
     meshPipelineLayout : VkPipelineLayout;
 
+    uiPipeline : Pipeline_UI;
+
     // Sampler for each member of VkFilter (we don't care about CUBIC)
     defaultSampler_Nearest : VkSampler;
     defaultSampler_Linear  : VkSampler;
 
+    defaultPlaneIndexBuffer : *AllocatedBufferInfo;
+    
     // Built in error texture
-    errorCheckerboard : AllocatedImageInfo;
-    testTexture : AllocatedImageInfo;
+    errorCheckerboard : *AllocatedImageInfo;
+    testTexture : *AllocatedImageInfo;
+
+    descriptorAllocator : DynamicDescriptorPoolAllocator;
     
     singleTextureDescriptorLayout : VkDescriptorSetLayout;
+
+    imagesToDestroyAtFrameReset : [..] *AllocatedImageInfo;
+    buffersToDestroyAtFrameReset : [..] *AllocatedBufferInfo;
     
     testRect : MeshBuffers;
 
     // Optional Stuff
     enableVkVideo : bool;
+
+    // Settings
+    vsync := false;
+    /////////////
 }
 
 FrameCommandInfo :: struct {
@@ -83,8 +95,6 @@ FrameCommandInfo :: struct {
     swapSemaphore : VkSemaphore;
     renderSemaphore : VkSemaphore;
     renderFence : VkFence;
-
-    descriptors : DynamicDescriptorPoolAllocator;
 }
 
 AllocatedImageInfo :: struct {
@@ -109,4 +119,6 @@ AllocatedBufferInfo :: struct {
 #load "pipelines.jai";
 #load "render.jai";
 #load "shaders.jai";
+#load "text.jai";
+#load "ui.jai";
 #load "util.jai";

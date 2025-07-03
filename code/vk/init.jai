@@ -13,7 +13,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     check_vk(create_vk_device(vk), "create_vk_devices failed: ");
 
     allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
-    vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator);
+    check_vk(vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator), "Failed to create VMA Allocator: ");
     
     check_vk(create_vk_swapchain(vk, loam.camera), "create_vk_swapchain failed: ");
     
@@ -30,6 +30,8 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	.{ .UNIFORM_BUFFER, 3 },
 	.{ .COMBINED_IMAGE_SAMPLER, 4 },
     ];
+
+    dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
     
     for * vk.frames {
 	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
@@ -40,8 +42,6 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.swapSemaphore), tprint("Failed to create Swap Semaphore for Frame %", it_index));
 	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.renderSemaphore), tprint("Failed to create Render Semaphore for Frame %", it_index));
 	check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *it.renderFence), tprint("Failed to create Render Fence for Frame %", it_index));
-
-	dynamic_descriptor_pool_allocator_init(*it.descriptors, vk.device, 1000, frameRatios);
     }
 
     // Immediate Submit
@@ -50,38 +50,23 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     check_vk(vkAllocateCommandBuffers(vk.device, *immCmdBufferAllocInfo, *vk.immCmdBuffer), "Failed to allocate Command Buffer for Immediate Submit");
     
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
-
+    
     // Descriptors
     {
 	bindings : DescriptorSetBindings;
 	add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
 	vk.singleTextureDescriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
     }
+
+    {
+	bindings : DescriptorSetBindings;
+	add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
+	vk.uiPipeline.uiDescriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
+    }
     
     init_pipelines(vk);
 
-    // Create a temp mesh
-    rectVertices : [4] Vertex;
-
-    if loam.camera.isOrthographic {
-	rectVertices = Vertex.[
-		.{ position=.{ 800, 400, 1 }, uv=.{ 1, 1 } },
-		.{ position=.{ 800, 800, 1 }, uv=.{ 1, 0 } },
-		.{ position=.{ 400, 400, 1 }, uv=.{ 0, 1 } },
-		.{ position=.{ 400, 800, 1 }, uv=.{ 0, 0 } },
-	];
-    } else {
-	rectVertices = Vertex.[
-		.{ position=.{  2, -2, 1 }, uv=.{ 1, 1 } },
-		.{ position=.{  2,  2, 1 }, uv=.{ 1, 0 } },
-		.{ position=.{ -2, -2, 1 }, uv=.{ 0, 1 } },
-		.{ position=.{ -2,  2, 1 }, uv=.{ 0, 0 } },
-	];
-    }
-    rectIndices := u32.[0, 1, 2,
-		        2, 1, 3];
-
-    vk.testRect = upload_mesh(vk, rectIndices, rectVertices);
+    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY);
 
     // Write error checkerboard texture
     pixels : [256] u32;
@@ -90,12 +75,14 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     }
     vk.errorCheckerboard = create_vk_image_from_data(vk, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_UNORM, .SAMPLED_BIT | .TRANSFER_DST_BIT);
 
+    /*
     textureAsset := request_asset(loam, .Image, "uv_checker");
     if textureAsset {
 	vk.testTexture = create_vk_image_from_ktx(vk, cast(*ktxTexture2) textureAsset.data);
     } else {
 	vk.testTexture = vk.errorCheckerboard;
     }
+    */
 
     samplerCreateInfo : VkSamplerCreateInfo;
 
@@ -182,7 +169,11 @@ create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
 	if createInfo.enabledLayerCount == 0 then log_vk(.WARN, "Failed to find validation layer.");
     }
 
-    return vkCreateInstance(*createInfo, null, *vk.instance);
+    result := vkCreateInstance(*createInfo, null, *vk.instance);
+    
+    free(appInfo.pApplicationName);
+    
+    return result;
 }
 
 create_vk_surface :: (vk : *Vk, window : Window_Type) -> VkResult {
@@ -254,8 +245,12 @@ create_vk_device :: (vk : *Vk) -> VkResult {
 
     deviceCreateInfo.enabledExtensionCount = cast(u32) vk.deviceExtensions.count;
     deviceCreateInfo.ppEnabledExtensionNames = vk.deviceExtensions.data;
+
+    result := vkCreateDevice(vk.physicalDevice, *deviceCreateInfo, null, *vk.device);
+
+    array_reset(*queueCreateInfos);
     
-    return vkCreateDevice(vk.physicalDevice, *deviceCreateInfo, null, *vk.device);
+    return result;
 }
 
 create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
@@ -272,8 +267,6 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
     }
 
     camera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
-    // NOTE: Draw Image is created/recreated with this value near the bottom of this function
-    vk.drawImageExtent = vk.swapchainExtent;
 
     // Get best present mode for our purposes
     presentModeCount : u32;
@@ -289,8 +282,7 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
     selectedPresentMode := VkPresentModeKHR.FIFO_KHR;
 
     // TODO: Get this from a setting struct of some kind, we should probably also force vsync on android (I don't think there's any reason not to)
-    vsync :: false;
-    if !vsync {
+    if !vk.vsync {
 	for presentModes {
 	    if it == .MAILBOX_KHR {
 		selectedPresentMode = it;
@@ -377,7 +369,7 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
 	}
 	vkDestroySwapchainKHR(vk.device, oldSwapchain, null);
 
-	destroy_vk_image(vk, *vk.drawImage);
+	destroy_vk_image(vk, vk.drawImage);
     }
 
     imageCount : u32;
@@ -398,36 +390,78 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
 
     // Make Draw Image
     // TODO: Make Depth Image
-    vk.drawImage = create_vk_image(vk, vk.drawImageExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT);
+    vk.drawImage = create_vk_image(vk, vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT);
     
     return .SUCCESS;
 }
 
 init_pipelines :: (vk : *Vk) {
     // Mesh Pipeline
-    vertShader := load_shader_module(vk.device, MESH_VERTEX_SHADER);
-    fragShader := load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+    {
+	vertShader := load_shader_module(vk.device, MESH_VERTEX_SHADER);
+	fragShader := load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
 
-    bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(MeshPushConstants) };
-    layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.singleTextureDescriptorLayout, 1, *bufferRange };
-    check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.meshPipelineLayout), "Failed to create pipeline layout for test triangle");
+	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(MeshPushConstants) };
+	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.singleTextureDescriptorLayout, 1, *bufferRange };
+	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.meshPipelineLayout), "Failed to create pipeline layout for test triangle");
 
-    builder : GraphicsPipelineInfo;
-    builder.layout = vk.meshPipelineLayout;
+	builder : GraphicsPipelineInfo;
+	builder.layout = vk.meshPipelineLayout;
 
-    set_pipeline_shaders(*builder, vertShader, fragShader);
-    set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
-    set_pipeline_polygon_mode(*builder, .FILL);
-    set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
-    set_pipeline_multisampling_mode(*builder, .None);
-    set_pipeline_blending_mode(*builder, false);
-    set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-    set_pipeline_depth_format(*builder, .UNDEFINED);
+	set_pipeline_shaders(*builder, vertShader, fragShader);
+	set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+	set_pipeline_polygon_mode(*builder, .FILL);
+	set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+	set_pipeline_multisampling_mode(*builder, .None);
+	set_pipeline_blending_mode(*builder, false);
+	set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+	set_pipeline_depth_format(*builder, .UNDEFINED);
 
-    vk.meshPipeline = build_graphics_pipeline(vk, *builder);
+	vk.meshPipeline = build_graphics_pipeline(vk, *builder);
 
-    vkDestroyShaderModule(vk.device, vertShader, null);
-    vkDestroyShaderModule(vk.device, fragShader, null);
+	vkDestroyShaderModule(vk.device, vertShader, null);
+	vkDestroyShaderModule(vk.device, fragShader, null);
+    }
+
+    // UI Pipelines
+    {
+	vertShader     := load_shader_module(vk.device, UI_VERTEX_SHADER);
+	fragShader     := load_shader_module(vk.device, UI_FRAGMENT_SHADER);
+	textFragShader := load_shader_module(vk.device, UI_TEXT_FRAGMENT_SHADER);
+
+	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(UIPushConstants) };
+	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.uiPipeline.uiDescriptorLayout, 1, *bufferRange };
+	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.uiPipeline.layout), "Failed to create pipeline layout for UI");
+
+	builder : GraphicsPipelineInfo;
+	builder.layout = vk.uiPipeline.layout;
+
+	set_pipeline_shaders(*builder, vertShader, fragShader);
+	set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+	set_pipeline_polygon_mode(*builder, .FILL);
+	set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+	set_pipeline_multisampling_mode(*builder, .None);
+	set_pipeline_blending_mode(*builder, false);
+	set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+	set_pipeline_depth_format(*builder, .UNDEFINED);
+	
+	vk.uiPipeline.pipeline = build_graphics_pipeline(vk, *builder);
+
+	set_pipeline_shaders(*builder, vertShader, textFragShader);
+	set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+	set_pipeline_polygon_mode(*builder, .FILL);
+	set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+	set_pipeline_multisampling_mode(*builder, .None);
+	set_pipeline_blending_mode(*builder, false);
+	set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+	set_pipeline_depth_format(*builder, .UNDEFINED);
+
+	vk.uiPipeline.textPipeline = build_graphics_pipeline(vk, *builder);
+	
+	vkDestroyShaderModule(vk.device, vertShader, null);
+	vkDestroyShaderModule(vk.device, fragShader, null);
+	vkDestroyShaderModule(vk.device, textFragShader, null);
+    }
 }
 
 select_texture_format :: (vk : *Vk) {

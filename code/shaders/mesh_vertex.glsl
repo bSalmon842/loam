@@ -14,13 +14,6 @@ Created: 21MAY2025
 layout (location = 0) out vec3 outColour;
 layout (location = 1) out vec2 outUV;
 
-struct VertexInfo {
-    vec3 position;
-    vec3 normal;
-    vec2 uv;
-    vec4 colour;
-};
-
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
     VertexInfo vertices[];
 };

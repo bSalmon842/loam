@@ -9,12 +9,14 @@ MAX_ASSET_FILE_SIZE :: #run MB(256);
 ASSET_FILE_CODE :: u8.[#char "L", #char "G", #char "A", #char "F"];
 ASSET_DIR_FILE_EXTENSION :: "ld";
 ASSET_PACK_FILE_EXTENSION :: "lp";
+ASSET_CORE_FILE_EXTENSION :: "lc";
 
 AssetType :: enum u8 {
     Invalid;
     
     Mesh;
     Image;
+    Font;
     Lang;
     Audio;
     Video;
@@ -74,6 +76,12 @@ AssetHeader :: struct {
 	} #no_padding
 	Image : _Image #align 1;
 
+	_Font :: struct {
+	    supportsUnicode : bool;
+	    
+	} #no_padding
+	Font : _Font #align 1;
+	
 	_Lang :: struct {
 
 	} #no_padding
@@ -102,6 +110,7 @@ Asset :: struct {
     data : *void;
 }
 
+// NOTE: This also updates the asset to the 'top' of the asset cache
 find_asset_in_cache :: (state : *AssetState, asset : *Asset) -> *Asset {
     currentAsset := state.cacheSentinel.next;
     while currentAsset != *state.cacheSentinel {
@@ -157,6 +166,7 @@ asset_cache_add :: (state : *AssetState, asset : *Asset) {
 }
 
 asset_cache_evict :: (state : *AssetState, asset : *Asset = null) {
+    // TODO: Either destroy the asset here or make a destroy_asset function
     if !asset {
 	last := state.cacheSentinel.prev;
 	if last == *state.cacheSentinel then return;
@@ -167,7 +177,7 @@ asset_cache_evict :: (state : *AssetState, asset : *Asset = null) {
 	free(last);
 	state.cacheSize -= 1;
     } else {
-	
+	// TODO: Find asset to evict
     }
 }
 
@@ -187,6 +197,16 @@ get_packaged_assets_path :: () -> string {
 	    return "./bin/";
 	}
     }
+}
+
+get_raw_assets_path :: () -> string {    
+    if IS_DEBUG {
+	if OS == .WINDOWS {
+	    return "C:/work/loam/data/";
+	}
+    }
+
+    return "";
 }
 
 load_asset_directory :: () -> *AssetDirectory {
@@ -233,7 +253,7 @@ load_asset_directory :: () -> *AssetDirectory {
     return directory;
 }
 
-request_asset :: (loam : *LoamState, type : AssetType, assetName : string) -> *Asset {
+request_asset :: (loam : *LoamState, type : AssetType, assetName : string, core : bool = false) -> *Asset {
     if type == .Invalid {
 	log(.ERROR, "Requested asset type cannot be Invalid");
 	return null;
@@ -246,7 +266,13 @@ request_asset :: (loam : *LoamState, type : AssetType, assetName : string) -> *A
     }
 
     // Otherwise, load the asset and add it to the cache
-    assetFile, assetHeader := get_raw_asset_data(loam.assets.directory, assetName);
+    assetFile : string;
+    assetHeader : *AssetHeader;
+    if core {
+	assetFile, assetHeader = get_raw_core_asset_data(assetName);
+    } else {
+	assetFile, assetHeader = get_raw_asset_data(loam.assets.directory, assetName);
+    }
     if !assetHeader {
 	return null;
     }
@@ -276,6 +302,23 @@ request_asset :: (loam : *LoamState, type : AssetType, assetName : string) -> *A
 	    
 	    return asset;
 	}
+
+	case .Font; {
+	    fileData := (cast(*u8) assetHeader) + size_of(AssetHeader);
+	    asset := New(Asset);
+	    asset.header = assetHeader.*;
+	    asset.data = get_font_from_file_data(assetHeader, fileData);
+	    
+	    free(assetFile.data);
+	    if !asset.data {
+		free(asset);
+		return null;
+	    }
+	    
+	    asset_cache_add(loam.assets, asset);
+	    
+	    return asset;
+	}
 	
 	case .Lang;  assert(false, "Not Implemented");
 	case .Audio; assert(false, "Not Implemented");
@@ -283,7 +326,7 @@ request_asset :: (loam : *LoamState, type : AssetType, assetName : string) -> *A
 	
 	case .Invalid; assert(false, "Invalid should be handled earlier in this function, how did you get here?");
     }
-
+    
     free(assetFile.data);
     return null;
 }
@@ -325,14 +368,41 @@ get_raw_asset_data :: (directory : *AssetDirectory, assetName : string) -> fileC
     
     if item.offset + size_of(AssetHeader) + header.size > cast(u64) packContents.count {
 	log(.ERROR, "Attempted to access invalid memory for asset data");
-	free(packContents.data);   
+	free(packContents.data);
 	return "", null;
     }
     
     return packContents, header;
 }
 
-get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkFormat, fileData : *void ) -> *ktxTexture2 {
+get_raw_core_asset_data :: (assetName : string) -> fileContents : string, assetInfo : *AssetHeader {
+    packName := tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION);
+
+    #if OS == .ANDROID {
+	packContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
+    } else {
+	packContents, readSuccess := read_entire_file(packName);
+    }
+
+    if !readSuccess {
+	log(.FATAL, "Failed to read core asset pack file!");
+	free(packContents.data);
+	return "", null;
+    }
+
+    fileIndex := 0;
+    header : *AssetHeader = null;
+    while fileIndex < packContents.count {
+	header = cast(*AssetHeader) (packContents.data + fileIndex);
+	if to_string(header.name.data) == assetName then return packContents, header;
+
+	fileIndex += cast(s64) (size_of(AssetHeader) + header.size);
+    }
+    
+    return packContents, null;;
+}
+
+get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkFormat, fileData : *void) -> *ktxTexture2 {
     cleanup_from_error :: (logMsg : string) #expand {
 	log(.ERROR, logMsg);
 	free(`texture);
@@ -360,4 +430,27 @@ get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkForm
     if error != .SUCCESS || texture.vkFormat == 0 then cleanup_from_error(tprint("Failed to transcode texture: %", error));
     
     return texture;
+}
+
+get_font_from_file_data :: (header : *AssetHeader, fileData : *void) -> *FontData {
+    fontData := New(FontData);
+    fontData.data = NewArray(xx header.size, u8);
+    memcpy(fontData.data.data, fileData, xx header.size);
+    
+    error := FT_Init_FreeType(*fontData.lib);
+    if error {
+	log(.ERROR, tprint("Failed to initialise FreeType for font \"%\": %", cast(string) header.name, FT_Error_String(error)));
+	free(fontData);
+	return null;
+    }
+
+    error = FT_New_Memory_Face(fontData.lib, fontData.data.data, cast(s32) fontData.data.count, 0, *fontData.face);
+    if error {
+	log(.ERROR, tprint("Failed to initialise Face for font \"%\": %", cast(string) header.name, FT_Error_String(error)));
+	FT_Done_FreeType(fontData.lib);
+	free(fontData);
+	return null;
+    }
+
+    return fontData;
 }

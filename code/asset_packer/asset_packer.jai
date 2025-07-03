@@ -185,6 +185,10 @@ main :: () {
 		if ImGui.Button("Save Asset Packs", ImGui.ImVec2.{ 120, 20 }) {
 		    construct_packs(packer);
 		}
+		ImGui.SameLine();
+		if ImGui.Button("Build Core Pack", ImGui.ImVec2.{ 120, 20}) {
+		    construct_core_pack();
+		}
 		ImGui.End();
 
 		ImGui.SetNextWindowPos(.{ windowWidth * 0.5 + 5.0, windowHeight - 40.0 });
@@ -312,6 +316,10 @@ process_asset_from_file :: (packer : *PackerState) {
 	    }
 	}
 
+	case .Font; {
+	    
+	}
+
 	case .Lang; {
 	    
 	}
@@ -344,6 +352,10 @@ display_for_asset_type :: (loadedAsset : *AssetBeingAdded) {
 	    ImGui.Text("Image Width:      %", loadedAsset.asset.Image.width);
 	    ImGui.Text("Image Height:     %", loadedAsset.asset.Image.height);
 	    ImGui.Text("Image Mip Levels: %", loadedAsset.asset.Image.mipLevels);
+	}
+
+	case .Font; {
+	    
 	}
 
 	case .Lang; {
@@ -420,14 +432,38 @@ construct_packs :: (packer : *PackerState) {
     print("\tWrote %\n", tprint("%.%", APP_NAME, ASSET_DIR_FILE_EXTENSION));
 }
 
+construct_core_pack :: () {
+    packBuilder : String_Builder;
+    init_string_builder(*packBuilder);
+
+    {
+	header : AssetHeader;
+	memcpy(header.name.data, "internal".data, 8);
+	header.type = .Font;
+	header.version = 1;
+
+	assetFile, readSuccess := read_entire_file(tprint("%fonts/internal.ttf", get_raw_assets_path()));
+	assert(readSuccess, "Failed to load internal font file");
+
+	header.size = cast(u64) assetFile.count;
+	
+	simple_memcpy(*packBuilder, header);
+	append(*packBuilder, assetFile);
+    }
+
+    writeSuccess := write_entire_file(tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION), *packBuilder);
+    assert(writeSuccess, "Failed to write core assets file");
+}
+
 // NOTE: This must match AssetType
 SupportedFormats :: string.[
     "",
-    "glb",
-    "ktx2",
-    "lang",
-    "wav",
-    "mp4",
+    "glb",  // Mesh
+    "ktx2", // Image
+    "ttf",  // Font
+    "lang", // Lang
+    "wav",  // Audio
+    "mp4",  // Video
 ];
 
 #scope_file

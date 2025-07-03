@@ -25,7 +25,7 @@ Build_Android_ARM64 :: true;
 
 #run build_main();
 #if OS == .WINDOWS && Build_Windows {
-    #run build_asset_packer();
+    //#run build_asset_packer();
 }
 
 build_main :: () {
@@ -132,6 +132,7 @@ build_main :: () {
             resourcesOutputDirectory := tprint("%/assets", androidDirectory);
             make_directory_if_it_does_not_exist(resourcesOutputDirectory, recursive = true);
             copy_directory("../data", tprint("%/data", resourcesOutputDirectory));
+	    copy_directory("../code/shaders/compiled", tprint("%/shaders", resourcesOutputDirectory));
     
             success := copy_android_libcpp(target_cpu, targetOptions.output_path);
             if !success {

@@ -1,6 +1,6 @@
 /*
 Project: Loam
-File: pipelines.jai
+File: vk/pipelines.jai
 Author: Brock Salmon
 Created: 19MAY2025
 */
@@ -70,6 +70,7 @@ set_pipeline_multisampling_mode :: (using pipelineInfo : *GraphicsPipelineInfo, 
 
 BlendingMode :: enum u8 {
     None;
+    Text;
     Additive;
     Alpha;
 }
@@ -93,6 +94,14 @@ set_pipeline_blending_mode :: (using pipelineInfo : *GraphicsPipelineInfo, enabl
 	
 	if #complete mode == {
 	    case .None;
+	    
+	    case .Text; {
+		blending.srcColorBlendFactor = .SRC_ALPHA;
+		blending.srcAlphaBlendFactor = .SRC_ALPHA;
+		blending.dstColorBlendFactor = .ONE_MINUS_SRC_ALPHA;
+		blending.dstAlphaBlendFactor = .ONE_MINUS_SRC_ALPHA;
+	    }
+	    
 	    case .Additive; blending.srcColorBlendFactor = .ONE;
 	    case .Alpha;    blending.srcColorBlendFactor = .ONE_MINUS_DST_ALPHA;
 	}
@@ -119,5 +128,10 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineInfo, 
     }
 }
 
-
+Pipeline_UI :: struct {
+    layout             : VkPipelineLayout;
+    pipeline           : VkPipeline;
+    textPipeline       : VkPipeline;
+    uiDescriptorLayout : VkDescriptorSetLayout;
+}
 

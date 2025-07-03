@@ -1,6 +1,6 @@
 /*
 Project: Loam
-File: mesh.jai
+File: vk/mesh.jai
 Author: Brock Salmon
 Created: 20MAY2025
 */
@@ -13,14 +13,24 @@ Vertex :: struct {
 }
 
 MeshBuffers :: struct {
-    indexBuffer         : AllocatedBufferInfo;
-    vertexBuffer        : AllocatedBufferInfo;
+    indexBuffer         : *AllocatedBufferInfo;
+    indexCount          : u32;
+    vertexBuffer        : *AllocatedBufferInfo;
     vertexBufferAddress : VkDeviceAddress;
 }
 
 MeshPushConstants :: struct {
-    worldMatrix  : Matrix4;
+    renderMatrix : Matrix4;
     vertexBuffer : VkDeviceAddress;
+}
+
+DEFAULT_PLANE_INDICES :: u32.[0, 1, 2,
+		              2, 1, 3];
+is_default_plane_indices :: (arr : [] u32) -> bool {
+    if arr.count != DEFAULT_PLANE_INDICES.count then return false;
+    for arr { if it != DEFAULT_PLANE_INDICES[it_index] then return false; }
+    
+    return true;
 }
 
 // TODO: (Per vkguide) Note that this pattern is not very efficient, as we are waiting for the GPU command to fully execute before continuing with our CPU side logic.
@@ -30,14 +40,16 @@ upload_mesh :: (vk : *Vk, indices : [] u32, vertices : [] Vertex) -> MeshBuffers
     vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
 
     buffers : MeshBuffers;
-    buffers.indexBuffer  = create_vk_buffer(vk, indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY);
+    buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(vk, indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY);
+    buffers.indexCount   = cast(u32) indices.count;
+    
     buffers.vertexBuffer = create_vk_buffer(vk, vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT, .GPU_ONLY);
     deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertexBuffer.buffer };
     buffers.vertexBufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
-
+    
     // Set up staging buffer and copy to buffers
     stagingBuffer := create_vk_buffer(vk, indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT, .CPU_ONLY);
-    defer vmaDestroyBuffer(vk.allocator, stagingBuffer.buffer, stagingBuffer.allocation);
+    defer destroy_vk_buffer(vk, stagingBuffer);
 
     memcpy(stagingBuffer.allocationInfo.pMappedData, cast(*u8) vertices.data, cast(s64) vertexBufferSize);
     memcpy(cast(*u8) stagingBuffer.allocationInfo.pMappedData + vertexBufferSize, cast(*u8) indices.data, cast(s64) indexBufferSize);
@@ -59,8 +71,8 @@ upload_mesh :: (vk : *Vk, indices : [] u32, vertices : [] Vertex) -> MeshBuffers
 	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.indexBuffer.buffer, 1, *indexCopy);
     }
 
-    meshData := MeshCopyData.{ vertexBufferSize, indexBufferSize, *stagingBuffer, *buffers };
+    meshData := MeshCopyData.{ vertexBufferSize, indexBufferSize, stagingBuffer, *buffers };
     immediate_submit(vk, gpu_mesh_copy, *meshData);
-
+    
     return buffers;
 }
