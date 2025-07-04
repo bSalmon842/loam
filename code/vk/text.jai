@@ -15,7 +15,8 @@ Text :: struct {
     str : string;
     font : *FontData;
     size : u32;
-    
+
+    colour : Vector4 = .{1,1,1,1};
     using transform : Transform;
 }
 
@@ -24,7 +25,7 @@ TemporaryGlyph :: struct {
     bearingX, bearingY, advance : s32;
 }
 
-build_text :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo {
+build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo {
     // TODO: Handle text colour codes
     // TODO: Handle escape sequences
     
@@ -111,3 +112,6 @@ build_text :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo {
     return vertices, stringTexture;
 }
 
+make_text :: (str : string, font : *FontData, size : u32, transform : Transform, colour := Vector4.{1,1,1,1}) -> Text {
+    return Text.{ str, font, size, colour, transform };
+}

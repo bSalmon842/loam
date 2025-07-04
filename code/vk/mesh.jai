@@ -19,11 +19,6 @@ MeshBuffers :: struct {
     vertexBufferAddress : VkDeviceAddress;
 }
 
-MeshPushConstants :: struct {
-    renderMatrix : Matrix4;
-    vertexBuffer : VkDeviceAddress;
-}
-
 DEFAULT_PLANE_INDICES :: u32.[0, 1, 2,
 		              2, 1, 3];
 is_default_plane_indices :: (arr : [] u32) -> bool {

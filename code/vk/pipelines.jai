@@ -5,6 +5,13 @@ Author: Brock Salmon
 Created: 19MAY2025
 */
 
+PipelineTypes :: enum {
+    Mesh;
+    Sprite;
+    UI_Image;
+    UI_Text;
+}
+
 GraphicsPipelineInfo :: struct {
     shaderStages       : [..] VkPipelineShaderStageCreateInfo;
     inputAssembly      : VkPipelineInputAssemblyStateCreateInfo;
@@ -31,7 +38,7 @@ build_graphics_pipeline :: (vk : *Vk, using pipelineInfo : *GraphicsPipelineInfo
 							         *depthStencil, *colourBlendStateCreateInfo, *dynamicInfo, layout, null, 0, null, 0 };
 
     pipeline : VkPipeline;
-    check_vk(vkCreateGraphicsPipelines(vk.device, null, 1, *graphicsPipelineCreateInfo, null, *pipeline), "Failed to create Graphics Pipeline");
+    check_vk(vkCreateGraphicsPipelines(vk.device, vk.pipelineCache, 1, *graphicsPipelineCreateInfo, null, *pipeline), "Failed to create Graphics Pipeline");
     return pipeline;
 }
 
@@ -128,10 +135,33 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineInfo, 
     }
 }
 
-Pipeline_UI :: struct {
-    layout             : VkPipelineLayout;
-    pipeline           : VkPipeline;
-    textPipeline       : VkPipeline;
-    uiDescriptorLayout : VkDescriptorSetLayout;
+RenderingPipelineInfo :: struct {
+    layout           : VkPipelineLayout;
+    pipeline         : VkPipeline;
+    descriptorLayout : VkDescriptorSetLayout;
+
+    renderCommands : [..] RenderCommand;
+}
+
+draw_pipeline :: (vk : *Vk, cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
+    if pipeline.renderCommands.count == 0 then return;
+    
+    vkCmdBindPipeline(cmdBuffer, .GRAPHICS, pipeline.pipeline);
+    
+    colourAttachment := make_rendering_attachment_info(vk.drawImage.view, layout=.GENERAL);
+    renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
+    vkCmdBeginRendering(cmdBuffer, *renderInfo);
+
+    viewport := VkViewport.{ width = cast(float) drawExtent.width, height = cast(float) drawExtent.height, minDepth = 0, maxDepth = 1 };
+    vkCmdSetViewport(cmdBuffer, 0, 1, *viewport);
+    
+    scissor := VkRect2D.{ .{}, drawExtent };
+    vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
+
+    for * pipeline.renderCommands {
+	render_command(vk, cmdBuffer, it, pipeline.layout);
+    }
+    
+    vkCmdEndRendering(cmdBuffer);
 }
 

@@ -13,24 +13,22 @@ Created: 08JUN2025
 
 // Compiled Shaders
 #if OS == .WINDOWS {
-    MESH_VERTEX_SHADER      :: #run compile_glsl_to_spirv("mesh_vertex");
-    MESH_FRAGMENT_SHADER    :: #run compile_glsl_to_spirv("mesh_fragment");
-    UI_VERTEX_SHADER        :: #run compile_glsl_to_spirv("ui_vertex");
-    UI_FRAGMENT_SHADER      :: #run compile_glsl_to_spirv("ui_fragment");
-    UI_TEXT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("ui_text_fragment");
+    MESH_VERTEX_SHADER   :: #run compile_glsl_to_spirv("mesh_vertex");
+    MESH_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("mesh_fragment");
+    UI_VERTEX_SHADER     :: #run compile_glsl_to_spirv("ui_vertex");
+    UI_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("ui_fragment");
+    TEXT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("text_fragment");
 } else #if OS == .ANDROID {
-    MESH_VERTEX_SHADER      : CompiledShader;
-    MESH_FRAGMENT_SHADER    : CompiledShader;
-    UI_VERTEX_SHADER        : CompiledShader;
-    UI_FRAGMENT_SHADER      : CompiledShader;
-    UI_TEXT_FRAGMENT_SHADER : CompiledShader;
+    MESH_VERTEX_SHADER   : CompiledShader;
+    MESH_FRAGMENT_SHADER : CompiledShader;
+    UI_VERTEX_SHADER     : CompiledShader;
+    UI_FRAGMENT_SHADER   : CompiledShader;
+    TEXT_FRAGMENT_SHADER : CompiledShader;
 }
 
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
-
-    renderCommands : [..] RenderCommand;
 
     camera : *Camera;
     
@@ -39,11 +37,11 @@ LoamState :: struct {
 
 init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) -> *LoamState {
     #if OS == .ANDROID {
-	MESH_VERTEX_SHADER      = load_spirv_for_android("mesh_vertex");
-	MESH_FRAGMENT_SHADER    = load_spirv_for_android("mesh_fragment");
-	UI_VERTEX_SHADER        = load_spirv_for_android("ui_vertex");
-	UI_FRAGMENT_SHADER      = load_spirv_for_android("ui_fragment");
-	UI_TEXT_FRAGMENT_SHADER = load_spirv_for_android("ui_text_fragment");
+	MESH_VERTEX_SHADER   = load_spirv_for_android("mesh_vertex");
+	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
+	UI_VERTEX_SHADER     = load_spirv_for_android("ui_vertex");
+	UI_FRAGMENT_SHADER   = load_spirv_for_android("ui_fragment");
+	TEXT_FRAGMENT_SHADER = load_spirv_for_android("text_fragment");
     }
     
     loam := New(LoamState);
@@ -73,33 +71,6 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     return loam;
 }
 
-handle_input :: (loam : *LoamState) {
-    for input_button_states {
-	handle_keyboard_input(loam, it, it_index);
-    }
-    handle_mouse_input(loam);
-}
-
-handle_keyboard_input :: (loam : *LoamState, keyState : Key_Current_State, keyCode : s64) {
-    // TODO: Functors from game
-    if keyState & .DOWN {
-	if keyCode == {
-	    case #char "A"; loam.camera.position.x -= cast(float) (5.0 * deltaTime);
-	    case #char "D"; loam.camera.position.x += cast(float) (5.0 * deltaTime);
-
-	    case #char "Q"; loam.camera.position.y += cast(float) (5.0 * deltaTime);
-	    case #char "Z"; loam.camera.position.y -= cast(float) (5.0 * deltaTime);
-	    
-	    case #char "W"; loam.camera.position.z += cast(float) (5.0 * deltaTime);
-	    case #char "S"; loam.camera.position.z -= cast(float) (5.0 * deltaTime);
-	}
-    }
-}
-
-handle_mouse_input :: (loam : *LoamState) {
-    // TODO: Functors from game
-}
-
 // TODO: We probably want to always make sure this is being called before draw calls start happening, so have a begin and end function which sets\
 //       a variable the render commands verify against
 reset_info_for_rendering :: (loam : *LoamState) {
@@ -108,15 +79,17 @@ reset_info_for_rendering :: (loam : *LoamState) {
     
     cleanup_single_frame_images(loam.vk);
     cleanup_single_frame_buffers(loam.vk);
-    
-    array_reset(*loam.renderCommands);
+
+    for * loam.vk.pipelines {
+	array_reset(*it.renderCommands);
+    }
 }
 
 #load "assets.jai";
 #load "camera.jai";
 #load "debug.jai";
+#load "input.jai";
 #load "math.jai";
-#load "render_commands.jai";
 #load "transform.jai";
 #load "utility.jai";
 #load "vk/vk.jai";

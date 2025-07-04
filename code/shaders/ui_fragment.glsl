@@ -10,13 +10,13 @@ Created: 23JUN2025
 
 #include "shared_layouts.glsl"
 
-layout (location = 0) in vec3 inColour;
+layout (location = 0) in vec4 inColour;
 layout (location = 1) in vec2 inUV;
 
 layout (location = 0) out vec4 fragColour;
 
 void main() {   
-  vec4 texColour = vec4(inColour * texture(colourTexture, inUV).xyz, 1);
+  vec4 texColour = inColour * texture(colourTexture, inUV);
   if (texColour.a < 0.05) { discard; }
   fragColour = texColour;
 }

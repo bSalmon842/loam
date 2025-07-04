@@ -52,19 +52,34 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
     
     // Descriptors
-    {
-	bindings : DescriptorSetBindings;
-	add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
-	vk.singleTextureDescriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
-    }
-
-    {
-	bindings : DescriptorSetBindings;
-	add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
-	vk.uiPipeline.uiDescriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
+    for enum_values_as_enum(PipelineTypes) {
+	pipeline := *vk.pipelines[it];
+	
+	{
+	    bindings : DescriptorSetBindings;
+	    add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
+	    pipeline.descriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
+	}
+	
+	if #complete it == {
+	    case .Mesh;
+	    case .Sprite;
+	    case .UI_Image;
+	    case .UI_Text;
+	}
     }
     
     init_pipelines(vk);
+
+    samplerCreateInfo : VkSamplerCreateInfo;
+
+    samplerCreateInfo.minFilter = .NEAREST;
+    samplerCreateInfo.magFilter = .NEAREST;
+    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Nearest);
+
+    samplerCreateInfo.minFilter = .LINEAR;
+    samplerCreateInfo.magFilter = .LINEAR;
+    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 
     vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY);
 
@@ -83,16 +98,6 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	vk.testTexture = vk.errorCheckerboard;
     }
     */
-
-    samplerCreateInfo : VkSamplerCreateInfo;
-
-    samplerCreateInfo.minFilter = .NEAREST;
-    samplerCreateInfo.magFilter = .NEAREST;
-    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Nearest);
-
-    samplerCreateInfo.minFilter = .LINEAR;
-    samplerCreateInfo.magFilter = .LINEAR;
-    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 }
 
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
@@ -396,71 +401,85 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
 }
 
 init_pipelines :: (vk : *Vk) {
-    // Mesh Pipeline
-    {
-	vertShader := load_shader_module(vk.device, MESH_VERTEX_SHADER);
-	fragShader := load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
-
-	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(MeshPushConstants) };
-	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.singleTextureDescriptorLayout, 1, *bufferRange };
-	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.meshPipelineLayout), "Failed to create pipeline layout for test triangle");
+    // TODO: Investigate if saving/loading our cache to/from disk is worth it for our purposes
+    cacheCreateInfo := VkPipelineCacheCreateInfo.{};
+    check_vk(vkCreatePipelineCache(vk.device, *cacheCreateInfo, null, *vk.pipelineCache), "Failed to create pipeline cache");
+    
+    for enum_values_as_enum(PipelineTypes) {
+	pipeline := *vk.pipelines[it];
+	
+	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(AllPushConstants) };
+	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *pipeline.descriptorLayout, 1, *bufferRange };
+	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *pipeline.layout), tprint("Failed to create pipeline layout for %", it));
 
 	builder : GraphicsPipelineInfo;
-	builder.layout = vk.meshPipelineLayout;
+	builder.layout = pipeline.layout;
 
-	set_pipeline_shaders(*builder, vertShader, fragShader);
-	set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
-	set_pipeline_polygon_mode(*builder, .FILL);
-	set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
-	set_pipeline_multisampling_mode(*builder, .None);
-	set_pipeline_blending_mode(*builder, false);
-	set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-	set_pipeline_depth_format(*builder, .UNDEFINED);
+	vertShader : VkShaderModule;
+	fragShader : VkShaderModule;
+	
+	if #complete it == {
+	    case .Mesh; {
+		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
 
-	vk.meshPipeline = build_graphics_pipeline(vk, *builder);
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	    
+	    case .Sprite; {
+		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	    
+	    case .UI_Image; {
+		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, UI_FRAGMENT_SHADER);
+
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	    
+	    case .UI_Text; {
+		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, TEXT_FRAGMENT_SHADER);
+		
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	}
+
+	pipeline.pipeline = build_graphics_pipeline(vk, *builder);
 
 	vkDestroyShaderModule(vk.device, vertShader, null);
 	vkDestroyShaderModule(vk.device, fragShader, null);
-    }
-
-    // UI Pipelines
-    {
-	vertShader     := load_shader_module(vk.device, UI_VERTEX_SHADER);
-	fragShader     := load_shader_module(vk.device, UI_FRAGMENT_SHADER);
-	textFragShader := load_shader_module(vk.device, UI_TEXT_FRAGMENT_SHADER);
-
-	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(UIPushConstants) };
-	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.uiPipeline.uiDescriptorLayout, 1, *bufferRange };
-	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *vk.uiPipeline.layout), "Failed to create pipeline layout for UI");
-
-	builder : GraphicsPipelineInfo;
-	builder.layout = vk.uiPipeline.layout;
-
-	set_pipeline_shaders(*builder, vertShader, fragShader);
-	set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
-	set_pipeline_polygon_mode(*builder, .FILL);
-	set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
-	set_pipeline_multisampling_mode(*builder, .None);
-	set_pipeline_blending_mode(*builder, false);
-	set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-	set_pipeline_depth_format(*builder, .UNDEFINED);
-	
-	vk.uiPipeline.pipeline = build_graphics_pipeline(vk, *builder);
-
-	set_pipeline_shaders(*builder, vertShader, textFragShader);
-	set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
-	set_pipeline_polygon_mode(*builder, .FILL);
-	set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
-	set_pipeline_multisampling_mode(*builder, .None);
-	set_pipeline_blending_mode(*builder, false);
-	set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-	set_pipeline_depth_format(*builder, .UNDEFINED);
-
-	vk.uiPipeline.textPipeline = build_graphics_pipeline(vk, *builder);
-	
-	vkDestroyShaderModule(vk.device, vertShader, null);
-	vkDestroyShaderModule(vk.device, fragShader, null);
-	vkDestroyShaderModule(vk.device, textFragShader, null);
     }
 }
 

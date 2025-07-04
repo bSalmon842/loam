@@ -16,13 +16,6 @@ windowHeight := 1080;
 refreshRate  := 60;
 deltaTime : float64 = 0;
 
-METRIC_UPDATE_RATE :: 0.1;
-Metrics :: struct {
-    framesPerSecond : u32;
-    msPerFrame : float64;
-    ramUsage : u64;
-}
-
 main :: () {
     #if OS == .WINDOWS {
         Windows.SetProcessDPIAware();
@@ -36,12 +29,13 @@ main :: () {
     loam := init_loam(window, xx windowWidth, xx windowHeight);
 
     refreshRate = get_refresh_rate(window);
-    print("Refresh Rate: %\n", refreshRate);
     
     deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
-    timeSinceLastMetricUpdate : float64;
-    metrics : Metrics;
+
+    #if IS_DEBUG {
+	metrics : DebugMetrics;
+    }
     
     while running := true {
         update_window_events();
@@ -69,21 +63,7 @@ main :: () {
 
 	#if IS_DEBUG
 	{
-            #if OS == .ANDROID {
-		frameTimeText : Text = .{ tprint("% / % (%)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate), loam.defaultFont, 64,
-					  make_transform( position = Vector3.{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ) };
-		ramUsageText : Text = .{ to_size_string(metrics.ramUsage), loam.defaultFont, 64,
-					 make_transform( position = Vector3.{ 10, windowHeight - 40.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ) };
-	    } else {
-		frameTimeText : Text = .{ tprint("% / % (%)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate), loam.defaultFont, 32,
-					  make_transform( position = Vector3.{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ) };
-		ramUsageText : Text = .{ to_size_string(metrics.ramUsage), loam.defaultFont, 32,
-					 make_transform( position = Vector3.{ 10, windowHeight - 30.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ) };
-	    }
-	    
-	    draw_ui_text(loam, *frameTimeText);
-    	    draw_ui_text(loam, *ramUsageText);
-            
+	    render_debug_stats(loam, *metrics);
 	}
 
 	draw_frame(loam);
@@ -93,12 +73,7 @@ main :: () {
 	    msSoFar := (seconds_since_init() - lastTime) * 1000.0;
 	    msToWait := targetMs - msSoFar;
 	    while msToWait > 0 {
-		if msToWait >= 1.0 {
-		    sleep_milliseconds(1);
-		} else {
-		    // Spinlock (TODO: this probably isn't great, do something better if possible)
-		}
-
+		sleep_milliseconds(1);
 		msToWait = targetMs - (seconds_since_init() - lastTime) * 1000.0;
 	    }
 	}
@@ -108,19 +83,13 @@ main :: () {
         
         reset_temporary_storage();
 
-	metrics.framesPerSecond = cast(u32) (1.0 / deltaTime + 1.0);
-	timeSinceLastMetricUpdate += deltaTime;
-	if timeSinceLastMetricUpdate >= METRIC_UPDATE_RATE {
-	    metrics.framesPerSecond = cast(u32) (1.0 / deltaTime + 1.0);
-	    metrics.msPerFrame = deltaTime * 1000.0;
-	    metrics.ramUsage = get_ram_usage();
+        #if IS_DEBUG {
+	    update_debug_metrics(*metrics, deltaTime);
 
-	    timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
-	}
-	
-	#if IS_DEBUG && OS != .ANDROID {
-	    memory_visualizer_per_frame_update();
-	    //report_memory_leaks();
+            #if OS != .ANDROID {
+		memory_visualizer_per_frame_update();
+		//report_memory_leaks();	
+	    }
 	}
     }
 

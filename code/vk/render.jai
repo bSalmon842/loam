@@ -44,43 +44,9 @@ draw_frame :: (loam : *LoamState) {
     
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
 
-    // Draw Commands
-    for * loam.renderCommands {
-	render_command(vk, cmdBuffer, it);
+    for * vk.pipelines {
+	draw_pipeline(vk, cmdBuffer, it, drawExtent);
     }
-    
-    // Draw Triangle Shader
-    #if false
-    {
-	colourAttachment := make_rendering_attachment_info(vk.drawImage.view, layout=.GENERAL);
-	renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
-
-	vkCmdBeginRendering(cmdBuffer, *renderInfo);
-	vkCmdBindPipeline(cmdBuffer, .GRAPHICS, vk.meshPipeline);
-
-	viewport := VkViewport.{ width = cast(float) drawExtent.width, height = cast(float) drawExtent.height, minDepth = 0, maxDepth = 1 };
-	vkCmdSetViewport(cmdBuffer, 0, 1, *viewport);
-
-	scissor := VkRect2D.{ .{}, drawExtent };
-	vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
-	
-	imageSet := dynamic_descriptor_pool_allocator_allocate(*vk.descriptorAllocator, vk.device, vk.singleTextureDescriptorLayout);
-	writer : DescriptorWriter;
-	defer clear_descriptor_writer(*writer);
-	descriptor_write_image(*writer, 0, vk.testTexture.view, .SHADER_READ_ONLY_OPTIMAL, vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
-	descriptor_writer_update_sets(*writer, vk.device, imageSet);
-
-	vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, vk.meshPipelineLayout, 0, 1, *imageSet, 0, null );
-
-	pushConstants := MeshPushConstants.{ get_view_matrix(loam.camera) * get_projection_matrix(loam.camera), vk.testRect.vertexBufferAddress };
-	vkCmdPushConstants(cmdBuffer, vk.meshPipelineLayout, .VERTEX_BIT, 0, size_of(MeshPushConstants), *pushConstants );
-
-	vkCmdBindIndexBuffer(cmdBuffer, vk.testRect.indexBuffer.buffer, 0, .UINT32);
-	vkCmdDrawIndexed(cmdBuffer, 6, 1, 0, 0, 0);
-	
-	vkCmdEndRendering(cmdBuffer);
-    }
-    
     
     transition_image(cmdBuffer, vk.drawImage.image, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL);
     transition_image(cmdBuffer, currentSwapchainImage, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
@@ -128,9 +94,9 @@ copy_image :: (cmdBuffer : VkCommandBuffer, srcImage : VkImage, srcExtent : VkEx
     vkCmdBlitImage2(cmdBuffer, *blitInfo);
 }
 
-// Render Commands
 render_clear :: (cmdBuffer : VkCommandBuffer, image : VkImage, colour : Vector4) {
     clearValue : VkClearColorValue = .{_float32=colour.component};
     clearRange := make_image_subresource_range(.COLOR_BIT);
     vkCmdClearColorImage(cmdBuffer, image, .GENERAL, *clearValue, 1, *clearRange);
 }
+

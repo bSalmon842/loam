@@ -56,11 +56,9 @@ Vk :: struct {
     ///////////////////
 
     // Pipelines
-    meshPipeline       : VkPipeline;
-    meshPipelineLayout : VkPipelineLayout;
-
-    uiPipeline : Pipeline_UI;
-
+    pipelines : [#run enum_highest_value(PipelineTypes) + 1] RenderingPipelineInfo;
+    pipelineCache : VkPipelineCache;
+    
     // Sampler for each member of VkFilter (we don't care about CUBIC)
     defaultSampler_Nearest : VkSampler;
     defaultSampler_Linear  : VkSampler;
@@ -69,16 +67,11 @@ Vk :: struct {
     
     // Built in error texture
     errorCheckerboard : *AllocatedImageInfo;
-    testTexture : *AllocatedImageInfo;
 
     descriptorAllocator : DynamicDescriptorPoolAllocator;
-    
-    singleTextureDescriptorLayout : VkDescriptorSetLayout;
 
     imagesToDestroyAtFrameReset : [..] *AllocatedImageInfo;
     buffersToDestroyAtFrameReset : [..] *AllocatedBufferInfo;
-    
-    testRect : MeshBuffers;
 
     // Optional Stuff
     enableVkVideo : bool;
@@ -112,13 +105,21 @@ AllocatedBufferInfo :: struct {
     allocationInfo : VmaAllocationInfo;
 }
 
+AllPushConstants :: struct {
+    renderMatrix : Matrix4;
+    colourTint   : Vector4;
+    
+    vertexBuffer : VkDeviceAddress;
+}
 
 #load "descriptors.jai";
 #load "init.jai";
 #load "mesh.jai";
 #load "pipelines.jai";
 #load "render.jai";
+#load "render_commands.jai";
 #load "shaders.jai";
+#load "sprite.jai";
 #load "text.jai";
 #load "ui.jai";
 #load "util.jai";
