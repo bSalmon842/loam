@@ -199,6 +199,33 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
     return bestGPU;
 }
 
+select_texture_format :: (vk : *Vk) {
+    #if OS == .ANDROID {
+	acceptableFormats := VkFormat.[
+		.ASTC_4x4_UNORM_BLOCK, // Android
+		.ETC2_R8G8B8A8_UNORM_BLOCK, // Android
+	];
+    } else {
+	acceptableFormats := VkFormat.[
+		.BC7_UNORM_BLOCK, // PC
+		.BC3_UNORM_BLOCK, // PC
+	];
+    }
+
+    for acceptableFormats {
+	formatProperties : VkFormatProperties;
+	vkGetPhysicalDeviceFormatProperties(vk.physicalDevice, it, *formatProperties);
+
+	supportsTransfer := formatProperties.optimalTilingFeatures & VkFormatFeatureFlags.TRANSFER_DST_BIT  != 0;
+	supportsSampled  := formatProperties.optimalTilingFeatures & VkFormatFeatureFlags.SAMPLED_IMAGE_BIT != 0;
+
+	if supportsTransfer && supportsSampled {
+	    vk.textureFormat = it;
+	    return;
+	}
+    }
+}
+
 get_dedicated_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties, usedIndices : *[..] u32) -> bool #must, u32 {
     bestIndex := U32_MAX;
     

@@ -165,3 +165,87 @@ draw_pipeline :: (vk : *Vk, cmdBuffer : VkCommandBuffer, pipeline : *RenderingPi
     vkCmdEndRendering(cmdBuffer);
 }
 
+init_pipelines :: (vk : *Vk) {
+    // TODO: Investigate if saving/loading our cache to/from disk is worth it for our purposes
+    cacheCreateInfo := VkPipelineCacheCreateInfo.{};
+    check_vk(vkCreatePipelineCache(vk.device, *cacheCreateInfo, null, *vk.pipelineCache), "Failed to create pipeline cache");
+    
+    for enum_values_as_enum(PipelineTypes) {
+	pipeline := *vk.pipelines[it];
+	
+	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(AllPushConstants) };
+	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *pipeline.descriptorLayout, 1, *bufferRange };
+	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *pipeline.layout), tprint("Failed to create pipeline layout for %", it));
+
+	builder : GraphicsPipelineInfo;
+	builder.layout = pipeline.layout;
+
+	vertShader : VkShaderModule;
+	fragShader : VkShaderModule;
+	
+	if #complete it == {
+	    case .Mesh; {
+		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	    
+	    case .Sprite; {
+		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	    
+	    case .UI_Image; {
+		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, UI_FRAGMENT_SHADER);
+
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	    
+	    case .UI_Text; {
+		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, TEXT_FRAGMENT_SHADER);
+		
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+	    }
+	}
+
+	pipeline.pipeline = build_graphics_pipeline(vk, *builder);
+
+	vkDestroyShaderModule(vk.device, vertShader, null);
+	vkDestroyShaderModule(vk.device, fragShader, null);
+    }
+}
+
+
