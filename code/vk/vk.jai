@@ -49,6 +49,8 @@ Vk :: struct {
     }
     queueFamilyIndices : QueueFamilyIndices;
 
+    descriptorAllocator : DynamicDescriptorPoolAllocator;
+
     // Immediate Submit
     immFence     : VkFence;
     immCmdBuffer : VkCommandBuffer;
@@ -67,9 +69,7 @@ Vk :: struct {
     
     // Built in error texture
     errorCheckerboard : *AllocatedImageInfo;
-
-    descriptorAllocator : DynamicDescriptorPoolAllocator;
-
+    
     imagesToDestroyAtFrameReset : [..] *AllocatedImageInfo;
     buffersToDestroyAtFrameReset : [..] *AllocatedBufferInfo;
 
@@ -395,13 +395,18 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
     selectedPresentMode := VkPresentModeKHR.FIFO_KHR;
 
     // TODO: Get this from a setting struct of some kind, we should probably also force vsync on android (I don't think there's any reason not to)
-    if !vk.vsync {
+    if vk.vsync {
 	for presentModes {
 	    if it == .MAILBOX_KHR {
 		selectedPresentMode = it;
 		break;
-	    } else if it == .IMMEDIATE_KHR {
+	    }
+	}
+    } else {
+	for presentModes {
+	    if it == .IMMEDIATE_KHR {
 		selectedPresentMode = it;
+		break;
 	    }
 	}
     }

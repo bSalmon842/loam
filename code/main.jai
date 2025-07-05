@@ -35,7 +35,18 @@ main :: () {
 
     #if IS_DEBUG {
 	metrics : DebugMetrics;
+        #if OS == .ANDROID {
+	    frameTimeText = make_text("", loam.defaultFont, 64, make_transform( .{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    ramUsageText  = make_text("", loam.defaultFont, 64, make_transform( .{ 10, windowHeight - 40.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    drawCallText  = make_text("", loam.defaultFont, 64, make_transform( .{ 10, windowHeight - 70.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	} else {
+	    frameTimeText = make_text("", loam.defaultFont, 32, make_transform( .{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    ramUsageText  = make_text("", loam.defaultFont, 32, make_transform( .{ 10, windowHeight - 30.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    drawCallText  = make_text("", loam.defaultFont, 32, make_transform( .{ 10, windowHeight - 50.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	}
     }
+
+    sprite := make_sprite(loam, "test_sprite", make_transform(.{ cast(float) windowWidth * 0.5, cast(float) windowHeight * 0.5, 0 }));
     
     while running := true {
         update_window_events();
@@ -66,6 +77,8 @@ main :: () {
 	    render_debug_stats(loam, *metrics);
 	}
 
+	draw_sprite(loam, sprite);
+	
 	draw_frame(loam);
 
 	if loam.vk.vsync {
@@ -84,7 +97,7 @@ main :: () {
         reset_temporary_storage();
 
         #if IS_DEBUG {
-	    update_debug_metrics(*metrics, deltaTime);
+	    update_debug_metrics(loam, *metrics, deltaTime);
 
             #if OS != .ANDROID {
 		memory_visualizer_per_frame_update();

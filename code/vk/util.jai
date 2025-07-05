@@ -370,7 +370,7 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInf
 
     dataSize := ktxTexture_GetDataSize(ktx);
     uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
-    defer destroy_vk_buffer(vk, *uploadBuffer);
+    defer destroy_vk_buffer(vk, uploadBuffer);
     memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
     
     CopyData :: struct {
@@ -459,6 +459,18 @@ make_rendering_info :: (renderExtent : VkExtent2D, colourAttachment : *VkRenderi
         pColorAttachments = colourAttachment,
         pDepthAttachment = depthAttachment,
     };
+}
+
+extent_to_vector :: (extent : VkExtent2D) -> Vector2 {
+    return Vector2.{ cast(float) extent.width, cast(float) extent.height };
+}
+
+extent_to_vector :: (extent : VkExtent2D, z : float) -> Vector3 {
+    return Vector3.{ cast(float) extent.width, cast(float) extent.height, z };
+}
+
+extent_to_vector :: (extent : VkExtent3D) -> Vector3 {
+    return Vector3.{ cast(float) extent.width, cast(float) extent.height, cast(float) extent.depth };
 }
 
 vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, messageType : VkDebugUtilsMessageTypeFlagsEXT, pCallbackData : *VkDebugUtilsMessengerCallbackDataEXT, pUserData : *void) -> VkBool32 #c_call {

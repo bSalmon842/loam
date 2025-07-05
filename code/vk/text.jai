@@ -16,7 +16,7 @@ Text :: struct {
     font : *FontData;
     size : u32;
 
-    colour : Vector4 = .{1,1,1,1};
+    colour : Vector4 = DEFAULT_TEXTURE_TINT;
     using transform : Transform;
 }
 
@@ -100,7 +100,7 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo
     set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);
     
-    dimensions := Vector2.{ cast(float) extent.width, cast(float) extent.height };
+    dimensions := extent_to_vector(extent);
     
     // Build info to upload to GPU
     vertices := NewArray(4, Vertex,, temp);
@@ -112,6 +112,8 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo
     return vertices, stringTexture;
 }
 
-make_text :: (str : string, font : *FontData, size : u32, transform : Transform, colour := Vector4.{1,1,1,1}) -> Text {
-    return Text.{ str, font, size, colour, transform };
+make_text :: (str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
+    text := New(Text);
+    text.* = .{ str, font, size, colour, transform };
+    return text;
 }

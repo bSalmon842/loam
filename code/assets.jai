@@ -334,11 +334,7 @@ request_asset :: (loam : *LoamState, type : AssetType, assetName : string, core 
 get_raw_asset_data :: (directory : *AssetDirectory, assetName : string) -> fileContents : string, assetInfo : *AssetHeader {
     item, found := table_find(directory, assetName);
     if !found {
-	log(.ERROR, tprint("Failed to find asset \"%\" in directory", assetName));
-	log(.ERROR, "Assets Found:");
-	for directory {
-	    log(.ERROR, tprint("\t%", it_index));
-	}
+	log(.ERROR, tprint("Failed to find asset \"%\" in the asset directory file", assetName));
 	return "", null;
     }
     

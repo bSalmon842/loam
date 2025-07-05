@@ -12,32 +12,41 @@ DebugMetrics :: struct {
     framesPerSecond : u32;
     msPerFrame : float64;
     ramUsage : u64;
+
+    totalDrawCalls    : u32;
+    nonDebugDrawCalls : u32;
 }
 
-update_debug_metrics :: (metrics : *DebugMetrics, deltaTime : float64) {
+frameTimeText : *Text;
+ramUsageText  : *Text;
+drawCallText  : *Text;
+
+update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics, deltaTime : float64) {
     metrics.timeSinceLastMetricUpdate += deltaTime;
     if metrics.timeSinceLastMetricUpdate >= METRIC_UPDATE_RATE {
 	metrics.framesPerSecond = cast(u32) (1.0 / deltaTime + 1.0);
 	metrics.msPerFrame = deltaTime * 1000.0;
 	metrics.ramUsage = get_ram_usage();
 
+	metrics.totalDrawCalls = 0;
+	metrics.nonDebugDrawCalls = 0;
+	for loam.vk.pipelines {
+	    metrics.totalDrawCalls += cast(u32) it.renderCommands.count;
+	    if cast(PipelineTypes) it_index != PipelineTypes.UI_Image && cast(PipelineTypes) it_index != PipelineTypes.UI_Text {
+		metrics.nonDebugDrawCalls += cast(u32) it.renderCommands.count;
+	    }
+	}
+
 	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
     }
 }
 
 render_debug_stats :: (loam : *LoamState, metrics : DebugMetrics) {
-    #if OS == .ANDROID {
-	frameTimeText : = make_text(tprint("% / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate), loam.defaultFont, 64,
-				    make_transform( position = Vector3.{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	ramUsageText := make_text(to_size_string(metrics.ramUsage), loam.defaultFont, 64,
-				  make_transform( position = Vector3.{ 10, windowHeight - 40.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-    } else {
-	frameTimeText : = make_text(tprint("% / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate), loam.defaultFont, 32,
-				    make_transform( position = Vector3.{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	ramUsageText := make_text(to_size_string(metrics.ramUsage), loam.defaultFont, 32,
-				  make_transform( position = Vector3.{ 10, windowHeight - 30.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-    }
+    frameTimeText.str = tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate);
+    ramUsageText.str  = tprint(" RAM Usage: %", to_size_string(metrics.ramUsage));
+    drawCallText.str  = tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls);
     
-    draw_ui_text(loam, *frameTimeText);
-    draw_ui_text(loam, *ramUsageText);
+    draw_ui_text(loam, frameTimeText);
+    draw_ui_text(loam, ramUsageText);
+    draw_ui_text(loam, drawCallText);
 }
