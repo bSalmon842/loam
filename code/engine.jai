@@ -36,6 +36,13 @@ LoamState :: struct {
     uiCamera : *Camera;
     
     defaultFont : *FontData;
+
+    input : *InputBinds;
+    
+    windowWidth  : s64;
+    windowHeight : s64;
+    deltaTime    : float64;
+    running      : bool = true;
 }
 
 init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) -> *LoamState {
@@ -75,6 +82,18 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 
     fontAsset := request_asset(loam, .Font, "internal", true);
     loam.defaultFont = cast(*FontData) fontAsset.data;
+
+    loam.input = New(InputBinds);
+    
+    loam.windowWidth = xx initialWidth;
+    loam.windowHeight = xx initialHeight;
+
+    #if OS == .WINDOWS {
+	quit_game :: (loam : *LoamState, extraData : *void) {
+	    loam.running = false;
+	}
+	register_keyboard_input(loam, Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
+    }
     
     return loam;
 }

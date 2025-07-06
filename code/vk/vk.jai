@@ -367,8 +367,8 @@ create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
     // Set swapchain extent
     vk.swapchainExtent = surfaceCaps.currentExtent;
     if vk.swapchainExtent.width == U32_MAX || vk.swapchainExtent.height == U32_MAX {
-	vk.swapchainExtent.width  = cast(u32) clamp(windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
-	vk.swapchainExtent.height = cast(u32) clamp(windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
+	vk.swapchainExtent.width  = cast(u32) clamp(loam.windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
+	vk.swapchainExtent.height = cast(u32) clamp(loam.windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
     }
 
     loam.sceneCamera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };

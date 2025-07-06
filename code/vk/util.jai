@@ -24,7 +24,7 @@ immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : 
 
 resize_swapchain :: (loam : *LoamState) {
     vkDeviceWaitIdle(loam.vk.device);
-    check_vk(create_vk_swapchain(loam), "Failed to recreate swapchain when reizing window");
+    check_vk(create_vk_swapchain(loam), "Failed to recreate swapchain when resizing window");
     loam.vk.resizeRequested = false;
 }
 

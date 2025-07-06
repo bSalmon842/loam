@@ -11,10 +11,9 @@ IS_DEBUG :: true;
     #run Compiler.set_build_options_dc(.{append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup"]});
 }
 
-windowWidth  := 1920;
-windowHeight := 1080;
+START_WIDTH  :: 1920;
+START_HEIGHT :: 1080;
 refreshRate  := 60;
-deltaTime : float64 = 0;
 
 main :: () {
     #if OS == .WINDOWS {
@@ -24,38 +23,64 @@ main :: () {
 
     make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR); 
     
-    window := create_window(windowWidth, windowHeight, APP_NAME);
+    window := create_window(START_WIDTH, START_HEIGHT, APP_NAME);
 
-    loam := init_loam(window, xx windowWidth, xx windowHeight);
+    loam := init_loam(window, xx START_WIDTH, xx START_HEIGHT);
 
     refreshRate = get_refresh_rate(window);
     
-    deltaTime = seconds_since_init();
+    loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
 
     #if IS_DEBUG {
 	metrics : DebugMetrics;
         #if OS == .ANDROID {
-	    frameTimeText = make_text("", loam.defaultFont, 64, make_transform( .{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    ramUsageText  = make_text("", loam.defaultFont, 64, make_transform( .{ 10, windowHeight - 40.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    drawCallText  = make_text("", loam.defaultFont, 64, make_transform( .{ 10, windowHeight - 70.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    frameTimeText = make_text("", loam.defaultFont, 64, make_transform( .{ 10, loam.windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    ramUsageText  = make_text("", loam.defaultFont, 64, make_transform( .{ 10, loam.windowHeight - 40.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    drawCallText  = make_text("", loam.defaultFont, 64, make_transform( .{ 10, loam.windowHeight - 70.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
 	} else {
-	    frameTimeText = make_text("", loam.defaultFont, 32, make_transform( .{ 10, windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    ramUsageText  = make_text("", loam.defaultFont, 32, make_transform( .{ 10, windowHeight - 30.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    drawCallText  = make_text("", loam.defaultFont, 32, make_transform( .{ 10, windowHeight - 50.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    frameTimeText = make_text("", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    ramUsageText  = make_text("", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 30.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    drawCallText  = make_text("", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 50.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
 	}
     }
 
-    sprite := make_sprite(loam, "test_sprite", make_transform(.{ cast(float) windowWidth * 0.5, cast(float) windowHeight * 0.5, 0 }));
+    sprite := make_sprite(loam, "test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5, 0 }));
+
+    // Input Registration
     
-    while running := true {
+    #if OS == .WINDOWS {
+	move_cam_left  :: (loam : *LoamState, extraData : *void) { loam.sceneCamera.position.x -= cast(float) (50.0 * loam.deltaTime); }
+	move_cam_right :: (loam : *LoamState, extraData : *void) { loam.sceneCamera.position.x += cast(float) (50.0 * loam.deltaTime); }
+	move_cam_up    :: (loam : *LoamState, extraData : *void) { loam.sceneCamera.position.y += cast(float) (50.0 * loam.deltaTime); }
+	move_cam_down  :: (loam : *LoamState, extraData : *void) { loam.sceneCamera.position.y -= cast(float) (50.0 * loam.deltaTime); }
+
+	register_keyboard_input(loam, Key_Code.ARROW_LEFT,  .{}, move_cam_left,  null);
+	register_keyboard_input(loam, Key_Code.ARROW_RIGHT, .{}, move_cam_right, null);
+	register_keyboard_input(loam, Key_Code.ARROW_UP,    .{}, move_cam_up,    null);
+	register_keyboard_input(loam, Key_Code.ARROW_DOWN,  .{}, move_cam_down,  null);
+
+	
+	move_sprite_left  :: (loam : *LoamState, extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.x -= cast(float) (25.0 * loam.deltaTime); }
+	move_sprite_right :: (loam : *LoamState, extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.x += cast(float) (25.0 * loam.deltaTime); }
+	move_sprite_up    :: (loam : *LoamState, extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.y += cast(float) (25.0 * loam.deltaTime); }
+	move_sprite_down  :: (loam : *LoamState, extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.y -= cast(float) (25.0 * loam.deltaTime); }
+
+	register_keyboard_input(loam, #char "A", .{}, move_sprite_left,  sprite);
+	register_keyboard_input(loam, #char "D", .{}, move_sprite_right, sprite);
+	register_keyboard_input(loam, #char "W", .{}, move_sprite_up,    sprite);
+	register_keyboard_input(loam, #char "S", .{}, move_sprite_down,  sprite);
+    }
+    
+    
+    while loam.running {
         update_window_events();
 
 	resizes := get_window_resizes();
         for resizes {
 	    if it_index == resizes.count - 1 {
-		windowWidth = it.width;
-		windowHeight = it.height;
+		loam.windowWidth = it.width;
+		loam.windowHeight = it.height;
 		refreshRate = get_refresh_rate(window);
 	    }
         }
@@ -64,11 +89,22 @@ main :: () {
 	
         for events_this_frame {
             if it.type == {
-                case .QUIT; break running;
+                case .QUIT; loam.running = false;
+		case .KEYBOARD; {
+		    // NOTE: If we do have modifier flags then we probably don't want to repeat the input, so we can use the raw event
+		    if it.key_pressed && it.modifier_flags.packed != 0 {
+			handle_keyboard_input(loam, it.key_code, it.modifier_flags);
+		    }
+		}
             }
         }
 
-	handle_input(loam);
+	// NOTE: If we don't have any modifier flags then we might want to repeat the input (such as for movement, etc) so we use input_button_states
+	for input_button_states {
+	    if it & .DOWN {
+		handle_keyboard_input(loam, cast(Key_Code) it_index, .{});
+	    }
+	}
 
 	reset_info_for_rendering(loam);
 
@@ -91,13 +127,13 @@ main :: () {
 	    }
 	}
 	
-        deltaTime = seconds_since_init() - lastTime;
+        loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
         
         reset_temporary_storage();
 
         #if IS_DEBUG {
-	    update_debug_metrics(loam, *metrics, deltaTime);
+	    update_debug_metrics(loam, *metrics);
 
             #if OS != .ANDROID {
 		memory_visualizer_per_frame_update();

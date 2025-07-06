@@ -21,11 +21,11 @@ frameTimeText : *Text;
 ramUsageText  : *Text;
 drawCallText  : *Text;
 
-update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics, deltaTime : float64) {
-    metrics.timeSinceLastMetricUpdate += deltaTime;
+update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics) {
+    metrics.timeSinceLastMetricUpdate += loam.deltaTime;
     if metrics.timeSinceLastMetricUpdate >= METRIC_UPDATE_RATE {
-	metrics.framesPerSecond = cast(u32) (1.0 / deltaTime + 1.0);
-	metrics.msPerFrame = deltaTime * 1000.0;
+	metrics.framesPerSecond = cast(u32) (1.0 / loam.deltaTime + 1.0);
+	metrics.msPerFrame = loam.deltaTime * 1000.0;
 	metrics.ramUsage = get_ram_usage();
 
 	metrics.totalDrawCalls = 0;
