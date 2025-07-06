@@ -54,7 +54,7 @@ main :: () {
     startArgs := get_command_line_arguments();
     for startArgs {
 	if ends_with(it, tprint(".%", ASSET_DIR_FILE_EXTENSION)) {
-//	    open_from_dir_file(it);
+	    open_from_dir_file(packer, it);
 	}
     }
     
@@ -184,6 +184,7 @@ main :: () {
 		ImGui.Begin("Pack Explorer", flags = .NoTitleBar | .NoResize | .NoMove | .NoScrollbar | .NoScrollWithMouse);
 		if ImGui.Button("Save Asset Packs", ImGui.ImVec2.{ 120, 20 }) {
 		    construct_packs(packer);
+		    construct_core_pack();
 		}
 		ImGui.SameLine();
 		if ImGui.Button("Build Core Pack", ImGui.ImVec2.{ 120, 20}) {
@@ -372,6 +373,31 @@ display_for_asset_type :: (loadedAsset : *AssetBeingAdded) {
     }
 }
 
+open_from_dir_file :: (packerState : *PackerState, dirFile : string) {
+    dirContents, readSuccess := read_entire_file(dirFile);
+    if readSuccess {
+	dirFile := cast(*DirectoryFile) dirContents.data;
+	assert(dirFile.fileCode == pack_file_code(ASSET_FILE_CODE));
+
+	for 0 .. dirFile.itemCount-1 {
+    	    dirItem := cast(*DirectoryItem) (dirContents.data + size_of(DirectoryFile) + (size_of(DirectoryItem) * it));
+	    
+	    filepath := to_string(dirItem.filepath.data);
+
+	    packName := tprint("%1%2_%.%", get_packaged_assets_path(), APP_NAME, dirItem.file, ASSET_PACK_FILE_EXTENSION);
+	    packContents, packSuccess := read_entire_file(packName);
+	    if packSuccess {
+		header := cast(*AssetHeader) (packContents.data + dirItem.offset);
+		array_add(*packerState.assets, .{ filepath, header.* });
+
+		free(packContents.data);
+	    }
+	}
+	
+	free(dirContents.data);
+    }
+}
+
 construct_packs :: (packer : *PackerState) {
     existingFiles := file_list(get_packaged_assets_path());
     for existingFiles {
@@ -411,13 +437,15 @@ construct_packs :: (packer : *PackerState) {
 	item.type = it.asset.type;
 	item.file = currentFileIndex;
 	item.offset = currentFileSize;
+	assert(it.filepath.count <= item.filepath.count);
+	memcpy(item.filepath.data, it.filepath.data, it.filepath.count);
 	simple_memcpy(*directoryBuilder, item);
 
 	simple_memcpy(*packBuilder, it.asset);
 	assetFile, readSuccess := read_entire_file(it.filepath);
 	assert(readSuccess, tprint("Failed to load \"%\" during construction", it.filepath));
 	append(*packBuilder, assetFile);
-	currentFileSize += cast(u64) (size_of(Asset) + assetFile.count);
+	currentFileSize += cast(u64) (size_of(AssetHeader) + assetFile.count);
 
 	print("\tWrote % to %\n", cast(string) it.asset.name, tprint("%_%.%", APP_NAME, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
     }

@@ -23,12 +23,13 @@ AssetType :: enum u8 {
 }
 
 DirectoryItem :: struct {
-    name   : [30] u8 #align 1;
-    type   : AssetType #align 1;
-    file   : u8 #align 1;
-    offset : u64 #align 1;
+    name     : [30] u8   #align 1;
+    type     : AssetType #align 1;
+    file     : u8        #align 1;
+    offset   : u64       #align 1;
+    filepath : [128] u8  #align 1;
 } #no_padding
-#assert(size_of(DirectoryItem) == 40);
+#assert(size_of(DirectoryItem) == 168);
 
 DirectoryFile :: struct {
     fileCode : u32 #align 1;
@@ -414,10 +415,10 @@ get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkForm
     // Transcode texture to correct format
     transcodeFormat := ktx_transcode_fmt_e.TTF_RGBA32;
     if textureFormat == {
-	case .BC7_UNORM_BLOCK;           transcodeFormat = .TTF_BC7_RGBA;
-	case .BC3_UNORM_BLOCK;           transcodeFormat = .TTF_BC3_RGBA;
-	case .ASTC_4x4_UNORM_BLOCK;      transcodeFormat = .TTF_ASTC_4x4_RGBA;
-	case .ETC2_R8G8B8A8_UNORM_BLOCK; transcodeFormat = .TTF_ETC2_RGBA;
+	case .BC7_SRGB_BLOCK;           transcodeFormat = .TTF_BC7_RGBA;
+	case .BC3_SRGB_BLOCK;           transcodeFormat = .TTF_BC3_RGBA;
+	case .ASTC_4x4_SRGB_BLOCK;      transcodeFormat = .TTF_ASTC_4x4_RGBA;
+	case .ETC2_R8G8B8A8_SRGB_BLOCK; transcodeFormat = .TTF_ETC2_RGBA;
 
 	case; log(.WARN, tprint("Suboptimal VkFormat selected: %, transcoding will continue with uncompressed RGBA32", textureFormat));
     }

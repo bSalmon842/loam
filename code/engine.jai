@@ -18,19 +18,22 @@ Created: 08JUN2025
     UI_VERTEX_SHADER     :: #run compile_glsl_to_spirv("ui_vertex");
     UI_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("ui_fragment");
     TEXT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("text_fragment");
+    SPRITE_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("sprite_fragment");
 } else #if OS == .ANDROID {
     MESH_VERTEX_SHADER   : CompiledShader;
     MESH_FRAGMENT_SHADER : CompiledShader;
     UI_VERTEX_SHADER     : CompiledShader;
     UI_FRAGMENT_SHADER   : CompiledShader;
     TEXT_FRAGMENT_SHADER : CompiledShader;
+    SPRITE_FRAGMENT_SHADER : CompiledShader;
 }
 
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
 
-    camera : *Camera;
+    sceneCamera : *Camera;
+    uiCamera : *Camera;
     
     defaultFont : *FontData;
 }
@@ -42,6 +45,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 	UI_VERTEX_SHADER     = load_spirv_for_android("ui_vertex");
 	UI_FRAGMENT_SHADER   = load_spirv_for_android("ui_fragment");
 	TEXT_FRAGMENT_SHADER = load_spirv_for_android("text_fragment");
+	SPRITE_FRAGMENT_SHADER = load_spirv_for_android("sprite_fragment");
     }
     
     loam := New(LoamState);
@@ -53,13 +57,17 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.assets.cacheSentinel.prev = *loam.assets.cacheSentinel;
     loam.assets.cacheSentinel.next = *loam.assets.cacheSentinel;
 
-    loam.camera = New(Camera);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.camera);
-    loam.camera.verticalFOV = 80.0;
-    loam.camera.dimensions = .{ initialWidth, initialHeight };
-    loam.camera.position.z = -2;
+    loam.sceneCamera = New(Camera);
+    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.sceneCamera);
+    loam.sceneCamera.verticalFOV = 80.0;
+    loam.sceneCamera.dimensions = .{ initialWidth, initialHeight };
+    loam.sceneCamera.position.z = -2;
+    loam.sceneCamera.isOrthographic = false;
 
-    loam.camera.isOrthographic = false;
+    loam.uiCamera = New(Camera);
+    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.uiCamera);
+    loam.uiCamera.dimensions = .{ initialWidth, initialHeight };
+    loam.uiCamera.isOrthographic = true;
     
     loam.vk = New(Vk);
     #if IS_DEBUG then this_allocation_is_not_a_leak(loam.vk);

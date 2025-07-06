@@ -45,12 +45,9 @@ draw_ui_text :: (loam : *LoamState, text : *Text) {
     array_add(*loam.vk.buffersToDestroyAtFrameReset, buffers.vertexBuffer);
     
     // NOTE: For UI elements we save the old projection mode, render with orthographic, then return to the old projection mode
-    oldProjectionMode := loam.camera.isOrthographic;
-    loam.camera.isOrthographic = true;
     textureDims := extent_to_vector(stringTexture.extent, 0);
-    renderCommand.pushConstants = .{ get_transform_matrix(text.transform, textureDims) * get_view_matrix(loam.camera) * get_projection_matrix(loam.camera), text.colour,
+    renderCommand.pushConstants = .{ get_transform_matrix(text.transform, textureDims) * get_view_matrix(loam.uiCamera) * get_projection_matrix(loam.uiCamera), text.colour,
 				     renderCommand.buffers.vertexBufferAddress };
-    loam.camera.isOrthographic = oldProjectionMode;
     
     array_add(*pipeline.renderCommands, renderCommand);
 }
@@ -74,12 +71,12 @@ draw_sprite :: (loam : *LoamState, sprite : *Sprite) {
     array_add(*loam.vk.buffersToDestroyAtFrameReset, buffers.vertexBuffer);
     
     // NOTE: For UI elements we save the old projection mode, render with orthographic, then return to the old projection mode
-    oldProjectionMode := loam.camera.isOrthographic;
-    loam.camera.isOrthographic = true;
+    oldProjectionMode := loam.sceneCamera.isOrthographic;
+    loam.sceneCamera.isOrthographic = true;
     textureDims := extent_to_vector(sprite.texture.extent, 0);
-    renderCommand.pushConstants = .{ get_transform_matrix(sprite.transform, textureDims) * get_view_matrix(loam.camera) * get_projection_matrix(loam.camera), sprite.colour,
-				     renderCommand.buffers.vertexBufferAddress };
-    loam.camera.isOrthographic = oldProjectionMode;
+    renderCommand.pushConstants = .{ get_transform_matrix(sprite.transform, textureDims) * get_view_matrix(loam.sceneCamera) * get_projection_matrix(loam.sceneCamera),
+				     sprite.colour, renderCommand.buffers.vertexBufferAddress };
+    loam.sceneCamera.isOrthographic = oldProjectionMode;
     
     array_add(*pipeline.renderCommands, renderCommand);
 }

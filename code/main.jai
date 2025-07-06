@@ -60,7 +60,7 @@ main :: () {
 	    }
         }
 
-	if loam.vk.resizeRequested then resize_swapchain(loam.vk, loam.camera);
+	if loam.vk.resizeRequested then resize_swapchain(loam);
 	
         for events_this_frame {
             if it.type == {
@@ -107,12 +107,6 @@ main :: () {
     }
 
     deinit(loam.assets.directory);
-    free(loam.assets.directory);
-
-    free(loam.assets);
-    free(loam.vk);
-    free(loam.camera);
-    free(loam);
 }
 
 #load "engine.jai";

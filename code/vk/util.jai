@@ -22,10 +22,10 @@ immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : 
     check_vk(vkWaitForFences(vk.device, 1, *vk.immFence, VK_TRUE, seconds_to_nanoseconds(1)), "(Imm Submit) vkWaitForFences failed");
 }
 
-resize_swapchain :: (vk : *Vk, camera : *Camera) {
-    vkDeviceWaitIdle(vk.device);
-    check_vk(create_vk_swapchain(vk, camera), "Failed to recreate swapchain when reizing window");
-    vk.resizeRequested = false;
+resize_swapchain :: (loam : *LoamState) {
+    vkDeviceWaitIdle(loam.vk.device);
+    check_vk(create_vk_swapchain(loam), "Failed to recreate swapchain when reizing window");
+    loam.vk.resizeRequested = false;
 }
 
 find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevice) -> VkPhysicalDevice {
@@ -202,13 +202,13 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
 select_texture_format :: (vk : *Vk) {
     #if OS == .ANDROID {
 	acceptableFormats := VkFormat.[
-		.ASTC_4x4_UNORM_BLOCK, // Android
-		.ETC2_R8G8B8A8_UNORM_BLOCK, // Android
+		.ASTC_4x4_SRGB_BLOCK, // Android
+		.ETC2_R8G8B8A8_SRGB_BLOCK, // Android
 	];
     } else {
 	acceptableFormats := VkFormat.[
-		.BC7_UNORM_BLOCK, // PC
-		.BC3_UNORM_BLOCK, // PC
+		.BC7_SRGB_BLOCK, // PC
+		.BC3_SRGB_BLOCK, // PC
 	];
     }
 

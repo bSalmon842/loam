@@ -123,7 +123,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
     check_vk(vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator), "Failed to create VMA Allocator: ");
     
-    check_vk(create_vk_swapchain(vk, loam.camera), "create_vk_swapchain failed: ");
+    check_vk(create_vk_swapchain(loam), "create_vk_swapchain failed: ");
     
     vkGetDeviceQueue(vk.device, vk.queueFamilyIndices.graphics, 0, *vk.graphicsQueue);
     
@@ -196,16 +196,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     for * pixels {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
-    vk.errorCheckerboard = create_vk_image_from_data(vk, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_UNORM, .SAMPLED_BIT | .TRANSFER_DST_BIT);
-
-    /*
-    textureAsset := request_asset(loam, .Image, "uv_checker");
-    if textureAsset {
-	vk.testTexture = create_vk_image_from_ktx(vk, cast(*ktxTexture2) textureAsset.data);
-    } else {
-	vk.testTexture = vk.errorCheckerboard;
-    }
-    */
+    vk.errorCheckerboard = create_vk_image_from_data(vk, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
 }
 
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
@@ -366,7 +357,8 @@ create_vk_device :: (vk : *Vk) -> VkResult {
     return result;
 }
 
-create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
+create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
+    vk := loam.vk;
     oldSwapchain := vk.swapchain;
 
     surfaceCaps : VkSurfaceCapabilitiesKHR;
@@ -379,7 +371,8 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
 	vk.swapchainExtent.height = cast(u32) clamp(windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
     }
 
-    camera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
+    loam.sceneCamera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
+    loam.uiCamera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
 
     // Get best present mode for our purposes
     presentModeCount : u32;
@@ -443,7 +436,7 @@ create_vk_swapchain :: (vk : *Vk, camera : *Camera) -> VkResult #must {
     check_vk(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.physicalDevice, vk.surface, *formatCount, surfaceFormats.data), "Failed to get supported surface formats");
 
     selectedFormat := surfaceFormats[0];
-    preferredFormats := VkFormat.[ .R8G8B8A8_UNORM, .B8G8R8A8_UNORM ];
+    preferredFormats := VkFormat.[ .R8G8B8A8_SRGB, .B8G8R8A8_SRGB ];
     for supportedFormat : surfaceFormats {
 	for preferredFormats {
 	    if supportedFormat.format == it && supportedFormat.colorSpace == .COLOR_SPACE_SRGB_NONLINEAR_KHR {

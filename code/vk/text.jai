@@ -95,7 +95,7 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo
     }
 
     extent := VkExtent2D.{ cast(u32) textureWidth, cast(u32) textureHeight };
-    stringTexture := create_vk_image_from_data(vk, textureData.data, extent, .R8_UNORM, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
+    stringTexture := create_vk_image_from_data(vk, textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
 
     set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);

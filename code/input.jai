@@ -16,14 +16,14 @@ handle_keyboard_input :: (loam : *LoamState, keyState : Key_Current_State, keyCo
     // TODO: Functors from game
     if keyState & .DOWN {
 	if keyCode == {
-	    case #char "A"; loam.camera.position.x -= cast(float) (5.0 * deltaTime);
-	    case #char "D"; loam.camera.position.x += cast(float) (5.0 * deltaTime);
+	    case #char "A"; loam.sceneCamera.position.x -= cast(float) (5.0 * deltaTime);
+	    case #char "D"; loam.sceneCamera.position.x += cast(float) (5.0 * deltaTime);
 
-	    case #char "Q"; loam.camera.position.y += cast(float) (5.0 * deltaTime);
-	    case #char "Z"; loam.camera.position.y -= cast(float) (5.0 * deltaTime);
+	    case #char "Q"; loam.sceneCamera.position.y += cast(float) (5.0 * deltaTime);
+	    case #char "Z"; loam.sceneCamera.position.y -= cast(float) (5.0 * deltaTime);
 	    
-	    case #char "W"; loam.camera.position.z += cast(float) (5.0 * deltaTime);
-	    case #char "S"; loam.camera.position.z -= cast(float) (5.0 * deltaTime);
+	    case #char "W"; loam.sceneCamera.position.z += cast(float) (5.0 * deltaTime);
+	    case #char "S"; loam.sceneCamera.position.z -= cast(float) (5.0 * deltaTime);
 	}
     }
 }

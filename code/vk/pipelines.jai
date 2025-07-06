@@ -77,7 +77,6 @@ set_pipeline_multisampling_mode :: (using pipelineInfo : *GraphicsPipelineInfo, 
 
 BlendingMode :: enum u8 {
     None;
-    Text;
     Additive;
     Alpha;
 }
@@ -93,24 +92,28 @@ set_pipeline_blending_mode :: (using pipelineInfo : *GraphicsPipelineInfo, enabl
 	}
 
 	blending.blendEnable = VK_TRUE;
-	blending.dstColorBlendFactor = .DST_ALPHA;
-	blending.colorBlendOp = .ADD;
-	blending.srcAlphaBlendFactor = .ONE;
-	blending.dstAlphaBlendFactor = .ZERO;
-	blending.alphaBlendOp = .ADD;
 	
 	if #complete mode == {
 	    case .None;
 	    
-	    case .Text; {
+	    case .Additive; {
 		blending.srcColorBlendFactor = .SRC_ALPHA;
-		blending.srcAlphaBlendFactor = .SRC_ALPHA;
-		blending.dstColorBlendFactor = .ONE_MINUS_SRC_ALPHA;
-		blending.dstAlphaBlendFactor = .ONE_MINUS_SRC_ALPHA;
+		blending.dstColorBlendFactor = .ONE;
+		blending.colorBlendOp = .ADD;
+
+		blending.srcAlphaBlendFactor = .ONE;
+		blending.dstAlphaBlendFactor = .ZERO;
+		blending.alphaBlendOp = .ADD;
 	    }
-	    
-	    case .Additive; blending.srcColorBlendFactor = .ONE;
-	    case .Alpha;    blending.srcColorBlendFactor = .ONE_MINUS_DST_ALPHA;
+	    case .Alpha; {
+		blending.srcColorBlendFactor = .SRC_ALPHA;
+		blending.dstColorBlendFactor = .ONE_MINUS_SRC_ALPHA;
+		blending.colorBlendOp = .ADD;
+
+		blending.srcAlphaBlendFactor = .ONE;
+		blending.dstAlphaBlendFactor = .ZERO;
+		blending.alphaBlendOp = .ADD;
+	    }
 	}
     }
 }
@@ -200,14 +203,14 @@ init_pipelines :: (vk : *Vk) {
 	    
 	    case .Sprite; {
 		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
-		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+		fragShader = load_shader_module(vk.device, SPRITE_FRAGMENT_SHADER);
 
 		set_pipeline_shaders(*builder, vertShader, fragShader);
 		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
 		set_pipeline_polygon_mode(*builder, .FILL);
 		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
 		set_pipeline_multisampling_mode(*builder, .None);
-		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 	    }
