@@ -5,8 +5,9 @@ Author: Brock Salmon
 Created: 03JUL2025
 */
 
+/////////////////////// INPUT REGISTRATION
 InputBinds :: struct {
-    keyboardBinds : Table(u64, ButtonInputFuncInfo);
+    keycodeBinds : Table(u64, ButtonInputFuncInfo);
 }
 
 // Input Types
@@ -25,33 +26,45 @@ ButtonInputFuncInfo :: struct {
     extraData : *void;
 }
 
-AxisInputFunc :: #type (loam : *LoamState, extraData : *void, axis : s64);
-
-
 // Registration and Calling Functions
-register_keyboard_input :: (loam : *LoamState, code : Key_Code, modifiers : Event.Modifier_Flags, func : ButtonInputFunc, extraData : *void) {
+register_keycode_input :: (loam : *LoamState, code : Key_Code, modifiers : Event.Modifier_Flags, func : ButtonInputFunc, extraData : *void) {
     keyInput := keyboard_to_u64(code, modifiers);
-    if !table_contains(*loam.input.keyboardBinds, keyInput) {
-	table_add(*loam.input.keyboardBinds, keyInput, .{ func, extraData });
+    if !table_contains(*loam.binds.keycodeBinds, keyInput) {
+	table_add(*loam.binds.keycodeBinds, keyInput, .{ func, extraData });
     }
 }
 
-handle_keyboard_input :: (loam : *LoamState, keyCode : Key_Code, modifiers : Event.Modifier_Flags) {
-    foundBind := table_find_pointer(*loam.input.keyboardBinds, keyboard_to_u64(keyCode, modifiers));
+handle_keycode_input :: (loam : *LoamState, keyCode : Key_Code, modifiers : Event.Modifier_Flags) {
+    foundBind := table_find_pointer(*loam.binds.keycodeBinds, keyboard_to_u64(keyCode, modifiers));
     if foundBind {
 	foundBind.func(loam, foundBind.extraData);
     }
-    /*
-    if keyCode == {
-	
-	case #char "W"; loam.sceneCamera.position.z += cast(float) (5.0 * deltaTime);
-	case #char "S"; loam.sceneCamera.position.z -= cast(float) (5.0 * deltaTime);
+}
+
+/////////////////////// POINTER INPUT
+// Used to unify info we want from the mouse and touch inputs
+PointerStatus :: struct {
+    pressedThisFrame : bool;
+    pressedLastFrame : bool;
+
+    position : Vector2;
+}
+
+// TODO: We probably want a way to make sure this is only being called once per frame
+update_pointer_status :: (loam : *LoamState, window : Window_Type, status : *PointerStatus) {
+    status.pressedLastFrame = status.pressedThisFrame;
+    status.pressedThisFrame = cast(bool) (input_button_states[Key_Code.MOUSE_BUTTON_LEFT] & .DOWN);
+
+    #if OS == .ANDROID {
+	androidPointer := android_pointers[0];
+	status.position = .{ androidPointer.window_position_x, loam.windowHeight - androidPointer.window_position_y };
+    } else {
+	x, y := get_mouse_pointer_position(window, false);
+	y = loam.windowHeight - y;
+	status.position = .{ cast(float) x, cast(float) y };
     }
-*/
 }
 
-handle_mouse_input :: (loam : *LoamState) {
-    // TODO: Functors from game
-}
-
+is_press_action :: (pointer : PointerStatus) -> bool { return pointer.pressedThisFrame && !pointer.pressedLastFrame; }
+is_release_action :: (pointer : PointerStatus) -> bool { return !pointer.pressedThisFrame && pointer.pressedLastFrame; }
 

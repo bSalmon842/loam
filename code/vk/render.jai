@@ -5,6 +5,13 @@ Author: Brock Salmon
 Created: 17MAY2025
 */
 
+Renderable2D :: struct {
+    texture : *AllocatedImageInfo;
+    vertices : [] Vertex;
+    vertexMemory : *void;
+    dimensions : Vector2;
+}
+
 get_current_frame :: (vk : *Vk) -> *FrameCommandInfo #must {
     return *vk.frames[vk.currentFrame % FRAMES_IN_FLIGHT];
 }

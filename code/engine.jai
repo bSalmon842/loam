@@ -5,11 +5,9 @@ Author: Brock Salmon
 Created: 08JUN2025
 */
 
-// TODO: Input
 // TODO: Meshes
-// TODO: Better render calls (DrawSprite, DrawMesh, etc.)
 // TODO: Audio
-// TODO: UI (Debug & Game)
+// TODO: A struct for holding data all renderables will need (visibility, etc)
 
 // Compiled Shaders
 #if OS == .WINDOWS {
@@ -37,7 +35,13 @@ LoamState :: struct {
     
     defaultFont : *FontData;
 
-    input : *InputBinds;
+    binds : *InputBinds;
+    mainPointer : PointerStatus;
+
+    #if IS_DEBUG {
+	debugUIElements : [..] *UI_Element;
+    }
+    uiElements : [..] *UI_Element;
     
     windowWidth  : s64;
     windowHeight : s64;
@@ -83,7 +87,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     fontAsset := request_asset(loam, .Font, "internal", true);
     loam.defaultFont = cast(*FontData) fontAsset.data;
 
-    loam.input = New(InputBinds);
+    loam.binds = New(InputBinds);
     
     loam.windowWidth = xx initialWidth;
     loam.windowHeight = xx initialHeight;
@@ -92,7 +96,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 	quit_game :: (loam : *LoamState, extraData : *void) {
 	    loam.running = false;
 	}
-	register_keyboard_input(loam, Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
+	register_keycode_input(loam, Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
     }
     
     return loam;
@@ -119,6 +123,7 @@ reset_info_for_rendering :: (loam : *LoamState) {
 #load "math.jai";
 #load "transform.jai";
 #load "utility.jai";
+#load "ui.jai";
 #load "vk/vk.jai";
 
 #import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG && OS == .WINDOWS);

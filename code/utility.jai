@@ -9,6 +9,10 @@ APP_NAME :: "loam";
 
 DEFAULT_TEXTURE_TINT :: Vector4.{1,1,1,1};
 
+Invalid_Codepath :: () {
+    assert(false, "Invalid Codepath");
+}
+
 KB :: (value : u64) -> u64 {
     return value * 1024;
 }

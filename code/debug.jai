@@ -17,9 +17,9 @@ DebugMetrics :: struct {
     nonDebugDrawCalls : u32;
 }
 
-frameTimeText : *Text;
-ramUsageText  : *Text;
-drawCallText  : *Text;
+frameTimeText : *UI_Element;
+ramUsageText  : *UI_Element;
+drawCallText  : *UI_Element;
 
 update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics) {
     metrics.timeSinceLastMetricUpdate += loam.deltaTime;
@@ -39,14 +39,17 @@ update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics) {
 
 	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
     }
+
+    change_text(loam, frameTimeText.text, tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+    update_region(frameTimeText, get_default_interact_region(frameTimeText.text));
+    change_text(loam, ramUsageText.text, tprint(" RAM Usage: %", to_size_string(metrics.ramUsage)));
+    update_region(ramUsageText, get_default_interact_region(ramUsageText.text));
+    change_text(loam, drawCallText.text, tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
+    update_region(drawCallText, get_default_interact_region(drawCallText.text));
 }
 
-render_debug_stats :: (loam : *LoamState, metrics : DebugMetrics) {
-    frameTimeText.str = tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate);
-    ramUsageText.str  = tprint(" RAM Usage: %", to_size_string(metrics.ramUsage));
-    drawCallText.str  = tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls);
-    
-    draw_ui_text(loam, frameTimeText);
-    draw_ui_text(loam, ramUsageText);
-    draw_ui_text(loam, drawCallText);
+render_debug_ui :: (loam : *LoamState, metrics : DebugMetrics) {
+    for loam.debugUIElements {
+	draw_ui_element(loam, it);
+    }
 }

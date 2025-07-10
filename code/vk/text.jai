@@ -18,6 +18,7 @@ Text :: struct {
 
     colour : Vector4 = DEFAULT_TEXTURE_TINT;
     using transform : Transform;
+    using renderable : Renderable2D;
 }
 
 TemporaryGlyph :: struct {
@@ -25,7 +26,7 @@ TemporaryGlyph :: struct {
     bearingX, bearingY, advance : s32;
 }
 
-build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo {
+build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
     // TODO: Handle text colour codes
     // TODO: Handle escape sequences
     
@@ -61,7 +62,7 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo
 
     __mark := get_temporary_storage_mark();
     textureData := NewArray(textureWidth * textureHeight, u8,, temp);
-
+    
     assert(savedGlyphs.count == info.str.count, "Did not get the correct amount of glyphs for this string");
     cursorX := 0;
     previousGlyphIndex = 0;
@@ -100,20 +101,33 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *AllocatedImageInfo
     set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);
     
-    dimensions := extent_to_vector(extent);
+    info.dimensions = extent_to_vector(extent);
     
     // Build info to upload to GPU
-    vertices := NewArray(4, Vertex,, temp);
-    vertices[0] = .{ position=.{ dimensions.x, 0,            0 }, uv=.{ 1, 1 } };
-    vertices[1] = .{ position=.{ dimensions.x, dimensions.y, 0 }, uv=.{ 1, 0 } };
-    vertices[2] = .{ position=.{ 0,            0,            0 }, uv=.{ 0, 1 } };
-    vertices[3] = .{ position=.{ 0,            dimensions.y, 0 }, uv=.{ 0, 0 } };
+    vertices, vertexMemory := NewArray(4, Vertex);
+    vertices[0] = .{ position=.{ info.dimensions.x, 0,                 0 }, uv=.{ 1, 1 } };
+    vertices[1] = .{ position=.{ info.dimensions.x, info.dimensions.y, 0 }, uv=.{ 1, 0 } };
+    vertices[2] = .{ position=.{ 0,                 0,                 0 }, uv=.{ 0, 1 } };
+    vertices[3] = .{ position=.{ 0,                 info.dimensions.y, 0 }, uv=.{ 0, 0 } };
 
-    return vertices, stringTexture;
+    return vertices, vertexMemory, stringTexture;
 }
 
-make_text :: (str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
+make_text :: (loam : *LoamState, str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
     text := New(Text);
-    text.* = .{ str, font, size, colour, transform };
+    text.* = .{ str, font, size, colour, transform, .{} };
+    if str.count > 0 {
+	text.vertices, text.texture = build_text_buffers(loam.vk, text);
+    }
     return text;
+}
+
+change_text :: (loam : *LoamState, text : *Text, str : string) {
+    text.str = str;
+    if text.texture {
+	free(text.vertexMemory);
+	vkDeviceWaitIdle(loam.vk.device);
+	destroy_vk_image(loam.vk, text.texture);
+    }
+    text.vertices, text.vertexMemory, text.texture = build_text_buffers(loam.vk, text);
 }

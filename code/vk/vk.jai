@@ -515,5 +515,4 @@ create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
 #load "shaders.jai";
 #load "sprite.jai";
 #load "text.jai";
-#load "ui.jai";
 #load "util.jai";
