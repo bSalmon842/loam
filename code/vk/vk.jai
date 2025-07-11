@@ -172,7 +172,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	if #complete it == {
 	    case .Mesh;
 	    case .Sprite;
-	    case .UI_Image;
+	    case .UI_Sprite;
 	    case .UI_Text;
 	}
     }

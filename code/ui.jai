@@ -17,19 +17,19 @@ is_point_within_region :: (point : Vector2, region : MouseInteractableRegion) ->
     return true;
 }
 
-get_default_interact_region :: (text : *Text) -> MouseInteractableRegion {
+get_default_interact_region :: (renderable : *$T) -> MouseInteractableRegion {
     region : MouseInteractableRegion;
 
-    halfDims := (text.dimensions * text.scale.xy) * 0.5;
-    region.p0 = Vector2.{ text.position.x, text.position.y } - halfDims;
+    halfDims := (renderable.dimensions * renderable.scale.xy) * 0.5;
+    region.p0 = Vector2.{ renderable.position.x, renderable.position.y } - halfDims;
     
-    if text.alignment & .Left  then region.p0.x += halfDims.x;
-    if text.alignment & .Right then region.p0.x -= halfDims.x;
+    if renderable.alignment & .Left  then region.p0.x += halfDims.x;
+    if renderable.alignment & .Right then region.p0.x -= halfDims.x;
 
-    if text.alignment & .Top    then region.p0.y -= halfDims.y;
-    if text.alignment & .Bottom then region.p0.y += halfDims.y;
+    if renderable.alignment & .Top    then region.p0.y -= halfDims.y;
+    if renderable.alignment & .Bottom then region.p0.y += halfDims.y;
     
-    region.p1 = region.p0 + (text.dimensions * text.scale.xy);
+    region.p1 = region.p0 + (renderable.dimensions * renderable.scale.xy);
     return region;
 }
 
@@ -37,7 +37,13 @@ update_region :: (elem : *UI_Element, region : MouseInteractableRegion) {
     elem.interact.region = region;
 }
 
-UI_InteractFunc :: #type (loam : *LoamState, elem : *UI_Element);
+UI_ActivateMode :: enum {
+    InitialPress;
+    WhileDown;
+    OnRelease;
+}
+
+UI_InteractFunc :: #type (loam : *LoamState, extraData : *void);
 UI_HoverFunc :: #type (loam : *LoamState, elem : *UI_Element);
 MouseInteractionInfo :: struct {
     interactable : bool;
@@ -46,14 +52,15 @@ MouseInteractionInfo :: struct {
     hoverTint : Vector4;
     hoverFunc : UI_HoverFunc;
     
-    activateOnRelease : bool; // If true, onClickFunc is only called on the release action, otherwise on the initial press action
+    activateMode : UI_ActivateMode;
     activateFunc : UI_InteractFunc;
+    activateData : *void;
 }
 
 UI_Type :: enum {
     Empty;
     Text;
-    Image;
+    Sprite;
 }
 
 UI_Element :: struct {
@@ -62,38 +69,58 @@ UI_Element :: struct {
     type : UI_Type;
     union {
 	text : *Text;
-	//image : *AllocatedI;
+	sprite : *Sprite;
     }
 }
 
-make_ui_element :: (loam : *LoamState, text : *Text, interactable : bool, hoverTint : Vector4, region : MouseInteractableRegion, hoverFunc : UI_HoverFunc = null, activateOnRelease := false, activateFunc : UI_InteractFunc = null) -> *UI_Element {
+make_ui_element :: (loam : *LoamState, text : *Text, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateFunc : UI_InteractFunc = null, activateData : *void = null) -> *UI_Element {
     elem := New(UI_Element);
     elem.type = .Text;
     elem.text = text;
 
     elem.interact.interactable = interactable;
-    elem.interact.region = region;
+    elem.interact.region = ifx region.p0 == region.p1 then get_default_interact_region(text) else region;
     elem.interact.hoverTint = hoverTint;
     elem.interact.hoverFunc = hoverFunc;
-    elem.interact.activateOnRelease = activateOnRelease;
+    elem.interact.activateMode = activateMode;
     elem.interact.activateFunc = activateFunc;
+    elem.interact.activateData = activateData;
+    
+    return elem;
+}
+
+make_ui_element :: (loam : *LoamState, sprite : *Sprite, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateFunc : UI_InteractFunc = null, activateData : *void = null) -> *UI_Element {
+    elem := New(UI_Element);
+    elem.type = .Sprite;
+    elem.sprite = sprite;
+
+    elem.interact.interactable = interactable;
+    elem.interact.region = ifx region.p0 == region.p1 then get_default_interact_region(sprite) else region;
+    elem.interact.hoverTint = hoverTint;
+    elem.interact.hoverFunc = hoverFunc;
+    elem.interact.activateMode = activateMode;
+    elem.interact.activateFunc = activateFunc;
+    elem.interact.activateData = activateData;
     
     return elem;
 }
 
 update_ui_element :: (loam : *LoamState, pointer : PointerStatus, elem : *UI_Element) {
     if elem.interact.interactable {
-	if is_point_within_region(pointer.position, elem.interact.region) {
+	pointerWithinRegion := is_point_within_region(pointer.position, elem.interact.region);
+        #if OS == .ANDROID {
+	    pointerWithinRegion &&= pointer.pressedThisFrame;
+	}
+	
+	if pointerWithinRegion {
 	    elem.interact.hovered = true;
 	    if elem.interact.hoverFunc then elem.interact.hoverFunc(loam, elem);
 
 	    // TODO: The way this is currently setup, we can press off the button, then move onto the button and release to activate, is that okay?
 	    if elem.interact.activateFunc {
-		if elem.interact.activateOnRelease {
-		    if is_release_action(pointer) then elem.interact.activateFunc(loam, elem);
-		} else {
-		    if is_press_action(pointer) then elem.interact.activateFunc(loam, elem);
-		}
+		if elem.interact.activateMode == .InitialPress && is_press_action(pointer) then elem.interact.activateFunc(loam, elem.interact.activateData);
+		if elem.interact.activateMode == .WhileDown && is_down_action(pointer) then elem.interact.activateFunc(loam, elem.interact.activateData);
+		if elem.interact.activateMode == .OnRelease && is_release_action(pointer) then elem.interact.activateFunc(loam, elem.interact.activateData);
 	    }
 	} else {
 	    elem.interact.hovered = false;

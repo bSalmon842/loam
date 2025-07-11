@@ -8,7 +8,7 @@ Created: 19MAY2025
 PipelineTypes :: enum {
     Mesh;
     Sprite;
-    UI_Image;
+    UI_Sprite;
     UI_Text;
 }
 
@@ -215,7 +215,7 @@ init_pipelines :: (vk : *Vk) {
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 	    }
 	    
-	    case .UI_Image; {
+	    case .UI_Sprite; {
 		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, UI_FRAGMENT_SHADER);
 
@@ -224,7 +224,7 @@ init_pipelines :: (vk : *Vk) {
 		set_pipeline_polygon_mode(*builder, .FILL);
 		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
 		set_pipeline_multisampling_mode(*builder, .None);
-		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 	    }

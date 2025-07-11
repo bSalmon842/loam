@@ -32,7 +32,7 @@ update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics) {
 	metrics.nonDebugDrawCalls = 0;
 	for loam.vk.pipelines {
 	    metrics.totalDrawCalls += cast(u32) it.renderCommands.count;
-	    if cast(PipelineTypes) it_index != PipelineTypes.UI_Image && cast(PipelineTypes) it_index != PipelineTypes.UI_Text {
+	    if cast(PipelineTypes) it_index != PipelineTypes.UI_Sprite && cast(PipelineTypes) it_index != PipelineTypes.UI_Text {
 		metrics.nonDebugDrawCalls += cast(u32) it.renderCommands.count;
 	    }
 	}

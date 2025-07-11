@@ -8,6 +8,8 @@ Created: 08JUN2025
 // TODO: Meshes
 // TODO: Audio
 // TODO: A struct for holding data all renderables will need (visibility, etc)
+// TODO: States for menus, loading, etc
+// TODO: Gamepad input
 
 // Compiled Shaders
 #if OS == .WINDOWS {

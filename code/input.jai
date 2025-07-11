@@ -67,4 +67,5 @@ update_pointer_status :: (loam : *LoamState, window : Window_Type, status : *Poi
 
 is_press_action :: (pointer : PointerStatus) -> bool { return pointer.pressedThisFrame && !pointer.pressedLastFrame; }
 is_release_action :: (pointer : PointerStatus) -> bool { return !pointer.pressedThisFrame && pointer.pressedLastFrame; }
+is_down_action :: (pointer : PointerStatus) -> bool { return pointer.pressedThisFrame; }
 
