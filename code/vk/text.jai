@@ -61,9 +61,9 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedIm
     textureHeight = maxHeight + baseline;
 
     __mark := get_temporary_storage_mark();
-    textureData := NewArray(textureWidth * textureHeight, u8,, temp);
+    textureData, rawTextureData := NewArray(textureWidth * textureHeight, u8);
     
-    assert(savedGlyphs.count == info.str.count, "Did not get the correct amount of glyphs for this string");
+    assert(savedGlyphs.count == info.str.count, "Did not get the correct amount of glyphs for this string ( % / % )", savedGlyphs.count, info.str.count);
     cursorX := 0;
     previousGlyphIndex = 0;
     
@@ -100,6 +100,8 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedIm
 
     set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);
+
+    free(rawTextureData);
     
     info.dimensions = extent_to_vector(extent);
     
@@ -118,16 +120,36 @@ make_text :: (loam : *LoamState, str : string, font : *FontData, size : u32, tra
     text.* = .{ str, font, size, colour, transform, .{} };
     if str.count > 0 {
 	text.vertices, text.texture = build_text_buffers(loam.vk, text);
+	text.buffers = New(MeshBuffers);
+	
+	threadWork : ThreadWork;
+	threadWork.type = .UploadToGPU;
+	threadWork.loam = loam;
+	threadWork.uploadData = .{ DEFAULT_PLANE_INDICES, text.vertices, text.buffers, upload_mesh_threaded };
+	add_thread_work(*loam.threadSystem, threadWork, "Upload new Text to GPU");
     }
     return text;
 }
 
-change_text :: (loam : *LoamState, text : *Text, str : string) {
+update_text :: (loam : *LoamState, text : *Text, str : string) {
     text.str = str;
     if text.texture {
 	free(text.vertexMemory);
-	vkDeviceWaitIdle(loam.vk.device);
 	destroy_vk_image(loam.vk, text.texture);
     }
     text.vertices, text.vertexMemory, text.texture = build_text_buffers(loam.vk, text);
+
+    if text.buffers {
+	destroy_vk_buffer(loam.vk, text.buffers.vertexBuffer);
+	free(text.buffers);
+    }
+
+    text.buffers = New(MeshBuffers);
+
+    threadWork : ThreadWork;
+    threadWork.type = .UploadToGPU;
+    threadWork.loam = loam;
+    threadWork.uploadData = .{ DEFAULT_PLANE_INDICES, text.vertices, text.buffers, upload_mesh_threaded };
+    add_thread_work(*loam.threadSystem, threadWork, "Upload new Text to GPU");
 }
+

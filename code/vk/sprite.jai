@@ -25,6 +25,13 @@ make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, 
     sprite.transform = transform;
 
     sprite.vertices, sprite.vertexMemory = build_sprite_buffers(loam.vk, sprite);
+    sprite.buffers = New(MeshBuffers);
+
+    threadWork : ThreadWork;
+    threadWork.type = .UploadToGPU;
+    threadWork.loam = loam;
+    threadWork.uploadData = .{ DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers, upload_mesh_threaded };
+    add_thread_work(*loam.threadSystem, threadWork, "Upload new Sprite to GPU");
     
     return sprite;
 }

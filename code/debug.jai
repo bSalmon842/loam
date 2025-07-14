@@ -24,7 +24,7 @@ drawCallText  : *UI_Element;
 update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics) {
     metrics.timeSinceLastMetricUpdate += loam.deltaTime;
     if metrics.timeSinceLastMetricUpdate >= METRIC_UPDATE_RATE {
-	metrics.framesPerSecond = cast(u32) (1.0 / loam.deltaTime + 1.0);
+	metrics.framesPerSecond = cast(u32) (1.0 / loam.deltaTime + 0.5);
 	metrics.msPerFrame = loam.deltaTime * 1000.0;
 	metrics.ramUsage = get_ram_usage();
 
@@ -32,19 +32,23 @@ update_debug_metrics :: (loam : *LoamState, metrics : *DebugMetrics) {
 	metrics.nonDebugDrawCalls = 0;
 	for loam.vk.pipelines {
 	    metrics.totalDrawCalls += cast(u32) it.renderCommands.count;
-	    if cast(PipelineTypes) it_index != PipelineTypes.UI_Sprite && cast(PipelineTypes) it_index != PipelineTypes.UI_Text {
-		metrics.nonDebugDrawCalls += cast(u32) it.renderCommands.count;
-	    }
+	    
 	}
 
-	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
-    }
+	metrics.nonDebugDrawCalls = metrics.totalDrawCalls;
+	metrics.nonDebugDrawCalls -= xx loam.debugUIElements.count;
 
-    change_text(loam, frameTimeText.text, tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
+
+	update_text(loam, frameTimeText.text, tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+	update_text(loam, ramUsageText.text, tprint(" RAM Usage: %", to_size_string(metrics.ramUsage)));
+	update_text(loam, drawCallText.text, tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
+    }
+}
+
+update_debug_ui_regions :: () {
     update_region(frameTimeText, get_default_interact_region(frameTimeText.text));
-    change_text(loam, ramUsageText.text, tprint(" RAM Usage: %", to_size_string(metrics.ramUsage)));
     update_region(ramUsageText, get_default_interact_region(ramUsageText.text));
-    change_text(loam, drawCallText.text, tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
     update_region(drawCallText, get_default_interact_region(drawCallText.text));
 }
 

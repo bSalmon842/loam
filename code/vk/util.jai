@@ -5,8 +5,25 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
+VkThreadContext :: struct {
+    cmdPool   : VkCommandPool;
+    cmdBuffer : VkCommandBuffer;
+    fence     : VkFence;
+    queue     : VkQueue;
+}
+
+#add_context threadVkContext : *VkThreadContext = null;
+
 ImmediateSubmitFunc :: #type (VkCommandBuffer, *void);
 immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {
+    if context.thread_index == 0 {
+	_imm_submit_single(vk, submissionFunc, funcData);
+    } else {
+	_imm_submit_threaded(vk, submissionFunc, funcData);
+    }
+}
+
+_imm_submit_single :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {
     check_vk(vkResetFences(vk.device, 1, *vk.immFence), "(Imm Submit) Failed to reset fence");
     check_vk(vkResetCommandBuffer(vk.immCmdBuffer, 0), "(Imm Submit) Failed to reset Command Buffer");
 
@@ -20,6 +37,22 @@ immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : 
     check_vk(vkQueueSubmit2(vk.graphicsQueue, 1, *submitInfo, vk.immFence), "(Imm Submit) Failed to submit Queue");
     
     check_vk(vkWaitForFences(vk.device, 1, *vk.immFence, VK_TRUE, seconds_to_nanoseconds(1)), "(Imm Submit) vkWaitForFences failed");
+}
+
+_imm_submit_threaded :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {    
+    check_vk(vkResetFences(vk.device, 1, *context.threadVkContext.fence), "(Imm Submit Threaded) Failed to reset fence");
+    check_vk(vkResetCommandBuffer(context.threadVkContext.cmdBuffer, 0), "(Imm Submit Threaded) Failed to reset Command Buffer");
+
+    cmdBufferBeginInfo := VkCommandBufferBeginInfo.{ .COMMAND_BUFFER_BEGIN_INFO, null, .ONE_TIME_SUBMIT_BIT, null };
+    check_vk(vkBeginCommandBuffer(context.threadVkContext.cmdBuffer, *cmdBufferBeginInfo), "(Imm Submit Threaded) Failed to begin Command Buffer");
+    submissionFunc(context.threadVkContext.cmdBuffer, funcData);
+    check_vk(vkEndCommandBuffer(context.threadVkContext.cmdBuffer), "(Imm Submit Threaded) Failed to end Command Buffer");
+
+    cmdInfo := VkCommandBufferSubmitInfo.{ .COMMAND_BUFFER_SUBMIT_INFO, null, context.threadVkContext.cmdBuffer, 0 };
+    submitInfo := VkSubmitInfo2.{ .SUBMIT_INFO_2, null, 0, 0, null, 1, *cmdInfo, 0, null };
+    check_vk(vkQueueSubmit2(context.threadVkContext.queue, 1, *submitInfo, context.threadVkContext.fence), "(Imm Submit Threaded) Failed to submit Queue");
+    
+    check_vk(vkWaitForFences(vk.device, 1, *context.threadVkContext.fence, VK_TRUE, seconds_to_nanoseconds(1)), "(Imm Submit Threaded) vkWaitForFences failed");
 }
 
 resize_swapchain :: (loam : *LoamState) {
@@ -61,7 +94,7 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
 	    array_reset(*usedIndices);
 	    continue;
 	}
-
+	
 	array_reset(*usedIndices);
 	
 	// Check features are available
@@ -279,13 +312,22 @@ chain_physical_device_features :: (_1_1 : *VkPhysicalDeviceVulkan11Features, _1_
     return featureChain;
 }
 
-queue_create_info :: (familyIndex : u32) -> VkDeviceQueueCreateInfo #must {
-    defaultPriority : float32 = 0.0;
+queue_create_info :: (vk : *Vk, familyIndex : u32) -> VkDeviceQueueCreateInfo {
+    queueFamilyCount : u32;
+    vkGetPhysicalDeviceQueueFamilyProperties(vk.physicalDevice, *queueFamilyCount, null);
+    queueFamilies := NewArray(queueFamilyCount, VkQueueFamilyProperties,, temp);
+    vkGetPhysicalDeviceQueueFamilyProperties(vk.physicalDevice, *queueFamilyCount, queueFamilies.data);
+
+    queueCount := queueFamilies[familyIndex].queueCount;
+    priorities := NewArray(queueCount, float32,, temp);
+    for * priorities {
+	it.* = 1; // Set priority of all queues to 1
+    }
     
     queueInfo := VkDeviceQueueCreateInfo.{};
     queueInfo.queueFamilyIndex = familyIndex;
-    queueInfo.queueCount = 1;
-    queueInfo.pQueuePriorities = *defaultPriority;
+    queueInfo.queueCount = queueCount;
+    queueInfo.pQueuePriorities = priorities.data;
 
     return queueInfo;
 }
@@ -308,7 +350,8 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
     return image;
 }
 
-destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {    
+destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {
+    check_vk(vkWaitForFences(vk.device, 1, *image.fence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
     vkDestroyImageView(vk.device, image.view, null);
     vmaDestroyImage(vk.allocator, image.image, image.allocation);
     free(image);
@@ -323,9 +366,10 @@ cleanup_single_frame_images :: (vk : *Vk) {
     array_reset(*vk.imagesToDestroyAtFrameReset);
 }
 
+// TODO: Maybe make this threaded if it gets called too often
 create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
     dataSize := extent.width * extent.height * bytesPerPixel;
-    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
+    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU, vk.immFence);
     defer destroy_vk_buffer(vk, uploadBuffer);
     memcpy(uploadBuffer.allocationInfo.pMappedData, data, cast(s64) dataSize);
 
@@ -352,6 +396,7 @@ create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, forma
     return image;
 }
 
+// TODO: Maybe make this threaded if it gets called too often
 create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
 				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
@@ -369,7 +414,7 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInf
     check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
 
     dataSize := ktxTexture_GetDataSize(ktx);
-    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU);
+    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, .CPU_TO_GPU, vk.immFence);
     defer destroy_vk_buffer(vk, uploadBuffer);
     memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
     
@@ -406,16 +451,19 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInf
     return image;
 }
 
-create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, memUsage : VmaMemoryUsage) -> *AllocatedBufferInfo #must {
+create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, memUsage : VmaMemoryUsage, fence : VkFence) -> *AllocatedBufferInfo #must {
     createInfo := VkBufferCreateInfo.{ size = size, usage = usage };
     allocationCreateInfo := VmaAllocationCreateInfo.{ flags = .MAPPED_BIT, usage = memUsage };
 
     buffer := New(AllocatedBufferInfo);
     check_vk(vmaCreateBuffer(vk.allocator, *createInfo, *allocationCreateInfo, *buffer.buffer, *buffer.allocation, *buffer.allocationInfo), "Failed to create Buffer");
+
+    buffer.fence = fence;
     return buffer;
 }
 
 destroy_vk_buffer :: (vk : *Vk, buffer : *AllocatedBufferInfo) {
+    check_vk(vkWaitForFences(vk.device, 1, *buffer.fence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
     vmaDestroyBuffer(vk.allocator, buffer.buffer, buffer.allocation);
     free(buffer);
 }
@@ -478,8 +526,7 @@ vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, 
     if messageSeverity & .WARNING_BIT_EXT then logType = .WARN;
     if messageSeverity & .ERROR_BIT_EXT then logType = .ERROR;
 
-    ctx : #Context;
-    push_context ctx {
+    push_context {
         print("VALIDATION: %\n", to_string(pCallbackData.pMessage));
         log_vk(logType, tprint("VALIDATION: %", to_string(pCallbackData.pMessage)));
     }
@@ -487,12 +534,12 @@ vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, 
     return VK_FALSE;
 }
 
-check_vk :: (result : VkResult, errMsg : string, errType := Log_Type.FATAL) #expand {
+check_vk :: (result : VkResult, errMsg : string, errType := Log_Type.FATAL, callLoc := #caller_location) #expand {
     if result != .SUCCESS {
-        log_vk(errType, tprint("%: %", errMsg, enum_value_to_name(result)));
+        log_vk(errType, tprint("%: %", errMsg, enum_value_to_name(result)), callLoc);
     }
 }
 
-log_vk :: (type : Log_Type, s : string) {
-    log(type, tprint("[VULKAN] %", s));
+log_vk :: (type : Log_Type, s : string, callLoc := #caller_location) {
+    log(type, tprint("[VULKAN] %", s), callLoc);
 }

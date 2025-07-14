@@ -32,6 +32,8 @@ LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
 
+    threadSystem : ThreadSystemInfo;
+
     sceneCamera : *Camera;
     uiCamera : *Camera;
     
@@ -123,11 +125,13 @@ reset_info_for_rendering :: (loam : *LoamState) {
 #load "debug.jai";
 #load "input.jai";
 #load "math.jai";
+#load "thread.jai";
 #load "transform.jai";
 #load "utility.jai";
 #load "ui.jai";
 #load "vk/vk.jai";
 
+#import "Atomics";
 #import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG && OS == .WINDOWS);
 #import "File";
 #import "File_Utilities";
@@ -135,11 +139,14 @@ reset_info_for_rendering :: (loam : *LoamState) {
 #import "Hash_Table";
 #import "Input";
 #import "Math";
+#import "Pool";
 #import "Print_Color"() (USE_ANSI_CODES_ON_WINDOWS=true);
 #import "Process";
 #import "Reflection";
 Simp :: #import "Simp";
 #import "String";
+#import "System";
+#import "Thread";
 #import "Window_Creation";
 
 #if OS == .WINDOWS {

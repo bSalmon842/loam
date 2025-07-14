@@ -34,8 +34,9 @@ Vk :: struct {
 
     textureFormat : VkFormat;	
 
-    currentFrame : u64;
+    currentFrameIndex : u64;
     frames : [FRAMES_IN_FLIGHT] FrameCommandInfo;
+    currentFrame : *FrameCommandInfo;
 
     drawImage : *AllocatedImageInfo;
     
@@ -97,12 +98,16 @@ AllocatedImageInfo :: struct {
     format : VkFormat;
 
     allocation : VmaAllocation;
+
+    fence : VkFence;
 }
 
 AllocatedBufferInfo :: struct {
     buffer         : VkBuffer;
     allocation     : VmaAllocation;
     allocationInfo : VmaAllocationInfo;
+
+    fence : VkFence;
 }
 
 AllPushConstants :: struct {
@@ -189,7 +194,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     samplerCreateInfo.magFilter = .LINEAR;
     vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 
-    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY);
+    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY, vk.immFence);
 
     // Write error checkerboard texture
     pixels : [256] u32;
@@ -326,15 +331,15 @@ get_vk_physical_device :: (vk : *Vk) -> VkResult {
 
 create_vk_device :: (vk : *Vk) -> VkResult {
     queueCreateInfos : [..] VkDeviceQueueCreateInfo;
-    array_add(*queueCreateInfos, queue_create_info(vk.queueFamilyIndices.graphics));
+    array_add(*queueCreateInfos, queue_create_info(vk, vk.queueFamilyIndices.graphics));
     if vk.queueFamilyIndices.compute != vk.queueFamilyIndices.graphics {
-	    array_add(*queueCreateInfos, queue_create_info(vk.queueFamilyIndices.compute));
+	    array_add(*queueCreateInfos, queue_create_info(vk, vk.queueFamilyIndices.compute));
     }
 
     if vk.enableVkVideo {
 	if vk.queueFamilyIndices.videoDecode != vk.queueFamilyIndices.graphics &&
 	   vk.queueFamilyIndices.videoDecode != vk.queueFamilyIndices.compute {
-	    array_add(*queueCreateInfos, queue_create_info(vk.queueFamilyIndices.videoDecode));
+	    array_add(*queueCreateInfos, queue_create_info(vk, vk.queueFamilyIndices.videoDecode));
 	}
     }
     

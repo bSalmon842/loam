@@ -10,21 +10,24 @@ Renderable2D :: struct {
     vertices : [] Vertex;
     vertexMemory : *void;
     dimensions : Vector2;
+
+    buffers : *MeshBuffers;
 }
 
 get_current_frame :: (vk : *Vk) -> *FrameCommandInfo #must {
-    return *vk.frames[vk.currentFrame % FRAMES_IN_FLIGHT];
+    return *vk.frames[vk.currentFrameIndex % FRAMES_IN_FLIGHT];
 }
 
 draw_frame :: (loam : *LoamState) {
     vk := loam.vk;
-    currentFrame := get_current_frame(vk);
 
-    check_vk(vkWaitForFences(vk.device, 1, *currentFrame.renderFence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
-    check_vk(vkResetFences(vk.device, 1, *currentFrame.renderFence), "vkWaitForFences failed");
+    check_vk(vkWaitForFences(vk.device, 1, *vk.currentFrame.renderFence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
+    check_vk(vkResetFences(vk.device, 1, *vk.currentFrame.renderFence), "vkWaitForFences failed");
 
+    vk.drawImage.fence = vk.currentFrame.renderFence;
+    
     swapchainImageIndex : u32;
-    acquireResult := vkAcquireNextImageKHR(vk.device, vk.swapchain, seconds_to_nanoseconds(1), currentFrame.swapSemaphore, null, *swapchainImageIndex);
+    acquireResult := vkAcquireNextImageKHR(vk.device, vk.swapchain, seconds_to_nanoseconds(1), vk.currentFrame.swapSemaphore, null, *swapchainImageIndex);
     if acquireResult == .ERROR_OUT_OF_DATE_KHR {
 	vk.resizeRequested = true;
         log(.INFO, "Vulkan has requested a resize from vkAcquireNextImageKHR");
@@ -39,7 +42,7 @@ draw_frame :: (loam : *LoamState) {
 	cast(u32) min(vk.swapchainExtent.height, vk.drawImage.extent.height)
     };
 
-    cmdBuffer := currentFrame.cmdBuffer;
+    cmdBuffer := vk.currentFrame.cmdBuffer;
     check_vk(vkResetCommandBuffer(cmdBuffer, 0), tprint("Failed to reset Command Buffer for frame %", vk.currentFrame));
 
     cmdBufferBeginInfo := VkCommandBufferBeginInfo.{ .COMMAND_BUFFER_BEGIN_INFO, null, .ONE_TIME_SUBMIT_BIT, null };
@@ -66,13 +69,13 @@ draw_frame :: (loam : *LoamState) {
 
     // Submit Command Buffer to Queue
     cmdInfo := VkCommandBufferSubmitInfo.{ commandBuffer=cmdBuffer };
-    waitInfo := make_semaphore_submit_info(currentFrame.swapSemaphore, .COLOR_ATTACHMENT_OUTPUT_BIT);
-    signalInfo := make_semaphore_submit_info(currentFrame.renderSemaphore, .ALL_GRAPHICS_BIT);
+    waitInfo := make_semaphore_submit_info(vk.currentFrame.swapSemaphore, .COLOR_ATTACHMENT_OUTPUT_BIT);
+    signalInfo := make_semaphore_submit_info(vk.currentFrame.renderSemaphore, .ALL_GRAPHICS_BIT);
     submitInfo := VkSubmitInfo2.{ .SUBMIT_INFO_2, null, 0, 1, *waitInfo, 1, *cmdInfo, 1, *signalInfo };
-    check_vk(vkQueueSubmit2(vk.graphicsQueue, 1, *submitInfo, currentFrame.renderFence), tprint("Failed to submit Queue for frame %", vk.currentFrame));
+    check_vk(vkQueueSubmit2(vk.graphicsQueue, 1, *submitInfo, vk.currentFrame.renderFence), tprint("Failed to submit Queue for frame %", vk.currentFrame));
 
     // Present Queue
-    presentInfo := VkPresentInfoKHR.{ .PRESENT_INFO_KHR, null, 1, *currentFrame.renderSemaphore, 1, *vk.swapchain, *swapchainImageIndex, null };
+    presentInfo := VkPresentInfoKHR.{ .PRESENT_INFO_KHR, null, 1, *vk.currentFrame.renderSemaphore, 1, *vk.swapchain, *swapchainImageIndex, null };
     presentResult := vkQueuePresentKHR(vk.graphicsQueue, *presentInfo);
     if presentResult == .ERROR_OUT_OF_DATE_KHR {
 	vk.resizeRequested = true;
@@ -82,7 +85,7 @@ draw_frame :: (loam : *LoamState) {
 	check_vk(presentResult, tprint("Failed to present queue for frame %", vk.currentFrame));
     }
     
-    vk.currentFrame += 1;
+    vk.currentFrameIndex += 1;
 }
 
 transition_image :: (cmdBuffer : VkCommandBuffer, image : VkImage, currentLayout : VkImageLayout, newLayout : VkImageLayout) {

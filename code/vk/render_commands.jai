@@ -35,12 +35,12 @@ draw_ui_element :: (loam : *LoamState, elem : *UI_Element) {
 }
 
 draw_ui_text :: (loam : *LoamState, text : *Text, colour : Vector4) {
+    if text.str.count == 0 then return;
+    
     pipeline := *loam.vk.pipelines[PipelineTypes.UI_Text];
     
     renderCommand : RenderCommand;
-
-    buffers := upload_mesh(loam.vk, DEFAULT_PLANE_INDICES, text.vertices);
-    renderCommand.buffers = buffers;
+    renderCommand.buffers = text.buffers;
 
     // TODO: I think I suck at descriptors and this is leaking some memory until it hits some arbitrary point
     renderCommand.descriptorSet = dynamic_descriptor_pool_allocator_allocate(*loam.vk.descriptorAllocator, loam.vk.device, pipeline.descriptorLayout);
@@ -49,13 +49,12 @@ draw_ui_text :: (loam : *LoamState, text : *Text, colour : Vector4) {
     descriptor_write_image(*writer, 0, text.texture.view, .SHADER_READ_ONLY_OPTIMAL, loam.vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
     descriptor_writer_update_sets(*writer, loam.vk.device, renderCommand.descriptorSet);
     
-    array_add(*loam.vk.buffersToDestroyAtFrameReset, buffers.vertexBuffer);
-    
     // NOTE: For UI elements we save the old projection mode, render with orthographic, then return to the old projection mode
     textureDims := Vector3.{ text.dimensions.x, text.dimensions.y, 0 };
     renderCommand.pushConstants = .{ get_transform_matrix(text.transform, textureDims) * get_view_matrix(loam.uiCamera) * get_projection_matrix(loam.uiCamera), colour,
 				     renderCommand.buffers.vertexBufferAddress };
-    
+
+    text.texture.fence = loam.vk.currentFrame.renderFence;
     array_add(*pipeline.renderCommands, renderCommand);
 }
 
@@ -63,9 +62,7 @@ draw_ui_sprite :: (loam : *LoamState, sprite : *Sprite, colour : Vector4) {
     pipeline := *loam.vk.pipelines[PipelineTypes.UI_Sprite];
     
     renderCommand : RenderCommand;
-    
-    buffers := upload_mesh(loam.vk, DEFAULT_PLANE_INDICES, sprite.vertices);
-    renderCommand.buffers = buffers;
+    renderCommand.buffers = sprite.buffers;
 
     // TODO: I think I suck at descriptors and this is leaking some memory until it hits some arbitrary point
     renderCommand.descriptorSet = dynamic_descriptor_pool_allocator_allocate(*loam.vk.descriptorAllocator, loam.vk.device, pipeline.descriptorLayout);
@@ -74,16 +71,12 @@ draw_ui_sprite :: (loam : *LoamState, sprite : *Sprite, colour : Vector4) {
     descriptor_write_image(*writer, 0, sprite.texture.view, .SHADER_READ_ONLY_OPTIMAL, loam.vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
     descriptor_writer_update_sets(*writer, loam.vk.device, renderCommand.descriptorSet);
     
-    array_add(*loam.vk.buffersToDestroyAtFrameReset, buffers.vertexBuffer);
-    
     // NOTE: For UI elements we save the old projection mode, render with orthographic, then return to the old projection mode
-    oldProjectionMode := loam.sceneCamera.isOrthographic;
-    loam.sceneCamera.isOrthographic = true;
     textureDims := Vector3.{ sprite.dimensions.x, sprite.dimensions.y, 0 };
     renderCommand.pushConstants = .{ get_transform_matrix(sprite.transform, textureDims) * get_view_matrix(loam.uiCamera) * get_projection_matrix(loam.uiCamera), colour,
 				     renderCommand.buffers.vertexBufferAddress };
-    loam.sceneCamera.isOrthographic = oldProjectionMode;
-    
+
+    sprite.texture.fence = loam.vk.currentFrame.renderFence;
     array_add(*pipeline.renderCommands, renderCommand);
 }
 
@@ -91,9 +84,7 @@ draw_sprite :: (loam : *LoamState, sprite : *Sprite) {
     pipeline := *loam.vk.pipelines[PipelineTypes.Sprite];
     
     renderCommand : RenderCommand;
-    
-    buffers := upload_mesh(loam.vk, DEFAULT_PLANE_INDICES, sprite.vertices);
-    renderCommand.buffers = buffers;
+    renderCommand.buffers = sprite.buffers;
 
     // TODO: I think I suck at descriptors and this is leaking some memory until it hits some arbitrary point
     renderCommand.descriptorSet = dynamic_descriptor_pool_allocator_allocate(*loam.vk.descriptorAllocator, loam.vk.device, pipeline.descriptorLayout);
@@ -101,8 +92,6 @@ draw_sprite :: (loam : *LoamState, sprite : *Sprite) {
     defer clear_descriptor_writer(*writer);
     descriptor_write_image(*writer, 0, sprite.texture.view, .SHADER_READ_ONLY_OPTIMAL, loam.vk.defaultSampler_Nearest, .COMBINED_IMAGE_SAMPLER);
     descriptor_writer_update_sets(*writer, loam.vk.device, renderCommand.descriptorSet);
-    
-    array_add(*loam.vk.buffersToDestroyAtFrameReset, buffers.vertexBuffer);
     
     // NOTE: For UI elements we save the old projection mode, render with orthographic, then return to the old projection mode
     oldProjectionMode := loam.sceneCamera.isOrthographic;
@@ -111,7 +100,8 @@ draw_sprite :: (loam : *LoamState, sprite : *Sprite) {
     renderCommand.pushConstants = .{ get_transform_matrix(sprite.transform, textureDims) * get_view_matrix(loam.sceneCamera) * get_projection_matrix(loam.sceneCamera),
 				     sprite.colour, renderCommand.buffers.vertexBufferAddress };
     loam.sceneCamera.isOrthographic = oldProjectionMode;
-    
+
+    sprite.texture.fence = loam.vk.currentFrame.renderFence;
     array_add(*pipeline.renderCommands, renderCommand);
 }
 

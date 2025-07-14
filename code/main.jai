@@ -28,6 +28,8 @@ main :: () {
     loam := init_loam(window, xx START_WIDTH, xx START_HEIGHT);
 
     refreshRate = get_refresh_rate(window);
+
+    initialise_thread_system(*loam.threadSystem, "Debug Thread System");
     
     loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
@@ -64,13 +66,16 @@ main :: () {
 	    {
 		text := make_text(loam, "", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 50.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
 		drawCallText = make_ui_element(loam, text, false);
-		array_add(*loam.debugUIElements, drawCallText);	
+		array_add(*loam.debugUIElements, drawCallText);
 	    }
 	}
     }
 
     sprite := make_sprite(loam, "test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5, 0 }));
-    sprite2 := make_sprite(loam, "test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.6, cast(float) loam.windowHeight * 0.5, 0 }));
+    testSprites : [256] *Sprite;
+    for * testSprites {
+	it.* = make_sprite(loam, "test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.2 + cast(float) (5 * it_index), cast(float) loam.windowHeight * 0.2 + cast(float) (5 * it_index), 0 }));
+    }
 
     // Input Registration
     move_sprite_left  :: (loam : *LoamState, extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.x -= cast(float) (100.0 * loam.deltaTime); }
@@ -116,11 +121,13 @@ main :: () {
 	register_keycode_input(loam, #char "W", .{}, move_sprite_up,    sprite);
 	register_keycode_input(loam, #char "S", .{}, move_sprite_down,  sprite);
     }
-    
+
+    timing : [6] float64;
     
     while loam.running {
+	tickStart := seconds_since_init() - lastTime;
         update_window_events();
-
+	
 	resizes := get_window_resizes();
         for resizes {
 	    if it_index == resizes.count - 1 {
@@ -131,6 +138,8 @@ main :: () {
         }
 
 	if loam.vk.resizeRequested then resize_swapchain(loam);
+
+	loam.vk.currentFrame = get_current_frame(loam.vk);
 	
         for events_this_frame {
             if it.type == {
@@ -150,13 +159,14 @@ main :: () {
 		handle_keycode_input(loam, cast(Key_Code) it_index, .{});
 	    }
 	}
-
+	
 	#if IS_DEBUG {
 	    update_debug_metrics(loam, *metrics);
+	    wait_for_thread_work_to_finish(*loam.threadSystem);
+	    update_debug_ui_regions();
 	}
 
 	update_pointer_status(loam, window, *loam.mainPointer);
-	//print("%\n", loam.mainPointer);
 
 	for loam.uiElements {
 	    update_ui_element(loam, loam.mainPointer, it);
@@ -168,21 +178,33 @@ main :: () {
 	    }
 	}
 
+	timing[0] = (seconds_since_init() - lastTime) - (tickStart);
+
 	reset_info_for_rendering(loam);
 
+	timing[1] = (seconds_since_init() - lastTime) - (timing[0] + tickStart);
+	
 	#if IS_DEBUG
 	{
 	    render_debug_ui(loam, *metrics);
 	}
 
 	draw_sprite(loam, sprite);
-	draw_sprite(loam, sprite2);
+	for testSprites {
+	    draw_sprite(loam, it);
+	}
 
 	for loam.uiElements {
 	    draw_ui_element(loam, it);
 	}
+
+	timing[2] = (seconds_since_init() - lastTime) - (timing[1] + timing[0] + tickStart);
+	
 	draw_frame(loam);
 
+	timing[3] = (seconds_since_init() - lastTime) - (timing[2] + timing[1] + timing[0] + tickStart);
+
+	/*
 	if loam.vk.vsync {
 	    targetMs := 1.0 / cast(float) refreshRate;
 	    msSoFar := (seconds_since_init() - lastTime) * 1000.0;
@@ -192,18 +214,28 @@ main :: () {
 		msToWait = targetMs - (seconds_since_init() - lastTime) * 1000.0;
 	    }
 	}
-	
+*/
+
         loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
+	for * timing {
+	    it.* *= 1000.0;
+	}
+	deltaMs := loam.deltaTime * 1000.0;
+	//print("Events, Input, & Update: % (%\%)\nReset: % (%\%)\nDraw Record: % (%\%)\nDraw Execute: % (%\%)\nTotal Frame Time: % (%)\n\n",
+	//      timing[0], (timing[0] / deltaMs) * 100.0, timing[1], (timing[1] / deltaMs) * 100.0, timing[2], (timing[2] / deltaMs) * 100.0,
+	//      timing[3], (timing[3] / deltaMs) * 100.0, deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
         
         reset_temporary_storage();
 
+	/*
         #if IS_DEBUG {
             #if OS != .ANDROID {
 		memory_visualizer_per_frame_update();
 		//report_memory_leaks();	
 	    }
 	}
+        */
     }
 
     deinit(loam.assets.directory);
