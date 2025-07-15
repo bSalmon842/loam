@@ -16,9 +16,8 @@ Text :: struct {
     font : *FontData;
     size : u32;
 
-    colour : Vector4 = DEFAULT_TEXTURE_TINT;
     using transform : Transform;
-    using renderable : Renderable2D;
+    using renderable : Renderable;
 }
 
 TemporaryGlyph :: struct {
@@ -103,7 +102,7 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedIm
 
     free(rawTextureData);
     
-    info.dimensions = extent_to_vector(extent);
+    info.dimensions = extent_to_vector(extent, 0);
     
     // Build info to upload to GPU
     vertices, vertexMemory := NewArray(4, Vertex);
@@ -117,7 +116,8 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedIm
 
 make_text :: (loam : *LoamState, str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
     text := New(Text);
-    text.* = .{ str, font, size, colour, transform, .{} };
+    text.* = .{ str, font, size, transform, .{} };
+    text.tint = colour;
     if str.count > 0 {
 	text.vertices, text.texture = build_text_buffers(loam.vk, text);
 	text.buffers = New(MeshBuffers);

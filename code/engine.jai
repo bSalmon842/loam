@@ -7,9 +7,10 @@ Created: 08JUN2025
 
 // TODO: Meshes
 // TODO: Audio
-// TODO: A struct for holding data all renderables will need (visibility, etc)
+// TODO: A struct for holding data all renderables will need (visibility, etc) (Currently this is Renderable2D in render.jai)
 // TODO: States for menus, loading, etc
 // TODO: Gamepad input
+// TODO: Better internal profiling than what's in main.jai with an array of floats
 
 // Compiled Shaders
 #if OS == .WINDOWS {

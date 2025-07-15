@@ -6,9 +6,8 @@ Created: 04JUL2025
 */
 
 Sprite :: struct {
-    colour : Vector4 = DEFAULT_TEXTURE_TINT;
     using transform : Transform;
-    using renderable : Renderable2D;
+    using renderable : Renderable;
 }
 
 make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Sprite {
@@ -21,7 +20,7 @@ make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, 
 	sprite.texture = loam.vk.errorCheckerboard;
     }
 
-    sprite.colour = colour;
+    sprite.tint = colour;
     sprite.transform = transform;
 
     sprite.vertices, sprite.vertexMemory = build_sprite_buffers(loam.vk, sprite);
@@ -37,7 +36,7 @@ make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, 
 }
 
 build_sprite_buffers :: (vk : *Vk, sprite : *Sprite) -> [] Vertex, *void {
-    sprite.dimensions = extent_to_vector(sprite.texture.extent);
+    sprite.dimensions = extent_to_vector(sprite.texture.extent, 0);
     
     // Build info to upload to GPU
     vertices, vertexMemory := NewArray(4, Vertex);

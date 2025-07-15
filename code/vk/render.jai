@@ -5,11 +5,15 @@ Author: Brock Salmon
 Created: 17MAY2025
 */
 
-Renderable2D :: struct {
+DEFAULT_TEXTURE_TINT :: Vector4.{1,1,1,1};
+
+Renderable :: struct {
     texture : *AllocatedImageInfo;
     vertices : [] Vertex;
     vertexMemory : *void;
-    dimensions : Vector2;
+    
+    dimensions : Vector3;
+    tint : Vector4 = DEFAULT_TEXTURE_TINT;
 
     buffers : *MeshBuffers;
 }

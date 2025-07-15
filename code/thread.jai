@@ -5,8 +5,12 @@ Author: Brock Salmon
 Created: 11JUL2025
 */
 
+// TODO: Render commands
+// TODO: Fix android threads and queue counts
+
 ThreadWorkType :: enum {
     UploadToGPU;
+    AddRenderCommand;
 }
 
 ThreadWork :: struct {
@@ -14,7 +18,8 @@ ThreadWork :: struct {
     loam : *LoamState;
 
     union {
-	uploadData : UploadToGPU_ThreadData;
+	uploadData        : UploadToGPU_ThreadData;
+	renderCommandData : AddRenderCommand_ThreadData;
     }
 
     UploadToGPU_ThreadData :: struct {
@@ -22,6 +27,10 @@ ThreadWork :: struct {
 	vertices : [] Vertex;
 	buffers : *MeshBuffers;
 	proc : (*LoamState, [] u32, [] Vertex, *MeshBuffers);
+    }
+
+    AddRenderCommand_ThreadData :: struct {
+	proc : (*LoamState);
     }
 }
 
@@ -58,6 +67,11 @@ thread_proc :: (group : *Thread_Group, thread : *Thread, workDataRaw : *void) ->
 	case .UploadToGPU; {
 	    data := workData.uploadData;
 	    data.proc(loam, data.indices, data.vertices, data.buffers);
+	}
+	
+	case .AddRenderCommand; {
+	    data := workData.renderCommandData;
+	    data.proc(loam);
 	}
     }
     

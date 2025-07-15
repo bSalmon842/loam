@@ -7,8 +7,6 @@ Created: 27APR2025
 
 APP_NAME :: "loam";
 
-DEFAULT_TEXTURE_TINT :: Vector4.{1,1,1,1};
-
 Invalid_Codepath :: () {
     assert(false, "Invalid Codepath");
 }

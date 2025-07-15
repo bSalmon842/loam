@@ -145,7 +145,7 @@ main :: () {
             if it.type == {
                 case .QUIT; loam.running = false;
 		case .KEYBOARD; {
-		    // NOTE: If we do have modifier flags then we probably don't want to repeat the input, so we can use the raw event
+		    // NOTE: If we do have modifier flags then we probably don't want to rrepeat the input, so we can use the raw event
 		    if it.key_pressed && it.modifier_flags.packed != 0 {
 			handle_keycode_input(loam, it.key_code, it.modifier_flags);
 		    }
@@ -189,13 +189,13 @@ main :: () {
 	    render_debug_ui(loam, *metrics);
 	}
 
-	draw_sprite(loam, sprite);
+	add_render_command(loam, .Sprite, loam.sceneCamera, *sprite.renderable, sprite.transform);
 	for testSprites {
-	    draw_sprite(loam, it);
+	    add_render_command(loam, .Sprite, loam.sceneCamera, *it.renderable, it.transform);
 	}
 
 	for loam.uiElements {
-	    draw_ui_element(loam, it);
+	    add_ui_render_command(loam, it);
 	}
 
 	timing[2] = (seconds_since_init() - lastTime) - (timing[1] + timing[0] + tickStart);

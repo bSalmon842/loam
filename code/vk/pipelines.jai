@@ -5,7 +5,7 @@ Author: Brock Salmon
 Created: 19MAY2025
 */
 
-PipelineTypes :: enum {
+PipelineType :: enum {
     Mesh;
     Sprite;
     UI_Sprite;
@@ -142,6 +142,7 @@ RenderingPipelineInfo :: struct {
     layout           : VkPipelineLayout;
     pipeline         : VkPipeline;
     descriptorLayout : VkDescriptorSetLayout;
+    orthographic     : bool;
 
     renderCommands : [..] RenderCommand;
 }
@@ -173,7 +174,7 @@ init_pipelines :: (vk : *Vk) {
     cacheCreateInfo := VkPipelineCacheCreateInfo.{};
     check_vk(vkCreatePipelineCache(vk.device, *cacheCreateInfo, null, *vk.pipelineCache), "Failed to create pipeline cache");
     
-    for enum_values_as_enum(PipelineTypes) {
+    for enum_values_as_enum(PipelineType) {
 	pipeline := *vk.pipelines[it];
 	
 	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(AllPushConstants) };
@@ -188,6 +189,8 @@ init_pipelines :: (vk : *Vk) {
 	
 	if #complete it == {
 	    case .Mesh; {
+		pipeline.orthographic = false;
+		
 		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
 
@@ -202,6 +205,8 @@ init_pipelines :: (vk : *Vk) {
 	    }
 	    
 	    case .Sprite; {
+		pipeline.orthographic = true;
+		
 		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, SPRITE_FRAGMENT_SHADER);
 
@@ -216,6 +221,8 @@ init_pipelines :: (vk : *Vk) {
 	    }
 	    
 	    case .UI_Sprite; {
+		pipeline.orthographic = true;
+		
 		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, UI_FRAGMENT_SHADER);
 
@@ -230,6 +237,8 @@ init_pipelines :: (vk : *Vk) {
 	    }
 	    
 	    case .UI_Text; {
+		pipeline.orthographic = true;
+		
 		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, TEXT_FRAGMENT_SHADER);
 		

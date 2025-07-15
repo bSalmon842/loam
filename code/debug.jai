@@ -54,6 +54,6 @@ update_debug_ui_regions :: () {
 
 render_debug_ui :: (loam : *LoamState, metrics : DebugMetrics) {
     for loam.debugUIElements {
-	draw_ui_element(loam, it);
+	add_ui_render_command(loam, it);
     }
 }

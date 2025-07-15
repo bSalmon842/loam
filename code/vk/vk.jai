@@ -59,7 +59,7 @@ Vk :: struct {
     ///////////////////
 
     // Pipelines
-    pipelines : [#run enum_highest_value(PipelineTypes) + 1] RenderingPipelineInfo;
+    pipelines : [#run enum_highest_value(PipelineType) + 1] RenderingPipelineInfo;
     pipelineCache : VkPipelineCache;
     
     // Sampler for each member of VkFilter (we don't care about CUBIC)
@@ -165,7 +165,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
     
     // Descriptors
-    for enum_values_as_enum(PipelineTypes) {
+    for enum_values_as_enum(PipelineType) {
 	pipeline := *vk.pipelines[it];
 	
 	{

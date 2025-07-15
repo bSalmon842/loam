@@ -20,7 +20,7 @@ is_point_within_region :: (point : Vector2, region : MouseInteractableRegion) ->
 get_default_interact_region :: (renderable : *$T) -> MouseInteractableRegion {
     region : MouseInteractableRegion;
 
-    halfDims := (renderable.dimensions * renderable.scale.xy) * 0.5;
+    halfDims := (renderable.dimensions.xy * renderable.scale.xy) * 0.5;
     region.p0 = Vector2.{ renderable.position.x, renderable.position.y } - halfDims;
     
     if renderable.alignment & .Left  then region.p0.x += halfDims.x;
@@ -29,7 +29,7 @@ get_default_interact_region :: (renderable : *$T) -> MouseInteractableRegion {
     if renderable.alignment & .Top    then region.p0.y -= halfDims.y;
     if renderable.alignment & .Bottom then region.p0.y += halfDims.y;
     
-    region.p1 = region.p0 + (renderable.dimensions * renderable.scale.xy);
+    region.p1 = region.p0 + (renderable.dimensions.xy * renderable.scale.xy);
     return region;
 }
 
