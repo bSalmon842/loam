@@ -5,17 +5,6 @@ Author: Brock Salmon
 Created: 23JUN2025
 */
 
-/* Game Rendering
-draw_sprite :: ();
-draw_mesh :: (); // TODO: 
-*/
-
-/* UI
-draw_ui_element :: (); // Draws text and image
-draw_ui_text :: ();
-draw_ui_image :: ();
-*/
-
 RenderCommand :: struct {
     buffers : MeshBuffers;
 
@@ -36,6 +25,18 @@ add_ui_render_command :: (loam : *LoamState, elem : *UI_Element) {
 
 add_render_command :: (loam : *LoamState, pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
 		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
+    add_render_command_threaded(loam, pipelineType, camera, renderable, transform, useTintOverride, tintOverride);
+    /*
+    threadWork : ThreadWork;
+    threadWork.type = .AddRenderCommand;
+    threadWork.loam = loam;
+    threadWork.renderCommandData = .{ pipelineType, camera, renderable, transform, useTintOverride, tintOverride, add_render_command_threaded };
+    add_thread_work(*loam.threadSystem, threadWork, "Add Render Command");
+*/
+}
+
+add_render_command_threaded :: (loam : *LoamState, pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
+		       useTintOverride : bool, tintOverride : Vector4) {
     if !renderable.buffers then return;
     
     pipeline := *loam.vk.pipelines[pipelineType];
@@ -58,7 +59,7 @@ add_render_command :: (loam : *LoamState, pipelineType : PipelineType, camera : 
 				     ifx useTintOverride then tintOverride else renderable.tint, renderCommand.buffers.vertexBufferAddress };
 
     camera.isOrthographic = currentCameraProjection;
-    renderable.texture.fence = loam.vk.currentFrame.renderFence;
+    renderable.texture.fenceIndex = context.thread_index;
     array_add(*pipeline.renderCommands, renderCommand);
 }
 

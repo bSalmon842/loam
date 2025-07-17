@@ -25,10 +25,10 @@ get_current_frame :: (vk : *Vk) -> *FrameCommandInfo #must {
 draw_frame :: (loam : *LoamState) {
     vk := loam.vk;
 
-    check_vk(vkWaitForFences(vk.device, 1, *vk.currentFrame.renderFence, VK_TRUE, seconds_to_nanoseconds(1)), "vkWaitForFences failed");
-    check_vk(vkResetFences(vk.device, 1, *vk.currentFrame.renderFence), "vkWaitForFences failed");
+    check_vk(vkWaitForFences(vk.device, 1, *vk.currentFrame.renderFence, VK_TRUE, FENCE_WAIT_TIME), "(draw_frame) vkWaitForFences failed");
+    check_vk(vkResetFences(vk.device, 1, *vk.currentFrame.renderFence), "vkResetFences failed");
 
-    vk.drawImage.fence = vk.currentFrame.renderFence;
+    vk.drawImage.fenceIndex = context.thread_index;
     
     swapchainImageIndex : u32;
     acquireResult := vkAcquireNextImageKHR(vk.device, vk.swapchain, seconds_to_nanoseconds(1), vk.currentFrame.swapSemaphore, null, *swapchainImageIndex);
@@ -89,7 +89,7 @@ draw_frame :: (loam : *LoamState) {
 	check_vk(presentResult, tprint("Failed to present queue for frame %", vk.currentFrame));
     }
     
-    vk.currentFrameIndex += 1;
+    vk.currentFrameIndex = (vk.currentFrameIndex + 1) % FRAMES_IN_FLIGHT;
 }
 
 transition_image :: (cmdBuffer : VkCommandBuffer, image : VkImage, currentLayout : VkImageLayout, newLayout : VkImageLayout) {

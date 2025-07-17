@@ -26,11 +26,19 @@ ThreadWork :: struct {
 	indices : [] u32;
 	vertices : [] Vertex;
 	buffers : *MeshBuffers;
+	
 	proc : (*LoamState, [] u32, [] Vertex, *MeshBuffers);
     }
 
     AddRenderCommand_ThreadData :: struct {
-	proc : (*LoamState);
+	pipelineType : PipelineType;
+	camera : *Camera;
+	renderable : *Renderable;
+	transform : Transform;
+	useTintOverride : bool;
+	tintOverride : Vector4;
+	
+	proc : (*LoamState, PipelineType, *Camera, *Renderable, Transform, bool, Vector4);
     }
 }
 
@@ -58,9 +66,6 @@ thread_proc :: (group : *Thread_Group, thread : *Thread, workDataRaw : *void) ->
 
 	cmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, context.threadVkContext.cmdPool, .PRIMARY, 1 };
 	vkAllocateCommandBuffers(loam.vk.device, *cmdBufferAllocInfo, *context.threadVkContext.cmdBuffer);
-
-	fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
-	vkCreateFence(loam.vk.device, *fenceCreateInfo, null, *context.threadVkContext.fence);
     }
     
     if #complete workData.type == {
@@ -71,15 +76,16 @@ thread_proc :: (group : *Thread_Group, thread : *Thread, workDataRaw : *void) ->
 	
 	case .AddRenderCommand; {
 	    data := workData.renderCommandData;
-	    data.proc(loam);
+	    data.proc(loam, data.pipelineType, data.camera, data.renderable, data.transform, data.useTintOverride, data.tintOverride);
 	}
     }
     
     return .CONTINUE;
 }
 
-initialise_thread_system :: (system : *ThreadSystemInfo, groupName : string) {
-    threadCount := get_number_of_threads_for_device();
+initialise_thread_system :: (loam : *LoamState, system : *ThreadSystemInfo, groupName : string) {
+    threadCount := get_number_of_threads_for_device(loam);
+    log(.INFO, tprint("Thread count for Device: %", threadCount));
     init(*system.group, threadCount, thread_proc);
 
     system.group.name = groupName;
@@ -106,12 +112,14 @@ wait_for_thread_work_to_finish :: (system : *ThreadSystemInfo) {
     }
 }
 
-get_number_of_threads_for_device :: () -> s32 {
+get_number_of_threads_for_device :: (loam : *LoamState) -> s32 {
     cpuCount := get_number_of_processors();
     assert(cpuCount > 1);
 
-    if cpuCount > 128 then cpuCount = 128;
-    cpuCount /= 2;
-
-    return max(cpuCount-1, 2);
+    if cpuCount > 64 then cpuCount = 64;
+    cpuCount = min(cpuCount, cast(s32) get_lowest_queue_count(loam.vk));
+    
+    cpuCount = max(cpuCount-1, 2);
+    
+    return cpuCount;
 }

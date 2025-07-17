@@ -29,7 +29,7 @@ main :: () {
 
     refreshRate = get_refresh_rate(window);
 
-    initialise_thread_system(*loam.threadSystem, "Debug Thread System");
+    initialise_thread_system(loam, *loam.threadSystem, "Loam Thread System");
     
     loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
@@ -37,38 +37,34 @@ main :: () {
     #if IS_DEBUG {
 	metrics : DebugMetrics;
         #if OS == .ANDROID {
-	    {
-		text := make_text(loam, "", loam.defaultFont, 64, make_transform( .{ 10, loam.windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-		frameTimeText = make_ui_element(loam, text, true, .{ 0, 0.5, 1, 1 });
-		array_add(*loam.debugUIElements, frameTimeText);
-	    }
-	    {
-		text := make_text(loam, "", loam.defaultFont, 64, make_transform( .{ 10, loam.windowHeight - 40.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-		ramUsageText = make_ui_element(loam, text, true, .{ 1, 0, 1, 1 });
-		array_add(*loam.debugUIElements, ramUsageText);
-	    }
-	    {
-		text := make_text(loam, "", loam.defaultFont, 64, make_transform( .{ 10, loam.windowHeight - 70.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-		drawCallText = make_ui_element(loam, text, false);
-		array_add(*loam.debugUIElements, drawCallText);
-	    }
+	    fontSize : u32 = 64;
+	    frameTimePosition := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
+	    ramUsagePosition  := Vector3.{ 10, loam.windowHeight - 40.0, 0 };
+	    drawCallPosition  := Vector3.{ 10, loam.windowHeight - 70.0, 0 };
+	    
 	} else {
-	    {
-		text := make_text(loam, "", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 10.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-		frameTimeText = make_ui_element(loam, text, true, .{ 0, 0.5, 1, 1 });
-		array_add(*loam.debugUIElements, frameTimeText);
-	    }
-	    {
-		text := make_text(loam, "", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 30.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-		ramUsageText = make_ui_element(loam, text, true, .{ 1, 0, 1, 1 });
-		array_add(*loam.debugUIElements, ramUsageText);
-	    }
-	    {
-		text := make_text(loam, "", loam.defaultFont, 32, make_transform( .{ 10, loam.windowHeight - 50.0, 0 }, scale = make_vector3(0.5), alignment = .Left | .Top ));
-		drawCallText = make_ui_element(loam, text, false);
-		array_add(*loam.debugUIElements, drawCallText);
-	    }
+	    fontSize : u32 = 32;
+    	    frameTimePosition := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
+	    ramUsagePosition  := Vector3.{ 10, loam.windowHeight - 30.0, 0 };
+	    drawCallPosition  := Vector3.{ 10, loam.windowHeight - 50.0, 0 };
 	}
+
+	{
+	    text := make_text(loam, "", loam.defaultFont, fontSize, make_transform( frameTimePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    frameTimeText = make_ui_element(loam, text, true, .{ 0, 0.5, 1, 1 });
+	}
+	{
+	    text := make_text(loam, "", loam.defaultFont, fontSize, make_transform( ramUsagePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    ramUsageText = make_ui_element(loam, text, true, .{ 1, 0, 1, 1 });
+	}
+	{
+	    text := make_text(loam, "", loam.defaultFont, fontSize, make_transform( drawCallPosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    drawCallText = make_ui_element(loam, text, false);
+	}
+	
+	array_add(*loam.debugUIElements, frameTimeText);
+	array_add(*loam.debugUIElements, ramUsageText);
+	array_add(*loam.debugUIElements, drawCallText);
     }
 
     sprite := make_sprite(loam, "test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5, 0 }));
@@ -222,9 +218,9 @@ main :: () {
 	    it.* *= 1000.0;
 	}
 	deltaMs := loam.deltaTime * 1000.0;
-	//print("Events, Input, & Update: % (%\%)\nReset: % (%\%)\nDraw Record: % (%\%)\nDraw Execute: % (%\%)\nTotal Frame Time: % (%)\n\n",
-	//      timing[0], (timing[0] / deltaMs) * 100.0, timing[1], (timing[1] / deltaMs) * 100.0, timing[2], (timing[2] / deltaMs) * 100.0,
-	//      timing[3], (timing[3] / deltaMs) * 100.0, deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
+	print("Events, Input, & Update: % (%\%)\nReset: % (%\%)\nDraw Record: % (%\%)\nDraw Execute: % (%\%)\nTotal Frame Time: % (%)\n\n",
+	      timing[0], (timing[0] / deltaMs) * 100.0, timing[1], (timing[1] / deltaMs) * 100.0, timing[2], (timing[2] / deltaMs) * 100.0,
+	      timing[3], (timing[3] / deltaMs) * 100.0, deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
         
         reset_temporary_storage();
 

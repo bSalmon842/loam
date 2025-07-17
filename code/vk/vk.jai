@@ -42,6 +42,8 @@ Vk :: struct {
     
     graphicsQueue : VkQueue;
 
+    threadFences : [..] VkFence; // 0 is the immediate fence
+
     QueueFamilyIndices :: struct {
 	// NOTE: We don't store a transfer queue index, as graphics and compute queue families include the same capabilities
 	graphics    : u32;
@@ -49,11 +51,11 @@ Vk :: struct {
 	videoDecode : u32;
     }
     queueFamilyIndices : QueueFamilyIndices;
+    queueCountsPerFamily : QueueFamilyIndices;
 
     descriptorAllocator : DynamicDescriptorPoolAllocator;
 
     // Immediate Submit
-    immFence     : VkFence;
     immCmdBuffer : VkCommandBuffer;
     immCmdPool   : VkCommandPool;
     ///////////////////
@@ -99,15 +101,13 @@ AllocatedImageInfo :: struct {
 
     allocation : VmaAllocation;
 
-    fence : VkFence;
+    fenceIndex : s64;
 }
 
 AllocatedBufferInfo :: struct {
     buffer         : VkBuffer;
     allocation     : VmaAllocation;
     allocationInfo : VmaAllocationInfo;
-
-    fence : VkFence;
 }
 
 AllPushConstants :: struct {
@@ -144,6 +144,11 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	.{ .COMBINED_IMAGE_SAMPLER, 4 },
     ];
 
+    array_resize(*vk.threadFences, get_number_of_threads_for_device(loam) + 1);
+    for * vk.threadFences {
+	vkCreateFence(vk.device, *fenceCreateInfo, null, it);
+    }
+
     dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
     
     for * vk.frames {
@@ -161,8 +166,6 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.immCmdPool), "Failed to create Command Pool for Immediate Submit");
     immCmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, vk.immCmdPool, .PRIMARY, 1 };
     check_vk(vkAllocateCommandBuffers(vk.device, *immCmdBufferAllocInfo, *vk.immCmdBuffer), "Failed to allocate Command Buffer for Immediate Submit");
-    
-    check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *vk.immFence), "Failed to create fence for Immediate Submit");
     
     // Descriptors
     for enum_values_as_enum(PipelineType) {
@@ -194,7 +197,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     samplerCreateInfo.magFilter = .LINEAR;
     vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 
-    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, .GPU_ONLY, vk.immFence);
+    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, context.thread_index);
 
     // Write error checkerboard texture
     pixels : [256] u32;
@@ -331,15 +334,23 @@ get_vk_physical_device :: (vk : *Vk) -> VkResult {
 
 create_vk_device :: (vk : *Vk) -> VkResult {
     queueCreateInfos : [..] VkDeviceQueueCreateInfo;
-    array_add(*queueCreateInfos, queue_create_info(vk, vk.queueFamilyIndices.graphics));
+    
+    graphicsCreateInfo := queue_create_info(vk, vk.queueFamilyIndices.graphics);
+    vk.queueCountsPerFamily.graphics = graphicsCreateInfo.queueCount;
+    array_add(*queueCreateInfos, graphicsCreateInfo);
+    
     if vk.queueFamilyIndices.compute != vk.queueFamilyIndices.graphics {
-	    array_add(*queueCreateInfos, queue_create_info(vk, vk.queueFamilyIndices.compute));
+	computeCreateInfo := queue_create_info(vk, vk.queueFamilyIndices.compute);
+	vk.queueCountsPerFamily.compute = computeCreateInfo.queueCount;
+	array_add(*queueCreateInfos, computeCreateInfo);
     }
 
     if vk.enableVkVideo {
 	if vk.queueFamilyIndices.videoDecode != vk.queueFamilyIndices.graphics &&
 	   vk.queueFamilyIndices.videoDecode != vk.queueFamilyIndices.compute {
-	    array_add(*queueCreateInfos, queue_create_info(vk, vk.queueFamilyIndices.videoDecode));
+	    videoCreateInfo := queue_create_info(vk, vk.queueFamilyIndices.videoDecode);
+	    vk.queueCountsPerFamily.videoDecode = videoCreateInfo.queueCount;
+	    array_add(*queueCreateInfos, videoCreateInfo);
 	}
     }
     
@@ -506,7 +517,7 @@ create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
 
     // Make Draw Image
     // TODO: Make Depth Image
-    vk.drawImage = create_vk_image(vk, vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT);
+    vk.drawImage = create_vk_image(vk, vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT, 0);
     
     return .SUCCESS;
 }
