@@ -59,7 +59,6 @@ add_render_command_threaded :: (loam : *LoamState, pipelineType : PipelineType, 
 				     ifx useTintOverride then tintOverride else renderable.tint, renderCommand.buffers.vertexBufferAddress };
 
     camera.isOrthographic = currentCameraProjection;
-    renderable.texture.fenceIndex = context.thread_index;
     array_add(*pipeline.renderCommands, renderCommand);
 }
 

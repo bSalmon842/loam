@@ -1,0 +1,16 @@
+// raddbg 0.9.20 project file
+
+recent_file: path: "vk/update_commands.jai"
+recent_file: path: "../../jai/modules/basic/array.jai"
+recent_file: path: "vk/util.jai"
+target:
+{
+  executable: "../build/windows/debug/debug_loam.exe"
+  working_directory: "../build/windows/debug/"
+  enabled: 1
+}
+breakpoint:
+{
+  source_location: "vk/update_commands.jai:34:1"
+  hit_count: 1
+}

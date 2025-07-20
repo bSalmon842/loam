@@ -42,8 +42,6 @@ Vk :: struct {
     
     graphicsQueue : VkQueue;
 
-    threadFences : [..] VkFence; // 0 is the immediate fence
-
     QueueFamilyIndices :: struct {
 	// NOTE: We don't store a transfer queue index, as graphics and compute queue families include the same capabilities
 	graphics    : u32;
@@ -55,9 +53,10 @@ Vk :: struct {
 
     descriptorAllocator : DynamicDescriptorPoolAllocator;
 
-    // Immediate Submit
-    immCmdBuffer : VkCommandBuffer;
-    immCmdPool   : VkCommandPool;
+    // Update Commands
+    updateCmdPool       : VkCommandPool;
+    updateCommands      : [..] *UpdateCommand;
+    updateSubmitInfos : [..] VkCommandBufferSubmitInfo;
     ///////////////////
 
     // Pipelines
@@ -100,8 +99,6 @@ AllocatedImageInfo :: struct {
     format : VkFormat;
 
     allocation : VmaAllocation;
-
-    fenceIndex : s64;
 }
 
 AllocatedBufferInfo :: struct {
@@ -143,12 +140,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	.{ .UNIFORM_BUFFER, 3 },
 	.{ .COMBINED_IMAGE_SAMPLER, 4 },
     ];
-
-    array_resize(*vk.threadFences, get_number_of_threads_for_device(loam) + 1);
-    for * vk.threadFences {
-	vkCreateFence(vk.device, *fenceCreateInfo, null, it);
-    }
-
+    
     dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
     
     for * vk.frames {
@@ -162,10 +154,8 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *it.renderFence), tprint("Failed to create Render Fence for Frame %", it_index));
     }
 
-    // Immediate Submit
-    check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.immCmdPool), "Failed to create Command Pool for Immediate Submit");
-    immCmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, vk.immCmdPool, .PRIMARY, 1 };
-    check_vk(vkAllocateCommandBuffers(vk.device, *immCmdBufferAllocInfo, *vk.immCmdBuffer), "Failed to allocate Command Buffer for Immediate Submit");
+    // Update Commands
+    check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.updateCmdPool), "Failed to create Command Pool for Update Commands");
     
     // Descriptors
     for enum_values_as_enum(PipelineType) {
@@ -197,14 +187,14 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     samplerCreateInfo.magFilter = .LINEAR;
     vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 
-    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, context.thread_index);
+    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
 
     // Write error checkerboard texture
     pixels : [256] u32;
     for * pixels {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
-    vk.errorCheckerboard = create_vk_image_from_data(vk, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
+    vk.errorCheckerboard = create_vk_image_from_data(loam, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
 }
 
 create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
@@ -531,4 +521,5 @@ create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
 #load "shaders.jai";
 #load "sprite.jai";
 #load "text.jai";
+#load "update_commands.jai";
 #load "util.jai";

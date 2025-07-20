@@ -25,7 +25,9 @@ TemporaryGlyph :: struct {
     bearingX, bearingY, advance : s32;
 }
 
-build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
+build_text_buffers :: (loam : *LoamState, info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
+    vk := loam.vk;
+    
     // TODO: Handle text colour codes
     // TODO: Handle escape sequences
     
@@ -95,7 +97,7 @@ build_text_buffers :: (vk : *Vk, info : *Text) -> [] Vertex, *void, *AllocatedIm
     }
 
     extent := VkExtent2D.{ cast(u32) textureWidth, cast(u32) textureHeight };
-    stringTexture := create_vk_image_from_data(vk, textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
+    stringTexture := create_vk_image_from_data(loam, textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
 
     set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);
@@ -119,14 +121,10 @@ make_text :: (loam : *LoamState, str : string, font : *FontData, size : u32, tra
     text.* = .{ str, font, size, transform, .{} };
     text.tint = colour;
     if str.count > 0 {
-	text.vertices, text.texture = build_text_buffers(loam.vk, text);
+	text.vertices, text.texture = build_text_buffers(loam, text);
 	text.buffers = New(MeshBuffers);
-	
-	threadWork : ThreadWork;
-	threadWork.type = .UploadToGPU;
-	threadWork.loam = loam;
-	threadWork.uploadData = .{ DEFAULT_PLANE_INDICES, text.vertices, text.buffers, upload_mesh_threaded };
-	add_thread_work(*loam.threadSystem, threadWork, "Upload new Text to GPU");
+
+	upload_mesh_command(loam, DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
     }
     return text;
 }
@@ -137,7 +135,7 @@ update_text :: (loam : *LoamState, text : *Text, str : string) {
 	free(text.vertexMemory);
 	destroy_vk_image(loam.vk, text.texture);
     }
-    text.vertices, text.vertexMemory, text.texture = build_text_buffers(loam.vk, text);
+    text.vertices, text.vertexMemory, text.texture = build_text_buffers(loam, text);
 
     if text.buffers {
 	destroy_vk_buffer(loam.vk, text.buffers.vertexBuffer);
@@ -145,11 +143,6 @@ update_text :: (loam : *LoamState, text : *Text, str : string) {
     }
 
     text.buffers = New(MeshBuffers);
-
-    threadWork : ThreadWork;
-    threadWork.type = .UploadToGPU;
-    threadWork.loam = loam;
-    threadWork.uploadData = .{ DEFAULT_PLANE_INDICES, text.vertices, text.buffers, upload_mesh_threaded };
-    add_thread_work(*loam.threadSystem, threadWork, "Upload new Text to GPU");
+    upload_mesh_command(loam, DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
 }
 

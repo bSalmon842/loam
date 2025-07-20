@@ -33,7 +33,8 @@ LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
 
-    threadSystem : ThreadSystemInfo;
+    threadCount : s32;
+    renderingThread : *Thread;
 
     sceneCamera : *Camera;
     uiCamera : *Camera;
@@ -65,8 +66,16 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     }
     
     loam := New(LoamState);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam);
+#if IS_DEBUG then this_allocation_is_not_a_leak(loam);
 
+    loam.threadCount = get_number_of_threads_for_device();
+    log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
+    
+    loam.renderingThread = New(Thread);
+    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.renderingThread);
+    thread_init(loam.renderingThread, thread_proc);
+    thread_start(loam.renderingThread);
+    
     loam.assets = New(AssetState);
     #if IS_DEBUG then this_allocation_is_not_a_leak(loam.assets);
     loam.assets.directory = load_asset_directory();
@@ -88,7 +97,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.vk = New(Vk);
     #if IS_DEBUG then this_allocation_is_not_a_leak(loam.vk);
     init_vk(loam, window);
-
+    
     fontAsset := request_asset(loam, .Font, "internal", true);
     loam.defaultFont = cast(*FontData) fontAsset.data;
 
@@ -107,10 +116,17 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     return loam;
 }
 
+loam_start_update :: (loam : *LoamState) {
+    if loam.vk.updateCommands.count > 0 then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
+}
+
+loam_finish_update :: (loam : *LoamState) {
+    process_update_commands(loam);
+}
+
 // TODO: We probably want to always make sure this is being called before draw calls start happening, so have a begin and end function which sets\
 //       a variable the render commands verify against
 reset_info_for_rendering :: (loam : *LoamState) {
-    vkDeviceWaitIdle(loam.vk.device);
     dynamic_descriptor_pool_allocator_reset_pools(*loam.vk.descriptorAllocator, loam.vk.device);
     
     cleanup_single_frame_images(loam.vk);

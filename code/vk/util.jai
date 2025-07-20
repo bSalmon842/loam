@@ -7,55 +7,6 @@ Created: 27APR2025
 
 FENCE_WAIT_TIME :: #run seconds_to_nanoseconds(1);
 
-VkThreadContext :: struct {
-    cmdPool    : VkCommandPool;
-    cmdBuffer  : VkCommandBuffer;
-    queue      : VkQueue;
-}
-
-#add_context threadVkContext : *VkThreadContext = null;
-
-ImmediateSubmitFunc :: #type (VkCommandBuffer, *void);
-immediate_submit :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {
-    if context.thread_index == 0 {
-	_imm_submit_single(vk, submissionFunc, funcData);
-    } else {
-	_imm_submit_threaded(vk, submissionFunc, funcData);
-    }
-}
-
-_imm_submit_single :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {
-    check_vk(vkResetFences(vk.device, 1, *vk.threadFences[0]), "(Imm Submit) Failed to reset fence");
-    check_vk(vkResetCommandBuffer(vk.immCmdBuffer, 0), "(Imm Submit) Failed to reset Command Buffer");
-
-    cmdBufferBeginInfo := VkCommandBufferBeginInfo.{ .COMMAND_BUFFER_BEGIN_INFO, null, .ONE_TIME_SUBMIT_BIT, null };
-    check_vk(vkBeginCommandBuffer(vk.immCmdBuffer, *cmdBufferBeginInfo), "(Imm Submit) Failed to begin Command Buffer");
-    submissionFunc(vk.immCmdBuffer, funcData);
-    check_vk(vkEndCommandBuffer(vk.immCmdBuffer), "(Imm Submit) Failed to end Command Buffer");
-
-    cmdInfo := VkCommandBufferSubmitInfo.{ .COMMAND_BUFFER_SUBMIT_INFO, null, vk.immCmdBuffer, 0 };
-    submitInfo := VkSubmitInfo2.{ .SUBMIT_INFO_2, null, 0, 0, null, 1, *cmdInfo, 0, null };
-    check_vk(vkQueueSubmit2(vk.graphicsQueue, 1, *submitInfo, vk.threadFences[0]), "(Imm Submit) Failed to submit Queue");
-    
-    check_vk(vkWaitForFences(vk.device, 1, *vk.threadFences[0], VK_TRUE, FENCE_WAIT_TIME), "(Imm Submit) vkWaitForFences failed");
-}
-
-_imm_submit_threaded :: (vk : *Vk, submissionFunc : ImmediateSubmitFunc, funcData : *void) {    
-    check_vk(vkResetFences(vk.device, 1, *vk.threadFences[context.thread_index]), "(Imm Submit Threaded) Failed to reset fence");
-    check_vk(vkResetCommandBuffer(context.threadVkContext.cmdBuffer, 0), "(Imm Submit Threaded) Failed to reset Command Buffer");
-
-    cmdBufferBeginInfo := VkCommandBufferBeginInfo.{ .COMMAND_BUFFER_BEGIN_INFO, null, .ONE_TIME_SUBMIT_BIT, null };
-    check_vk(vkBeginCommandBuffer(context.threadVkContext.cmdBuffer, *cmdBufferBeginInfo), "(Imm Submit Threaded) Failed to begin Command Buffer");
-    submissionFunc(context.threadVkContext.cmdBuffer, funcData);
-    check_vk(vkEndCommandBuffer(context.threadVkContext.cmdBuffer), "(Imm Submit Threaded) Failed to end Command Buffer");
-
-    cmdInfo := VkCommandBufferSubmitInfo.{ .COMMAND_BUFFER_SUBMIT_INFO, null, context.threadVkContext.cmdBuffer, 0 };
-    submitInfo := VkSubmitInfo2.{ .SUBMIT_INFO_2, null, 0, 0, null, 1, *cmdInfo, 0, null };
-    check_vk(vkQueueSubmit2(context.threadVkContext.queue, 1, *submitInfo, vk.threadFences[context.thread_index]), "(Imm Submit Threaded) Failed to submit Queue");
-    
-    check_vk(vkWaitForFences(vk.device, 1, *vk.threadFences[context.thread_index], VK_TRUE, FENCE_WAIT_TIME), "(Imm Submit Threaded) vkWaitForFences failed");
-}
-
 resize_swapchain :: (loam : *LoamState) {
     vkDeviceWaitIdle(loam.vk.device);
     check_vk(create_vk_swapchain(loam), "Failed to recreate swapchain when resizing window");
@@ -355,8 +306,7 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
 
     image := New(AllocatedImageInfo);
     check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
-
-    image.fenceIndex = fenceIndex;
+    
     image.extent = extent;
     image.format = format;
     
@@ -368,14 +318,14 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
 }
 
 // TODO: Maybe make this threaded if it gets called too often
-create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
+create_vk_image_from_data :: (loam : *LoamState, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
+    vk := loam.vk;
     dataSize := extent.width * extent.height * bytesPerPixel;
-    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, 0);
-    defer destroy_vk_buffer(vk, uploadBuffer);
+    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT);
     memcpy(uploadBuffer.allocationInfo.pMappedData, data, cast(s64) dataSize);
-
+    
     image := create_vk_image(vk, extent, format, usage, 0, mipmapped);
-
+    
     CopyData :: struct {
 	buffer : *AllocatedBufferInfo;
 	image : *AllocatedImageInfo;
@@ -392,13 +342,16 @@ create_vk_image_from_data :: (vk : *Vk, data : *void, extent : VkExtent2D, forma
     }
     
     imageCopyData := CopyData.{ uploadBuffer, image, extent };
-    immediate_submit(vk, imm_copy_into_image, *imageCopyData);
+    
+    buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
+    add_update_command(loam, imm_copy_into_image, *imageCopyData, buffersToCleanup);
 
     return image;
 }
 
 // TODO: Maybe make this threaded if it gets called too often
-create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInfo {
+create_vk_image_from_ktx :: (loam : *LoamState, ktx : *ktxTexture2) -> *AllocatedImageInfo {
+    vk := loam.vk;
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
 				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
 				      .OPTIMAL, .SAMPLED_BIT | .TRANSFER_DST_BIT, .EXCLUSIVE, 0, null, .UNDEFINED };
@@ -406,8 +359,7 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInf
 
     image := New(AllocatedImageInfo);
     check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
-
-    image.fenceIndex = 0;
+    
     image.extent = .{ ktx.baseWidth, ktx.baseHeight };
     image.format = cast(VkFormat) ktx.vkFormat;
     
@@ -416,12 +368,11 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInf
     check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
 
     dataSize := ktxTexture_GetDataSize(ktx);
-    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT, 0);
-    defer destroy_vk_buffer(vk, uploadBuffer);
+    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT);
     memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
     
     CopyData :: struct {
-	buffer : AllocatedBufferInfo;
+	buffer : *AllocatedBufferInfo;
 	image : AllocatedImageInfo;
 	ktx : *ktxTexture2;
     }
@@ -448,21 +399,32 @@ create_vk_image_from_ktx :: (vk : *Vk, ktx : *ktxTexture2) -> *AllocatedImageInf
     }
     
     imageCopyData := CopyData.{ uploadBuffer, image, ktx };
-    immediate_submit(vk, imm_copy_into_image, *imageCopyData);
+
+    buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
+    add_update_command(loam, imm_copy_into_image, *imageCopyData, buffersToCleanup);
     
     return image;
 }
 
 destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {
-    check_vk(vkWaitForFences(vk.device, 1, *vk.threadFences[image.fenceIndex], VK_TRUE, FENCE_WAIT_TIME), "(destroy_vk_image) vkWaitForFences failed");
-    check_vk(vkWaitForFences(vk.device, 1, *vk.frames[0].renderFence, VK_TRUE, FENCE_WAIT_TIME), "(destroy_vk_image) vkWaitForFences failed");
-    check_vk(vkWaitForFences(vk.device, 1, *vk.frames[1].renderFence, VK_TRUE, FENCE_WAIT_TIME), "(destroy_vk_image) vkWaitForFences failed");
+    for vk.frames {
+	check_vk(vkWaitForFences(vk.device, 1, *it.renderFence, VK_TRUE, FENCE_WAIT_TIME), tprint("Failed to wait for fence for Frame %", it_index));
+    }
     vkDestroyImageView(vk.device, image.view, null);
     vmaDestroyImage(vk.allocator, image.image, image.allocation);
     free(image);
 }
 
-create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, fenceIndex : s64) -> *AllocatedBufferInfo #must {
+cleanup_single_frame_images :: (vk : *Vk) {
+    for * vk.imagesToDestroyAtFrameReset {
+	destroy_vk_image(vk, it.*);
+	it = null;
+    }
+
+    array_reset(*vk.imagesToDestroyAtFrameReset);
+}
+
+create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags) -> *AllocatedBufferInfo #must {
     createInfo := VkBufferCreateInfo.{ size = size, usage = usage };
     allocationCreateInfo := VmaAllocationCreateInfo.{ flags = .MAPPED_BIT | .HOST_ACCESS_SEQUENTIAL_WRITE_BIT, usage = .AUTO };
 
@@ -475,6 +437,15 @@ create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags, fenceInde
 destroy_vk_buffer :: (vk : *Vk, buffer : *AllocatedBufferInfo) {
     vmaDestroyBuffer(vk.allocator, buffer.buffer, buffer.allocation);
     free(buffer);
+}
+
+cleanup_single_frame_buffers :: (vk : *Vk) {
+    for * vk.buffersToDestroyAtFrameReset {
+	destroy_vk_buffer(vk, it.*);
+	it = null;
+    }
+
+    array_reset(*vk.buffersToDestroyAtFrameReset);
 }
 
 make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u32 = 0xffffffff, layerCount : u32 = 0xffffffff) -> VkImageSubresourceRange #must {

@@ -35,24 +35,21 @@ is_default_plane_indices :: (arr : [] u32) -> bool {
     return true;
 }
 
-// TODO: (Per vkguide) Note that this pattern is not very efficient, as we are waiting for the GPU command to fully execute before continuing with our CPU side logic.
-//                     This is something people generally put on a background thread, whose sole job is to execute uploads like this one, and deleting/reusing the staging buffers.
-upload_mesh_threaded :: (loam : *LoamState, indices : [] u32, vertices : [] Vertex, buffers : *MeshBuffers) {
+upload_mesh_command :: (loam : *LoamState, indices : [] u32, vertices : [] Vertex, buffers : *MeshBuffers) {
     vk := loam.vk;
     
     indexBufferSize := cast(u64) (indices.count * size_of(u32));
     vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
     
-    buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(vk, indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT, context.thread_index);
+    buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(vk, indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
     buffers.indexCount   = cast(u32) indices.count;
     
-    buffers.vertexBuffer = create_vk_buffer(vk, vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT, context.thread_index);
+    buffers.vertexBuffer = create_vk_buffer(vk, vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
     deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertexBuffer.buffer };
     buffers.vertexBufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
     
     // Set up staging buffer and copy to buffers
-    stagingBuffer := create_vk_buffer(vk, indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT, context.thread_index);
-    defer destroy_vk_buffer(vk, stagingBuffer);
+    stagingBuffer := create_vk_buffer(vk, indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT);
     
     memcpy(stagingBuffer.allocationInfo.pMappedData, cast(*u8) vertices.data, cast(s64) vertexBufferSize);
     memcpy(cast(*u8) stagingBuffer.allocationInfo.pMappedData + vertexBufferSize, cast(*u8) indices.data, cast(s64) indexBufferSize);
@@ -68,5 +65,7 @@ upload_mesh_threaded :: (loam : *LoamState, indices : [] u32, vertices : [] Vert
     }
 
     meshData := MeshCopyData.{ vertexBufferSize, indexBufferSize, stagingBuffer, buffers };
-    immediate_submit(vk, gpu_mesh_copy, *meshData);
+
+    buffersToCleanup := pack_buffers_for_cleanup(stagingBuffer);
+    add_update_command(loam, gpu_mesh_copy, *meshData, buffersToCleanup);
 }

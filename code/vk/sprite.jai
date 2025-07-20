@@ -15,7 +15,7 @@ make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, 
     
     textureAsset := request_asset(loam, .Image, textureName);
     if textureAsset {
-	sprite.texture = create_vk_image_from_ktx(loam.vk, cast(*ktxTexture2) textureAsset.data);
+	sprite.texture = create_vk_image_from_ktx(loam, cast(*ktxTexture2) textureAsset.data);
     } else {
 	sprite.texture = loam.vk.errorCheckerboard;
     }
@@ -26,11 +26,7 @@ make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, 
     sprite.vertices, sprite.vertexMemory = build_sprite_buffers(loam.vk, sprite);
     sprite.buffers = New(MeshBuffers);
 
-    threadWork : ThreadWork;
-    threadWork.type = .UploadToGPU;
-    threadWork.loam = loam;
-    threadWork.uploadData = .{ DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers, upload_mesh_threaded };
-    add_thread_work(*loam.threadSystem, threadWork, "Upload new Sprite to GPU");
+    upload_mesh_command(loam, DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers);
     
     return sprite;
 }

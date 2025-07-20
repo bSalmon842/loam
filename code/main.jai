@@ -28,8 +28,6 @@ main :: () {
     loam := init_loam(window, xx START_WIDTH, xx START_HEIGHT);
 
     refreshRate = get_refresh_rate(window);
-
-    initialise_thread_system(loam, *loam.threadSystem, "Loam Thread System");
     
     loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
@@ -118,6 +116,8 @@ main :: () {
 	register_keycode_input(loam, #char "S", .{}, move_sprite_down,  sprite);
     }
 
+    process_update_commands(loam);
+
     timing : [6] float64;
     
     while loam.running {
@@ -136,7 +136,7 @@ main :: () {
 	if loam.vk.resizeRequested then resize_swapchain(loam);
 
 	loam.vk.currentFrame = get_current_frame(loam.vk);
-	
+
         for events_this_frame {
             if it.type == {
                 case .QUIT; loam.running = false;
@@ -148,7 +148,7 @@ main :: () {
 		}
             }
         }
-
+	
 	// NOTE: If we don't have any modifier flags then we might want to repeat the input (such as for movement, etc) so we use input_button_states
 	for input_button_states {
 	    if it & .DOWN {
@@ -156,9 +156,10 @@ main :: () {
 	    }
 	}
 	
+	loam_start_update(loam);
+	
 	#if IS_DEBUG {
 	    update_debug_metrics(loam, *metrics);
-	    wait_for_thread_work_to_finish(*loam.threadSystem);
 	    update_debug_ui_regions();
 	}
 
@@ -173,6 +174,8 @@ main :: () {
 		update_ui_element(loam, loam.mainPointer, it);
 	    }
 	}
+
+	loam_finish_update(loam);
 
 	timing[0] = (seconds_since_init() - lastTime) - (tickStart);
 
@@ -219,8 +222,8 @@ main :: () {
 	}
 	deltaMs := loam.deltaTime * 1000.0;
 	print("Events, Input, & Update: % (%\%)\nReset: % (%\%)\nDraw Record: % (%\%)\nDraw Execute: % (%\%)\nTotal Frame Time: % (%)\n\n",
-	      timing[0], (timing[0] / deltaMs) * 100.0, timing[1], (timing[1] / deltaMs) * 100.0, timing[2], (timing[2] / deltaMs) * 100.0,
-	      timing[3], (timing[3] / deltaMs) * 100.0, deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
+	    timing[0], (timing[0] / deltaMs) * 100.0, timing[1], (timing[1] / deltaMs) * 100.0, timing[2], (timing[2] / deltaMs) * 100.0,
+	    timing[3], (timing[3] / deltaMs) * 100.0, deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
         
         reset_temporary_storage();
 
