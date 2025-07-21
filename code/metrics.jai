@@ -1,6 +1,6 @@
 /*
 Project: Loam
-File: debug.jai
+File: metrics.jai
 Author: Brock Salmon
 Created: 22JUN2025
 */
@@ -52,8 +52,48 @@ update_debug_ui_regions :: () {
     update_region(drawCallText, get_default_interact_region(drawCallText.text));
 }
 
-render_debug_ui :: (loam : *LoamState, metrics : DebugMetrics) {
-    for loam.debugUIElements {
-	add_ui_render_command(loam, it);
+// Timing System
+TimingData :: struct {
+    start : float64;
+
+    Marker :: struct {
+	timeAtPoint : float64;
+	timeForSection : float64;
+	name : string;
     }
+    markers : [..] Marker;
 }
+__timingData : TimingData;
+
+
+TIMING_FRAME_START :: () #expand {
+    __timingData.start = seconds_since_init();
+}
+
+TIMING_MARKER :: (name : string) #expand {
+    timeAtPoint := seconds_since_init();
+    cumulativeMarkerTime : float64;
+    for __timingData.markers {
+	cumulativeMarkerTime += it.timeForSection;
+    }
+    timeForSection := timeAtPoint - (cumulativeMarkerTime + __timingData.start);
+    array_add(*__timingData.markers, .{ timeAtPoint, timeForSection, name });
+}
+
+TIMING_FRAME_END :: (print : bool, loam : *LoamState) #expand {
+    if print then TIMING_PRINT_DATA();
+    array_reset(*__timingData.markers);
+    __timingData.start = 0;
+}
+
+TIMING_PRINT_DATA :: () #expand {
+    print("\n");
+    deltaMs := `loam.deltaTime * 1000.0;
+    for * __timingData.markers {
+	it.timeForSection *= 1000.0;
+	print("%: % (%\%)\n", it.name, it.timeForSection, (it.timeForSection / deltaMs) * 100.0);
+    }
+    print("Total Frame Time: % (%)\n\n", deltaMs, cast(u32) (1.0 / `loam.deltaTime + 1.0));
+}
+
+

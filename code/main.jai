@@ -121,7 +121,7 @@ main :: () {
     timing : [6] float64;
     
     while loam.running {
-	tickStart := seconds_since_init() - lastTime;
+	TIMING_FRAME_START();
         update_window_events();
 	
 	resizes := get_window_resizes();
@@ -175,34 +175,36 @@ main :: () {
 	    }
 	}
 
+	TIMING_MARKER("Events, Input, & Update Recording");
+	
 	loam_finish_update(loam);
-
-	timing[0] = (seconds_since_init() - lastTime) - (tickStart);
-
+	
+	TIMING_MARKER("Update Finish");
+	
 	reset_info_for_rendering(loam);
-
-	timing[1] = (seconds_since_init() - lastTime) - (timing[0] + tickStart);
+	
+	TIMING_MARKER("Render Reset");
 	
 	#if IS_DEBUG
 	{
 	    render_debug_ui(loam, *metrics);
 	}
-
+	
 	add_render_command(loam, .Sprite, loam.sceneCamera, *sprite.renderable, sprite.transform);
 	for testSprites {
 	    add_render_command(loam, .Sprite, loam.sceneCamera, *it.renderable, it.transform);
 	}
-
+	
 	for loam.uiElements {
 	    add_ui_render_command(loam, it);
 	}
 
-	timing[2] = (seconds_since_init() - lastTime) - (timing[1] + timing[0] + tickStart);
+	TIMING_MARKER("Draw Record");
 	
 	draw_frame(loam);
 
-	timing[3] = (seconds_since_init() - lastTime) - (timing[2] + timing[1] + timing[0] + tickStart);
-
+	TIMING_MARKER("Draw Execute");
+	
 	/*
 	if loam.vk.vsync {
 	    targetMs := 1.0 / cast(float) refreshRate;
@@ -217,14 +219,9 @@ main :: () {
 
         loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
-	for * timing {
-	    it.* *= 1000.0;
-	}
-	deltaMs := loam.deltaTime * 1000.0;
-	print("Events, Input, & Update: % (%\%)\nReset: % (%\%)\nDraw Record: % (%\%)\nDraw Execute: % (%\%)\nTotal Frame Time: % (%)\n\n",
-	    timing[0], (timing[0] / deltaMs) * 100.0, timing[1], (timing[1] / deltaMs) * 100.0, timing[2], (timing[2] / deltaMs) * 100.0,
-	    timing[3], (timing[3] / deltaMs) * 100.0, deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
-        
+
+	TIMING_FRAME_END(true, loam);
+	
         reset_temporary_storage();
 
 	/*

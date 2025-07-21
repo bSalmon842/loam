@@ -137,11 +137,17 @@ reset_info_for_rendering :: (loam : *LoamState) {
     }
 }
 
+render_debug_ui :: (loam : *LoamState, metrics : DebugMetrics) {
+    for loam.debugUIElements {
+	add_ui_render_command(loam, it);
+    }
+}
+
 #load "assets.jai";
 #load "camera.jai";
-#load "debug.jai";
 #load "input.jai";
 #load "math.jai";
+#load "metrics.jai";
 #load "thread.jai";
 #load "transform.jai";
 #load "utility.jai";
