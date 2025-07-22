@@ -28,14 +28,14 @@ set_angle :: (using angle : *Angle, radians : Radians) {
     deg = convert_angle(rad);
 }
 
-convert_angle :: (angle : Radians) -> Degrees #must {
+convert_angle :: (angle : Radians) -> Degrees {
     return cast(Degrees) (angle * (360.0 / TAU));
 }
 
-convert_angle :: (angle : Degrees) -> Radians #must {
+convert_angle :: (angle : Degrees) -> Radians {
     return cast(Radians) (angle * (TAU / 360.0));
 }
 
-log2 :: (x : float) -> float #must {
+log2 :: (x : float) -> float {
     return log(x) / log(2);
 }

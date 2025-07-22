@@ -11,14 +11,15 @@ Created: 11JUL2025
 ThreadWorkType :: enum {
     // Audio;
     AddRenderCommand;
+    AddUpdateCommand;
 }
 
 ThreadWork :: struct {
     type : ThreadWorkType;
-    loam : *LoamState;
 
     union {
 	renderCommandData : AddRenderCommand_ThreadData;
+	updateCommandData : AddUpdateCommand_ThreadData;
     }
     
     AddRenderCommand_ThreadData :: struct {
@@ -31,10 +32,25 @@ ThreadWork :: struct {
 	
 	proc : (*LoamState, PipelineType, *Camera, *Renderable, Transform, bool, Vector4);
     }
+
+    AddUpdateCommand_ThreadData :: struct {
+	
+    }
 }
 
-thread_proc :: (thread : *Thread) -> s64 {
-    print_color("YAY THREAD %\n", context.thread_index, color=.HI_BLUE);
+create_thread :: (thread_proc : Thread_Proc) -> *Thread {
+    thread := New(Thread);
+    #if IS_DEBUG then this_allocation_is_not_a_leak(thread);
+    thread.starting_context.loam = context.loam;
+    thread.starting_context.vk = context.vk;
+    thread_init(thread, thread_proc);
+    thread_start(thread);
+
+    return thread;
+}
+
+rendering_thread_proc :: (thread : *Thread) -> s64 {
+    print_color("YAY THREAD % (%, %)\n", context.thread_index, context.loam, context.vk, color=.HI_BLUE);
     return 0;
 }
 

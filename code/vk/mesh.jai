@@ -35,21 +35,20 @@ is_default_plane_indices :: (arr : [] u32) -> bool {
     return true;
 }
 
-upload_mesh_command :: (loam : *LoamState, indices : [] u32, vertices : [] Vertex, buffers : *MeshBuffers) {
-    vk := loam.vk;
-    
+upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshBuffers) {
     indexBufferSize := cast(u64) (indices.count * size_of(u32));
     vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
-    
-    buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(vk, indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
+
+    // TODO: If we create the buffer here we need to destroy it as well
+    buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
     buffers.indexCount   = cast(u32) indices.count;
     
-    buffers.vertexBuffer = create_vk_buffer(vk, vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
+    buffers.vertexBuffer = create_vk_buffer(vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
     deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertexBuffer.buffer };
     buffers.vertexBufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
     
     // Set up staging buffer and copy to buffers
-    stagingBuffer := create_vk_buffer(vk, indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT);
+    stagingBuffer := create_vk_buffer(indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT);
     
     memcpy(stagingBuffer.allocationInfo.pMappedData, cast(*u8) vertices.data, cast(s64) vertexBufferSize);
     memcpy(cast(*u8) stagingBuffer.allocationInfo.pMappedData + vertexBufferSize, cast(*u8) indices.data, cast(s64) indexBufferSize);
@@ -66,6 +65,8 @@ upload_mesh_command :: (loam : *LoamState, indices : [] u32, vertices : [] Verte
 
     meshData := MeshCopyData.{ vertexBufferSize, indexBufferSize, stagingBuffer, buffers };
 
+    TIMING_MARKER("PRE_UPDATE_COMMAND");
     buffersToCleanup := pack_buffers_for_cleanup(stagingBuffer);
-    add_update_command(loam, gpu_mesh_copy, *meshData, buffersToCleanup);
+    add_update_command(gpu_mesh_copy, *meshData, buffersToCleanup);
+    TIMING_MARKER("POST_UPDATE_COMMAND");
 }

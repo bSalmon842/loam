@@ -20,24 +20,24 @@ keyboard_to_u64 :: (code : Key_Code, modifiers : Event.Modifier_Flags) -> u64 {
 }
 
 // Function Types
-ButtonInputFunc :: #type (loam : *LoamState, extraData : *void);
+ButtonInputFunc :: #type (extraData : *void);
 ButtonInputFuncInfo :: struct {
     func : ButtonInputFunc;
     extraData : *void;
 }
 
 // Registration and Calling Functions
-register_keycode_input :: (loam : *LoamState, code : Key_Code, modifiers : Event.Modifier_Flags, func : ButtonInputFunc, extraData : *void) {
+register_keycode_input :: (code : Key_Code, modifiers : Event.Modifier_Flags, func : ButtonInputFunc, extraData : *void) {
     keyInput := keyboard_to_u64(code, modifiers);
     if !table_contains(*loam.binds.keycodeBinds, keyInput) {
 	table_add(*loam.binds.keycodeBinds, keyInput, .{ func, extraData });
     }
 }
 
-handle_keycode_input :: (loam : *LoamState, keyCode : Key_Code, modifiers : Event.Modifier_Flags) {
+handle_keycode_input :: (keyCode : Key_Code, modifiers : Event.Modifier_Flags) {
     foundBind := table_find_pointer(*loam.binds.keycodeBinds, keyboard_to_u64(keyCode, modifiers));
     if foundBind {
-	foundBind.func(loam, foundBind.extraData);
+	foundBind.func(foundBind.extraData);
     }
 }
 
@@ -51,7 +51,7 @@ PointerStatus :: struct {
 }
 
 // TODO: We probably want a way to make sure this is only being called once per frame
-update_pointer_status :: (loam : *LoamState, window : Window_Type, status : *PointerStatus) {
+update_pointer_status :: (window : Window_Type, status : *PointerStatus) {
     status.pressedLastFrame = status.pressedThisFrame;
     status.pressedThisFrame = cast(bool) (input_button_states[Key_Code.MOUSE_BUTTON_LEFT] & .DOWN);
 

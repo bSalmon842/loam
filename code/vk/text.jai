@@ -25,9 +25,7 @@ TemporaryGlyph :: struct {
     bearingX, bearingY, advance : s32;
 }
 
-build_text_buffers :: (loam : *LoamState, info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
-    vk := loam.vk;
-    
+build_text_buffers :: (info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
     // TODO: Handle text colour codes
     // TODO: Handle escape sequences
     
@@ -95,13 +93,13 @@ build_text_buffers :: (loam : *LoamState, info : *Text) -> [] Vertex, *void, *Al
 	cursorX += glyph.advance;
 	previousGlyphIndex = glyphIndex;
     }
-
+    
     extent := VkExtent2D.{ cast(u32) textureWidth, cast(u32) textureHeight };
-    stringTexture := create_vk_image_from_data(loam, textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
-
+    stringTexture := create_vk_image_from_data(textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
+    
     set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);
-
+    
     free(rawTextureData);
     
     info.dimensions = extent_to_vector(extent, 0);
@@ -116,33 +114,33 @@ build_text_buffers :: (loam : *LoamState, info : *Text) -> [] Vertex, *void, *Al
     return vertices, vertexMemory, stringTexture;
 }
 
-make_text :: (loam : *LoamState, str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
+make_text :: (str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
     text := New(Text);
     text.* = .{ str, font, size, transform, .{} };
     text.tint = colour;
     if str.count > 0 {
-	text.vertices, text.texture = build_text_buffers(loam, text);
+	text.vertices, text.texture = build_text_buffers(text);
 	text.buffers = New(MeshBuffers);
 
-	upload_mesh_command(loam, DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
+	upload_mesh_command(DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
     }
     return text;
 }
 
-update_text :: (loam : *LoamState, text : *Text, str : string) {
+update_text :: (text : *Text, str : string) {
     text.str = str;
     if text.texture {
 	free(text.vertexMemory);
-	destroy_vk_image(loam.vk, text.texture);
+	destroy_vk_image(text.texture);
     }
-    text.vertices, text.vertexMemory, text.texture = build_text_buffers(loam, text);
+    text.vertices, text.vertexMemory, text.texture = build_text_buffers(text);
 
     if text.buffers {
-	destroy_vk_buffer(loam.vk, text.buffers.vertexBuffer);
+	destroy_vk_buffer(text.buffers.vertexBuffer);
 	free(text.buffers);
     }
 
     text.buffers = New(MeshBuffers);
-    upload_mesh_command(loam, DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
+    upload_mesh_command(DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
 }
 

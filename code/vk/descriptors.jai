@@ -12,7 +12,7 @@ add_binding :: (bindings : *DescriptorSetBindings, binding : u32, type : VkDescr
     array_add(bindings, VkDescriptorSetLayoutBinding.{ binding, type, 1, 0, null });
 }
 
-create_descriptor_set_layout :: (bindings : *DescriptorSetBindings, device : VkDevice, shaderStages : VkShaderStageFlags) -> VkDescriptorSetLayout #must {
+create_descriptor_set_layout :: (bindings : *DescriptorSetBindings, device : VkDevice, shaderStages : VkShaderStageFlags) -> VkDescriptorSetLayout {
     for * bindings.* {
 	it.stageFlags |= shaderStages;
     }
@@ -32,7 +32,7 @@ PoolSizeRatio :: struct {
     ratio : float;
 }
 
-fill_pool_size_array :: (poolRatios : [] PoolSizeRatio, setCount : u32) -> [] VkDescriptorPoolSize #must {
+fill_pool_size_array :: (poolRatios : [] PoolSizeRatio, setCount : u32) -> [] VkDescriptorPoolSize {
     poolSizes : [..] VkDescriptorPoolSize;
     for poolRatios {
 	array_add(*poolSizes, .{ it.type, cast(u32) (it.ratio * setCount) });
@@ -40,7 +40,7 @@ fill_pool_size_array :: (poolRatios : [] PoolSizeRatio, setCount : u32) -> [] Vk
     return poolSizes;
 }
 
-create_descriptor_pool :: (device : VkDevice, maxSets : u32, poolRatios : [] PoolSizeRatio) -> VkDescriptorPool #must {
+create_descriptor_pool :: (device : VkDevice, maxSets : u32, poolRatios : [] PoolSizeRatio) -> VkDescriptorPool {
     poolSizes := fill_pool_size_array(poolRatios, maxSets);
     createInfo := VkDescriptorPoolCreateInfo.{ maxSets = maxSets, poolSizeCount = cast(u32) poolSizes.count, pPoolSizes = poolSizes.data };
 
@@ -49,7 +49,7 @@ create_descriptor_pool :: (device : VkDevice, maxSets : u32, poolRatios : [] Poo
     return pool;
 }
 
-allocate_descriptor_set_from_pool :: (device : VkDevice, pool : VkDescriptorPool, layout : VkDescriptorSetLayout) -> VkDescriptorSet #must {
+allocate_descriptor_set_from_pool :: (device : VkDevice, pool : VkDescriptorPool, layout : VkDescriptorSetLayout) -> VkDescriptorSet {
     allocInfo := VkDescriptorSetAllocateInfo.{ .DESCRIPTOR_SET_ALLOCATE_INFO, null, pool, 1, *layout };
 
     descriptorSet : VkDescriptorSet;
@@ -75,7 +75,7 @@ dynamic_descriptor_pool_allocator_init :: (allocator : *DynamicDescriptorPoolAll
     array_add(*allocator.ready, pool);
 }
 
-dynamic_descriptor_pool_allocator_allocate :: (allocator : *DynamicDescriptorPoolAllocator, device : VkDevice, layout : VkDescriptorSetLayout) -> VkDescriptorSet #must {
+dynamic_descriptor_pool_allocator_allocate :: (allocator : *DynamicDescriptorPoolAllocator, device : VkDevice, layout : VkDescriptorSetLayout) -> VkDescriptorSet {
     pool := dynamic_descriptor_pool_allocator_get_pool(allocator, device);
     allocInfo := VkDescriptorSetAllocateInfo.{ .DESCRIPTOR_SET_ALLOCATE_INFO, null, pool, 1, *layout };
 
@@ -110,7 +110,7 @@ dynamic_descriptor_pool_allocator_destroy_pools :: (allocator : *DynamicDescript
     array_reset(*allocator.full);
 }
 
-dynamic_descriptor_pool_allocator_get_pool :: (allocator : *DynamicDescriptorPoolAllocator, device : VkDevice) -> VkDescriptorPool #must {
+dynamic_descriptor_pool_allocator_get_pool :: (allocator : *DynamicDescriptorPoolAllocator, device : VkDevice) -> VkDescriptorPool {
     if allocator.ready.count {
 	return pop(*allocator.ready);
     } else {

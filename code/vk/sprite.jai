@@ -10,28 +10,28 @@ Sprite :: struct {
     using renderable : Renderable;
 }
 
-make_sprite :: (loam : *LoamState, textureName : string, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Sprite {
+make_sprite :: (textureName : string, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Sprite {
     sprite := New(Sprite);
     
-    textureAsset := request_asset(loam, .Image, textureName);
+    textureAsset := request_asset(.Image, textureName);
     if textureAsset {
-	sprite.texture = create_vk_image_from_ktx(loam, cast(*ktxTexture2) textureAsset.data);
+	sprite.texture = create_vk_image_from_ktx(cast(*ktxTexture2) textureAsset.data);
     } else {
-	sprite.texture = loam.vk.errorCheckerboard;
+	sprite.texture = vk.errorCheckerboard;
     }
 
     sprite.tint = colour;
     sprite.transform = transform;
 
-    sprite.vertices, sprite.vertexMemory = build_sprite_buffers(loam.vk, sprite);
+    sprite.vertices, sprite.vertexMemory = build_sprite_buffers(sprite);
     sprite.buffers = New(MeshBuffers);
 
-    upload_mesh_command(loam, DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers);
+    upload_mesh_command(DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers);
     
     return sprite;
 }
 
-build_sprite_buffers :: (vk : *Vk, sprite : *Sprite) -> [] Vertex, *void {
+build_sprite_buffers :: (sprite : *Sprite) -> [] Vertex, *void {
     sprite.dimensions = extent_to_vector(sprite.texture.extent, 0);
     
     // Build info to upload to GPU

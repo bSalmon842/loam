@@ -17,7 +17,7 @@ CompiledShader :: struct {
     succeeded : bool;
 }
 
-load_shader_module :: (device : VkDevice, shaderToLoad : CompiledShader) -> VkShaderModule #must {
+load_shader_module :: (device : VkDevice, shaderToLoad : CompiledShader) -> VkShaderModule {
     if !shaderToLoad.succeeded {
 	log(.ERROR, tprint("% was not compiled and cannot be found.", shaderToLoad.name));
 	assert(false);
@@ -29,7 +29,7 @@ load_shader_module :: (device : VkDevice, shaderToLoad : CompiledShader) -> VkSh
     return shaderModule;
 }
 
-shader_file_already_compiled :: (glslName : string) -> bool #must {
+shader_file_already_compiled :: (glslName : string) -> bool {
     lastFile := tprint("%1%2.glsl", LAST_COMPILED_GLSL_FOLDER_PATH, glslName);
     inFile := tprint("%1%2.glsl", SHADER_FOLDER_PATH, glslName);
 
@@ -45,7 +45,7 @@ shader_file_already_compiled :: (glslName : string) -> bool #must {
     return compare(lastContents, inContents) == 0;
 }
 
-compile_glsl_to_spirv :: (glslName : string) -> CompiledShader #must {
+compile_glsl_to_spirv :: (glslName : string) -> CompiledShader {
     if !#compile_time then assert(false, tprint("% can only be called at compile time (%)\n", #this, glslName));
 
     make_directory_if_it_does_not_exist(COMPILED_SHADER_FOLDER_PATH);
@@ -81,7 +81,7 @@ compile_glsl_to_spirv :: (glslName : string) -> CompiledShader #must {
 }
 
 #if OS == .ANDROID {
-    load_spirv_for_android :: (hlslName : string) -> CompiledShader #must {
+    load_spirv_for_android :: (hlslName : string) -> CompiledShader {
 	spvContents, foundFile := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
 	return CompiledShader.{ hlslName, spvContents, foundFile };
     }

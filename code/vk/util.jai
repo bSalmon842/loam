@@ -7,13 +7,13 @@ Created: 27APR2025
 
 FENCE_WAIT_TIME :: #run seconds_to_nanoseconds(1);
 
-resize_swapchain :: (loam : *LoamState) {
-    vkDeviceWaitIdle(loam.vk.device);
-    check_vk(create_vk_swapchain(loam), "Failed to recreate swapchain when resizing window");
-    loam.vk.resizeRequested = false;
+resize_swapchain :: () {
+    vkDeviceWaitIdle(vk.device);
+    check_vk(create_vk_swapchain(), "Failed to recreate swapchain when resizing window");
+    vk.resizeRequested = false;
 }
 
-find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevice) -> VkPhysicalDevice {
+find_best_gpu_for_conditions :: (availableDevices : [] VkPhysicalDevice) -> VkPhysicalDevice {
     bestGPU : VkPhysicalDevice = null;
 
     // Filter out invalid physical devices
@@ -184,7 +184,7 @@ find_best_gpu_for_conditions :: (vk : *Vk, availableDevices : [] VkPhysicalDevic
     return bestGPU;
 }
 
-select_texture_format :: (vk : *Vk) {
+select_texture_format :: () {
     #if OS == .ANDROID {
 	acceptableFormats := VkFormat.[
 		.ASTC_4x4_SRGB_BLOCK, // Android
@@ -211,7 +211,7 @@ select_texture_format :: (vk : *Vk) {
     }
 }
 
-get_dedicated_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties, usedIndices : *[..] u32) -> bool #must, u32 {
+get_dedicated_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties, usedIndices : *[..] u32) -> bool, u32 {
     bestIndex := U32_MAX;
     
     for queueFamilies {
@@ -232,7 +232,7 @@ get_dedicated_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQ
     }
 }
 
-get_any_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties) -> bool #must, u32 {
+get_any_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties) -> bool, u32 {
     for queueFamilies {
 	if (flag & it.queueFlags) == flag {
 	    return true, cast(u32) it_index;
@@ -242,7 +242,7 @@ get_any_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFa
     return false, 0;
 }
 
-get_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties, usedIndices : *[..] u32, deviceProps : VkPhysicalDeviceProperties) -> bool #must, u32 {
+get_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamilyProperties, usedIndices : *[..] u32, deviceProps : VkPhysicalDeviceProperties) -> bool, u32 {
     found, index := get_dedicated_queue_family_index(flag, queueFamilies, usedIndices);
     if !found {
 	log_vk(.INFO, tprint("Failed to find a dedicated Queue Family Index for flags: % on %, finding any available index with flag", flag, to_string(deviceProps.deviceName.data)));
@@ -264,7 +264,7 @@ chain_physical_device_features :: (_1_1 : *VkPhysicalDeviceVulkan11Features, _1_
     return featureChain;
 }
 
-queue_create_info :: (vk : *Vk, familyIndex : u32) -> VkDeviceQueueCreateInfo {
+queue_create_info :: (familyIndex : u32) -> VkDeviceQueueCreateInfo {
     queueFamilyCount : u32;
     vkGetPhysicalDeviceQueueFamilyProperties(vk.physicalDevice, *queueFamilyCount, null);
     queueFamilies := NewArray(queueFamilyCount, VkQueueFamilyProperties,, temp);
@@ -286,7 +286,7 @@ queue_create_info :: (vk : *Vk, familyIndex : u32) -> VkDeviceQueueCreateInfo {
 
 // Returns the lowest available queue count out of the active queue families
 // TODO: When we start using the compute (and video on PC) queues, we probably need to restructure the threading system to have a system per queue family
-get_lowest_queue_count :: (vk : *Vk) -> u32 {
+get_lowest_queue_count :: () -> u32 {
     #if OS == .WINDOWS {
 	queueCount := min(vk.queueCountsPerFamily.graphics, vk.queueCountsPerFamily.compute);
     } else {
@@ -299,7 +299,7 @@ get_lowest_queue_count :: (vk : *Vk) -> u32 {
     return queueCount;
 }
 
-create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, fenceIndex : s64, mipmapped := false) -> *AllocatedImageInfo {
+create_vk_image :: (extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, fenceIndex : s64, mipmapped := false) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D, format, .{ extent.width, extent.height, 1 }, 1, 1, ._1_BIT, .OPTIMAL, usage, .EXCLUSIVE, 0, null, .UNDEFINED };
     if mipmapped then createInfo.mipLevels = cast(u32) floor(log2(cast(float) max(extent.width, extent.height))) + 1;
     allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .AUTO, flags = .DEDICATED_MEMORY_BIT };
@@ -318,13 +318,12 @@ create_vk_image :: (vk : *Vk, extent : VkExtent2D, format : VkFormat, usage : Vk
 }
 
 // TODO: Maybe make this threaded if it gets called too often
-create_vk_image_from_data :: (loam : *LoamState, data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
-    vk := loam.vk;
+create_vk_image_from_data :: (data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
     dataSize := extent.width * extent.height * bytesPerPixel;
-    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT);
+    uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
     memcpy(uploadBuffer.allocationInfo.pMappedData, data, cast(s64) dataSize);
     
-    image := create_vk_image(vk, extent, format, usage, 0, mipmapped);
+    image := create_vk_image(extent, format, usage, 0, mipmapped);
     
     CopyData :: struct {
 	buffer : *AllocatedBufferInfo;
@@ -344,14 +343,13 @@ create_vk_image_from_data :: (loam : *LoamState, data : *void, extent : VkExtent
     imageCopyData := CopyData.{ uploadBuffer, image, extent };
     
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command(loam, imm_copy_into_image, *imageCopyData, buffersToCleanup);
+    add_update_command(imm_copy_into_image, *imageCopyData, buffersToCleanup);
 
     return image;
 }
 
 // TODO: Maybe make this threaded if it gets called too often
-create_vk_image_from_ktx :: (loam : *LoamState, ktx : *ktxTexture2) -> *AllocatedImageInfo {
-    vk := loam.vk;
+create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
 				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
 				      .OPTIMAL, .SAMPLED_BIT | .TRANSFER_DST_BIT, .EXCLUSIVE, 0, null, .UNDEFINED };
@@ -368,7 +366,7 @@ create_vk_image_from_ktx :: (loam : *LoamState, ktx : *ktxTexture2) -> *Allocate
     check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
 
     dataSize := ktxTexture_GetDataSize(ktx);
-    uploadBuffer := create_vk_buffer(vk, dataSize, .TRANSFER_SRC_BIT);
+    uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
     memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
     
     CopyData :: struct {
@@ -401,12 +399,12 @@ create_vk_image_from_ktx :: (loam : *LoamState, ktx : *ktxTexture2) -> *Allocate
     imageCopyData := CopyData.{ uploadBuffer, image, ktx };
 
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command(loam, imm_copy_into_image, *imageCopyData, buffersToCleanup);
+    add_update_command(imm_copy_into_image, *imageCopyData, buffersToCleanup);
     
     return image;
 }
 
-destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {
+destroy_vk_image :: (image : *AllocatedImageInfo) {
     for vk.frames {
 	check_vk(vkWaitForFences(vk.device, 1, *it.renderFence, VK_TRUE, FENCE_WAIT_TIME), tprint("Failed to wait for fence for Frame %", it_index));
     }
@@ -415,16 +413,16 @@ destroy_vk_image :: (vk : *Vk, image : *AllocatedImageInfo) {
     free(image);
 }
 
-cleanup_single_frame_images :: (vk : *Vk) {
+cleanup_single_frame_images :: () {
     for * vk.imagesToDestroyAtFrameReset {
-	destroy_vk_image(vk, it.*);
+	destroy_vk_image(it.*);
 	it = null;
     }
 
     array_reset(*vk.imagesToDestroyAtFrameReset);
 }
 
-create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags) -> *AllocatedBufferInfo #must {
+create_vk_buffer :: (size : u64, usage : VkBufferUsageFlags) -> *AllocatedBufferInfo {
     createInfo := VkBufferCreateInfo.{ size = size, usage = usage };
     allocationCreateInfo := VmaAllocationCreateInfo.{ flags = .MAPPED_BIT | .HOST_ACCESS_SEQUENTIAL_WRITE_BIT, usage = .AUTO };
 
@@ -434,33 +432,33 @@ create_vk_buffer :: (vk : *Vk, size : u64, usage : VkBufferUsageFlags) -> *Alloc
     return buffer;
 }
 
-destroy_vk_buffer :: (vk : *Vk, buffer : *AllocatedBufferInfo) {
+destroy_vk_buffer :: (buffer : *AllocatedBufferInfo) {
     vmaDestroyBuffer(vk.allocator, buffer.buffer, buffer.allocation);
     free(buffer);
 }
 
-cleanup_single_frame_buffers :: (vk : *Vk) {
+cleanup_single_frame_buffers :: () {
     for * vk.buffersToDestroyAtFrameReset {
-	destroy_vk_buffer(vk, it.*);
+	destroy_vk_buffer(it.*);
 	it = null;
     }
 
     array_reset(*vk.buffersToDestroyAtFrameReset);
 }
 
-make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u32 = 0xffffffff, layerCount : u32 = 0xffffffff) -> VkImageSubresourceRange #must {
+make_image_subresource_range :: (aspectMask : VkImageAspectFlags, levelCount : u32 = 0xffffffff, layerCount : u32 = 0xffffffff) -> VkImageSubresourceRange {
     return VkImageSubresourceRange.{ aspectMask, 0, levelCount, 0, layerCount };
 }
 
-make_semaphore_submit_info :: (semaphore : VkSemaphore, stageMask : VkPipelineStageFlags2) -> VkSemaphoreSubmitInfo #must {
+make_semaphore_submit_info :: (semaphore : VkSemaphore, stageMask : VkPipelineStageFlags2) -> VkSemaphoreSubmitInfo {
     return VkSemaphoreSubmitInfo.{ .SEMAPHORE_SUBMIT_INFO, null, semaphore, 1, stageMask, 0 };
 }
 
-make_shader_stage_info :: (shaderStageFlags : VkShaderStageFlags, shader : VkShaderModule) -> VkPipelineShaderStageCreateInfo #must {
+make_shader_stage_info :: (shaderStageFlags : VkShaderStageFlags, shader : VkShaderModule) -> VkPipelineShaderStageCreateInfo {
     return VkPipelineShaderStageCreateInfo.{ .PIPELINE_SHADER_STAGE_CREATE_INFO, null, 0, shaderStageFlags, shader, "main\0".data, null };
 }
 
-make_rendering_attachment_info :: (view : VkImageView, clear : *VkClearValue = null, layout : VkImageLayout = .COLOR_ATTACHMENT_OPTIMAL) -> VkRenderingAttachmentInfo #must {
+make_rendering_attachment_info :: (view : VkImageView, clear : *VkClearValue = null, layout : VkImageLayout = .COLOR_ATTACHMENT_OPTIMAL) -> VkRenderingAttachmentInfo {
     return VkRenderingAttachmentInfo.{
         imageView = view,
         imageLayout = layout,
@@ -470,7 +468,7 @@ make_rendering_attachment_info :: (view : VkImageView, clear : *VkClearValue = n
     };
 }
 
-make_rendering_info :: (renderExtent : VkExtent2D, colourAttachment : *VkRenderingAttachmentInfo, depthAttachment : *VkRenderingAttachmentInfo) -> VkRenderingInfo #must {
+make_rendering_info :: (renderExtent : VkExtent2D, colourAttachment : *VkRenderingAttachmentInfo, depthAttachment : *VkRenderingAttachmentInfo) -> VkRenderingInfo {
     return VkRenderingInfo.{
         renderArea = .{ .{}, renderExtent },
         layerCount = 1,

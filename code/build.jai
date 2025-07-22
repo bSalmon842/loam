@@ -199,7 +199,7 @@ add_generic_build_options :: (options : *Build_Options, timing : bool) {
     options.import_path = modulesPaths;
 }
 
-get_os_targets :: () -> [..] Operating_System_Tag, [..] CPU_Tag #must {
+get_os_targets :: () -> [..] Operating_System_Tag, [..] CPU_Tag {
     arr_os : [..] Operating_System_Tag;
     arr_cpu : [..] CPU_Tag;
     if Build_Windows {
@@ -218,7 +218,7 @@ get_os_targets :: () -> [..] Operating_System_Tag, [..] CPU_Tag #must {
     return arr_os, arr_cpu;
 }
 
-is_target :: (os : Operating_System_Tag, targets : [] Operating_System_Tag) -> bool #must {
+is_target :: (os : Operating_System_Tag, targets : [] Operating_System_Tag) -> bool {
     for targets {
         if it == os then return true;
     }

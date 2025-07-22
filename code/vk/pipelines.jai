@@ -24,7 +24,7 @@ GraphicsPipelineInfo :: struct {
     colourAttachFormat : VkFormat;
 }
 
-build_graphics_pipeline :: (vk : *Vk, using pipelineInfo : *GraphicsPipelineInfo) -> VkPipeline #must {
+build_graphics_pipeline :: (using pipelineInfo : *GraphicsPipelineInfo) -> VkPipeline {
     // NOTE: We use a dynamic viewport state, so say we have a single viewport and scissor as they will be bound during rendering
     viewportStateCreateInfo := VkPipelineViewportStateCreateInfo.{ viewportCount = 1, scissorCount = 1 };
     colourBlendStateCreateInfo := VkPipelineColorBlendStateCreateInfo.{ logicOp = .COPY, attachmentCount = 1, pAttachments = *blending };
@@ -147,7 +147,7 @@ RenderingPipelineInfo :: struct {
     renderCommands : [..] RenderCommand;
 }
 
-draw_pipeline :: (vk : *Vk, cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
+draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
     if pipeline.renderCommands.count == 0 then return;
     
     vkCmdBindPipeline(cmdBuffer, .GRAPHICS, pipeline.pipeline);
@@ -163,13 +163,13 @@ draw_pipeline :: (vk : *Vk, cmdBuffer : VkCommandBuffer, pipeline : *RenderingPi
     vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
 
     for * pipeline.renderCommands {
-	render_command(vk, cmdBuffer, it, pipeline.layout);
+	render_command(cmdBuffer, it, pipeline.layout);
     }
     
     vkCmdEndRendering(cmdBuffer);
 }
 
-init_pipelines :: (vk : *Vk) {
+init_pipelines :: () {
     // TODO: Investigate if saving/loading our cache to/from disk is worth it for our purposes
     cacheCreateInfo := VkPipelineCacheCreateInfo.{};
     check_vk(vkCreatePipelineCache(vk.device, *cacheCreateInfo, null, *vk.pipelineCache), "Failed to create pipeline cache");
@@ -253,7 +253,7 @@ init_pipelines :: (vk : *Vk) {
 	    }
 	}
 
-	pipeline.pipeline = build_graphics_pipeline(vk, *builder);
+	pipeline.pipeline = build_graphics_pipeline(*builder);
 
 	vkDestroyShaderModule(vk.device, vertShader, null);
 	vkDestroyShaderModule(vk.device, fragShader, null);

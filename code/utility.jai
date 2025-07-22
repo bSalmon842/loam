@@ -42,18 +42,18 @@ to_radians :: (degrees : float) -> float {
     return degrees * (TAU / 360.0);
 }
 
-is_in_array :: (value : $T, array : [] T) -> bool #must {
+is_in_array :: (value : $T, array : [] T) -> bool {
     for array { if it == value then return true; }
     return false;
 }
 
-from_array_cstr :: (cstr : [] u8) -> string #must {
+from_array_cstr :: (cstr : [] u8) -> string {
     result := cast(string) cstr;
     result.count = find_index_from_left(result, "\0");
     return result;
 }
 
-seconds_to_nanoseconds :: (seconds : u64) -> u64 #must {
+seconds_to_nanoseconds :: (seconds : u64) -> u64 {
     return seconds * 1_000_000_000;
 }
 

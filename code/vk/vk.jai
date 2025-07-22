@@ -115,21 +115,20 @@ AllPushConstants :: struct {
 }
 
 
-init_vk :: (loam : *LoamState, window : Window_Type) {
-    vk := loam.vk;
-    check_vk(create_vk_instance(vk, "Test App"), "create_vk_instance failed: ");
-    check_vk(create_vk_surface(vk, window), "create_vk_surface failed: ");
-    check_vk(get_vk_physical_device(vk), "get_vk_physical_device failed: ");
-    check_vk(create_vk_device(vk), "create_vk_devices failed: ");
+init_vk :: (window : Window_Type) {
+    check_vk(create_vk_instance("Test App"), "create_vk_instance failed: ");
+    check_vk(create_vk_surface(window), "create_vk_surface failed: ");
+    check_vk(get_vk_physical_device(), "get_vk_physical_device failed: ");
+    check_vk(create_vk_device(), "create_vk_devices failed: ");
 
     allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
     check_vk(vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator), "Failed to create VMA Allocator: ");
     
-    check_vk(create_vk_swapchain(loam), "create_vk_swapchain failed: ");
+    check_vk(create_vk_swapchain(), "create_vk_swapchain failed: ");
     
     vkGetDeviceQueue(vk.device, vk.queueFamilyIndices.graphics, 0, *vk.graphicsQueue);
     
-    select_texture_format(vk);
+    select_texture_format();
 
     cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
     fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
@@ -175,7 +174,7 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
 	}
     }
     
-    init_pipelines(vk);
+    init_pipelines();
 
     samplerCreateInfo : VkSamplerCreateInfo;
 
@@ -187,17 +186,17 @@ init_vk :: (loam : *LoamState, window : Window_Type) {
     samplerCreateInfo.magFilter = .LINEAR;
     vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 
-    vk.defaultPlaneIndexBuffer = create_vk_buffer(vk, cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
+    vk.defaultPlaneIndexBuffer = create_vk_buffer(cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
 
     // Write error checkerboard texture
     pixels : [256] u32;
     for * pixels {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
-    vk.errorCheckerboard = create_vk_image_from_data(loam, pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
+    vk.errorCheckerboard = create_vk_image_from_data(pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
 }
 
-create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
+create_vk_instance :: (appName : string) -> VkResult {
     array_add(*vk.instanceExtensions, VK_KHR_SURFACE_EXTENSION_NAME.data);
     array_add(*vk.instanceExtensions, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME.data);
 
@@ -278,7 +277,7 @@ create_vk_instance :: (vk : *Vk, appName : string) -> VkResult {
     return result;
 }
 
-create_vk_surface :: (vk : *Vk, window : Window_Type) -> VkResult {
+create_vk_surface :: (window : Window_Type) -> VkResult {
     #if OS == .WINDOWS {
 	surfaceCreateInfo := VkWin32SurfaceCreateInfoKHR.{ hinstance = Windows.GetModuleHandleW(null), hwnd = window };
 	return vkCreateWin32SurfaceKHR(vk.instance, *surfaceCreateInfo, null, *vk.surface);
@@ -293,7 +292,7 @@ create_vk_surface :: (vk : *Vk, window : Window_Type) -> VkResult {
     return .ERROR_INITIALIZATION_FAILED;
 }
 
-get_vk_physical_device :: (vk : *Vk) -> VkResult {
+get_vk_physical_device :: () -> VkResult {
     array_add(*vk.deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME.data);
 
     vk.reqFeatures_1_0.shaderInt64 = 1;
@@ -309,7 +308,7 @@ get_vk_physical_device :: (vk : *Vk) -> VkResult {
     defer free(availableDevices.data);
     check_vk(vkEnumeratePhysicalDevices(vk.instance, *gpuCount, availableDevices.data), "Failed to enumerate physical devices.");
 
-    vk.physicalDevice = find_best_gpu_for_conditions(vk, availableDevices);
+    vk.physicalDevice = find_best_gpu_for_conditions(availableDevices);
     if !vk.physicalDevice {
 	log_vk(.FATAL, "Failed to find a valid GPU.");
     }
@@ -322,15 +321,15 @@ get_vk_physical_device :: (vk : *Vk) -> VkResult {
     return .SUCCESS;
 }
 
-create_vk_device :: (vk : *Vk) -> VkResult {
+create_vk_device :: () -> VkResult {
     queueCreateInfos : [..] VkDeviceQueueCreateInfo;
     
-    graphicsCreateInfo := queue_create_info(vk, vk.queueFamilyIndices.graphics);
+    graphicsCreateInfo := queue_create_info(vk.queueFamilyIndices.graphics);
     vk.queueCountsPerFamily.graphics = graphicsCreateInfo.queueCount;
     array_add(*queueCreateInfos, graphicsCreateInfo);
     
     if vk.queueFamilyIndices.compute != vk.queueFamilyIndices.graphics {
-	computeCreateInfo := queue_create_info(vk, vk.queueFamilyIndices.compute);
+	computeCreateInfo := queue_create_info(vk.queueFamilyIndices.compute);
 	vk.queueCountsPerFamily.compute = computeCreateInfo.queueCount;
 	array_add(*queueCreateInfos, computeCreateInfo);
     }
@@ -338,7 +337,7 @@ create_vk_device :: (vk : *Vk) -> VkResult {
     if vk.enableVkVideo {
 	if vk.queueFamilyIndices.videoDecode != vk.queueFamilyIndices.graphics &&
 	   vk.queueFamilyIndices.videoDecode != vk.queueFamilyIndices.compute {
-	    videoCreateInfo := queue_create_info(vk, vk.queueFamilyIndices.videoDecode);
+	    videoCreateInfo := queue_create_info(vk.queueFamilyIndices.videoDecode);
 	    vk.queueCountsPerFamily.videoDecode = videoCreateInfo.queueCount;
 	    array_add(*queueCreateInfos, videoCreateInfo);
 	}
@@ -363,8 +362,7 @@ create_vk_device :: (vk : *Vk) -> VkResult {
     return result;
 }
 
-create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
-    vk := loam.vk;
+create_vk_swapchain :: () -> VkResult {
     oldSwapchain := vk.swapchain;
 
     surfaceCaps : VkSurfaceCapabilitiesKHR;
@@ -486,7 +484,7 @@ create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
 	}
 	vkDestroySwapchainKHR(vk.device, oldSwapchain, null);
 
-	destroy_vk_image(vk, vk.drawImage);
+	destroy_vk_image(vk.drawImage);
     }
 
     imageCount : u32;
@@ -507,7 +505,7 @@ create_vk_swapchain :: (loam : *LoamState) -> VkResult #must {
 
     // Make Draw Image
     // TODO: Make Depth Image
-    vk.drawImage = create_vk_image(vk, vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT, 0);
+    vk.drawImage = create_vk_image(vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT, 0);
     
     return .SUCCESS;
 }

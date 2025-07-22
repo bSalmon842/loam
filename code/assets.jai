@@ -254,7 +254,7 @@ load_asset_directory :: () -> *AssetDirectory {
     return directory;
 }
 
-request_asset :: (loam : *LoamState, type : AssetType, assetName : string, core : bool = false) -> *Asset {
+request_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Asset {
     if type == .Invalid {
 	log(.ERROR, "Requested asset type cannot be Invalid");
 	return null;
@@ -291,7 +291,7 @@ request_asset :: (loam : *LoamState, type : AssetType, assetName : string, core 
 	    fileData := (cast(*u8) assetHeader) + size_of(AssetHeader);
 	    asset := New(Asset);
 	    asset.header = assetHeader.*;
-	    asset.data = get_ktx_texture_from_file_data(assetHeader, loam.vk.textureFormat, fileData);
+	    asset.data = get_ktx_texture_from_file_data(assetHeader, vk.textureFormat, fileData);
 
 	    free(assetFile.data);
 	    if !asset.data {

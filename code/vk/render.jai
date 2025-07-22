@@ -18,13 +18,11 @@ Renderable :: struct {
     buffers : *MeshBuffers;
 }
 
-get_current_frame :: (vk : *Vk) -> *FrameCommandInfo #must {
+get_current_frame :: () -> *FrameCommandInfo {
     return *vk.frames[vk.currentFrameIndex % FRAMES_IN_FLIGHT];
 }
 
-draw_frame :: (loam : *LoamState) {
-    vk := loam.vk;
-
+draw_frame :: () {
     check_vk(vkWaitForFences(vk.device, 1, *vk.currentFrame.renderFence, VK_TRUE, FENCE_WAIT_TIME), "(draw_frame) vkWaitForFences failed");
     check_vk(vkResetFences(vk.device, 1, *vk.currentFrame.renderFence), "vkResetFences failed");
     
@@ -57,7 +55,7 @@ draw_frame :: (loam : *LoamState) {
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
 
     for * vk.pipelines {
-	draw_pipeline(vk, cmdBuffer, it, drawExtent);
+	draw_pipeline(cmdBuffer, it, drawExtent);
     }
     
     transition_image(cmdBuffer, vk.drawImage.image, .COLOR_ATTACHMENT_OPTIMAL, .TRANSFER_SRC_OPTIMAL);

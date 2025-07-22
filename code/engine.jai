@@ -29,12 +29,20 @@ Created: 08JUN2025
     SPRITE_FRAGMENT_SHADER : CompiledShader;
 }
 
+// Add the engine to the context so we don't have to pass it everywhere, then add global alias' for some main structures
+#add_context loam : *LoamState;
+loam : *LoamState;
+
+#add_context vk : *Vk;
+vk : *Vk;
+
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
 
     threadCount : s32;
     renderingThread : *Thread;
+    updateThread    : *Thread;
 
     sceneCamera : *Camera;
     uiCamera : *Camera;
@@ -55,7 +63,7 @@ LoamState :: struct {
     running      : bool = true;
 }
 
-init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) -> *LoamState {
+init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) {
     #if OS == .ANDROID {
 	MESH_VERTEX_SHADER   = load_spirv_for_android("mesh_vertex");
 	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
@@ -65,16 +73,16 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 	SPRITE_FRAGMENT_SHADER = load_spirv_for_android("sprite_fragment");
     }
     
-    loam := New(LoamState);
-#if IS_DEBUG then this_allocation_is_not_a_leak(loam);
-
+    _loam := New(LoamState);
+    #if IS_DEBUG then this_allocation_is_not_a_leak(_loam);
+    
+    context.loam = _loam;
+    loam = context.loam;
+    
     loam.threadCount = get_number_of_threads_for_device();
     log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
     
-    loam.renderingThread = New(Thread);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.renderingThread);
-    thread_init(loam.renderingThread, thread_proc);
-    thread_start(loam.renderingThread);
+    loam.renderingThread = create_thread(rendering_thread_proc);
     
     loam.assets = New(AssetState);
     #if IS_DEBUG then this_allocation_is_not_a_leak(loam.assets);
@@ -96,9 +104,12 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     loam.vk = New(Vk);
     #if IS_DEBUG then this_allocation_is_not_a_leak(loam.vk);
-    init_vk(loam, window);
+    init_vk(window);
     
-    fontAsset := request_asset(loam, .Font, "internal", true);
+    context.vk = vk;
+    vk = context.vk;
+    
+    fontAsset := request_asset(.Font, "internal", true);
     loam.defaultFont = cast(*FontData) fontAsset.data;
 
     loam.binds = New(InputBinds);
@@ -107,39 +118,37 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.windowHeight = xx initialHeight;
 
     #if OS == .WINDOWS {
-	quit_game :: (loam : *LoamState, extraData : *void) {
+	quit_game :: (extraData : *void) {
 	    loam.running = false;
 	}
-	register_keycode_input(loam, Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
+	register_keycode_input(Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
     }
-    
-    return loam;
 }
 
-loam_start_update :: (loam : *LoamState) {
-    if loam.vk.updateCommands.count > 0 then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
+loam_start_update :: () {
+    if vk.updateCommands.count > 0 then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
 }
 
-loam_finish_update :: (loam : *LoamState) {
-    process_update_commands(loam);
+loam_finish_update :: () {
+    process_update_commands();
 }
 
 // TODO: We probably want to always make sure this is being called before draw calls start happening, so have a begin and end function which sets\
 //       a variable the render commands verify against
-reset_info_for_rendering :: (loam : *LoamState) {
-    dynamic_descriptor_pool_allocator_reset_pools(*loam.vk.descriptorAllocator, loam.vk.device);
+reset_info_for_rendering :: () {
+    dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
     
-    cleanup_single_frame_images(loam.vk);
-    cleanup_single_frame_buffers(loam.vk);
+    cleanup_single_frame_images();
+    cleanup_single_frame_buffers();
 
-    for * loam.vk.pipelines {
+    for * vk.pipelines {
 	array_reset(*it.renderCommands);
     }
 }
 
-render_debug_ui :: (loam : *LoamState, metrics : DebugMetrics) {
+render_debug_ui :: (metrics : DebugMetrics) {
     for loam.debugUIElements {
-	add_ui_render_command(loam, it);
+	add_ui_render_command(it);
     }
 }
 
