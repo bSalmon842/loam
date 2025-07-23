@@ -5,12 +5,14 @@ Author: Brock Salmon
 Created: 08JUN2025
 */
 
+// TODO: Change to using font atlases, cleanup freetype when it's no longer needed
+
+
 // TODO: Meshes
 // TODO: Audio
 // TODO: A struct for holding data all renderables will need (visibility, etc) (Currently this is Renderable2D in render.jai)
 // TODO: States for menus, loading, etc
 // TODO: Gamepad input
-// TODO: Better internal profiling than what's in main.jai with an array of floats
 
 // Compiled Shaders
 #if OS == .WINDOWS {
@@ -52,7 +54,7 @@ LoamState :: struct {
     binds : *InputBinds;
     mainPointer : PointerStatus;
 
-    #if IS_DEBUG {
+    #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
     }
     uiElements : [..] *UI_Element;
@@ -74,40 +76,36 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     }
     
     _loam := New(LoamState);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(_loam);
+    #if IS_DEV then this_allocation_is_not_a_leak(_loam);
     
     context.loam = _loam;
     loam = context.loam;
     
-    loam.threadCount = get_number_of_threads_for_device();
-    log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
-    
-    loam.renderingThread = create_thread(rendering_thread_proc);
-    
     loam.assets = New(AssetState);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.assets);
+    #if IS_DEV then this_allocation_is_not_a_leak(loam.assets);
     loam.assets.directory = load_asset_directory();
     loam.assets.cacheSentinel.prev = *loam.assets.cacheSentinel;
     loam.assets.cacheSentinel.next = *loam.assets.cacheSentinel;
 
     loam.sceneCamera = New(Camera);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.sceneCamera);
+    #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
     loam.sceneCamera.verticalFOV = 80.0;
     loam.sceneCamera.dimensions = .{ initialWidth, initialHeight };
     loam.sceneCamera.position.z = -2;
     loam.sceneCamera.isOrthographic = false;
 
     loam.uiCamera = New(Camera);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.uiCamera);
+    #if IS_DEV then this_allocation_is_not_a_leak(loam.uiCamera);
     loam.uiCamera.dimensions = .{ initialWidth, initialHeight };
     loam.uiCamera.isOrthographic = true;
     
     loam.vk = New(Vk);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(loam.vk);
+    #if IS_DEV then this_allocation_is_not_a_leak(loam.vk);
     init_vk(window);
     
-    context.vk = vk;
-    vk = context.vk;
+    loam.threadCount = get_number_of_threads_for_device();
+    log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
+    loam.renderingThread = create_thread(rendering_thread_proc);
     
     fontAsset := request_asset(.Font, "internal", true);
     loam.defaultFont = cast(*FontData) fontAsset.data;
@@ -133,9 +131,7 @@ loam_finish_update :: () {
     process_update_commands();
 }
 
-// TODO: We probably want to always make sure this is being called before draw calls start happening, so have a begin and end function which sets\
-//       a variable the render commands verify against
-reset_info_for_rendering :: () {
+loam_start_render :: () {
     dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
     
     cleanup_single_frame_images();
@@ -146,7 +142,11 @@ reset_info_for_rendering :: () {
     }
 }
 
-render_debug_ui :: (metrics : DebugMetrics) {
+loam_finish_render :: () {
+    draw_frame();
+}
+
+render_debug_ui :: () {
     for loam.debugUIElements {
 	add_ui_render_command(it);
     }
@@ -164,7 +164,7 @@ render_debug_ui :: (metrics : DebugMetrics) {
 #load "vk/vk.jai";
 
 #import "Atomics";
-#import "Basic"() (MEMORY_DEBUGGER = IS_DEBUG && OS == .WINDOWS);
+#import "Basic";
 #import "File";
 #import "File_Utilities";
 #import "freetype-2.12.1";
@@ -196,6 +196,6 @@ Simp :: #import "Simp";
 
 // BS_Modules
 #import "ktx";
-#import "Logger" (IS_DEBUG);
+#import "Logger" (IS_DEV);
 #import "VMA";
 #import "Vulkan_1_3";

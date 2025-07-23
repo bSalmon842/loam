@@ -53,6 +53,8 @@ AssetState :: struct {
     cacheSentinel : Asset;
     cacheSize : u64;
 
+    fontAtlases : [..] *FontAtlas;
+
     directory : *AssetDirectory;
 }
 
@@ -183,7 +185,7 @@ asset_cache_evict :: (state : *AssetState, asset : *Asset = null) {
 }
 
 get_packaged_assets_path :: () -> string {
-    if IS_DEBUG {
+    if IS_DEV {
 	if OS == .ANDROID {
 	    return "data/packaged/";
 	} else if OS == .LINUX {

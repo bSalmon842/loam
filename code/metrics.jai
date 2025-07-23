@@ -32,7 +32,6 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 	metrics.nonDebugDrawCalls = 0;
 	for vk.pipelines {
 	    metrics.totalDrawCalls += cast(u32) it.renderCommands.count;
-	    
 	}
 
 	metrics.nonDebugDrawCalls = metrics.totalDrawCalls;
@@ -40,6 +39,8 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 
 	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
 
+	TIMING_MARKER("Pre Metric Text Update");
+	
 	update_text(frameTimeText.text, tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
 	update_text(ramUsageText.text,  tprint(" RAM Usage: %", to_size_string(metrics.ramUsage)));
 	update_text(drawCallText.text,  tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));

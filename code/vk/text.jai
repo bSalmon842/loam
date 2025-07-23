@@ -11,6 +11,21 @@ FontData :: struct {
     data : [] u8;
 }
 
+FontAtlas :: struct {
+    bitmap : [] u8;
+    
+    GlyphInfo :: struct {
+	glyph      : u8;
+	dimensions : Vector2;
+	
+	uv0 : Vector2;
+	uv1 : Vector2;
+    }
+    
+    glyphs : [] GlyphInfo;
+}
+Implement font atlas
+
 Text :: struct {
     str : string;
     font : *FontData;

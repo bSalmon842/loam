@@ -49,10 +49,14 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshB
     
     // Set up staging buffer and copy to buffers
     stagingBuffer := create_vk_buffer(indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT);
+
+    TIMING_MARKER("PRE_MEMCPY");
     
     memcpy(stagingBuffer.allocationInfo.pMappedData, cast(*u8) vertices.data, cast(s64) vertexBufferSize);
     memcpy(cast(*u8) stagingBuffer.allocationInfo.pMappedData + vertexBufferSize, cast(*u8) indices.data, cast(s64) indexBufferSize);
-
+    
+    TIMING_MARKER("POST_MEMCPY");
+    
     gpu_mesh_copy :: (cmdBuffer : VkCommandBuffer, data : *void) {
 	meshData := cast(*MeshCopyData) data;
 

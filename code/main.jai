@@ -5,8 +5,8 @@ Author: Brock Salmon
 Created: 25MAR2025
 */
 
-IS_DEBUG :: true;
-#if !IS_DEBUG && OS == .WINDOWS {
+IS_DEV :: true;
+#if !IS_DEV && OS == .WINDOWS {
     Compiler :: #import "Compiler";
     #run Compiler.set_build_options_dc(.{append_linker_arguments=.["/SUBSYSTEM:windows", "/ENTRY:mainCRTStartup"]});
 }
@@ -32,7 +32,7 @@ main :: () {
     loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
 
-    #if IS_DEBUG {
+    #if IS_DEV {
 	metrics : DebugMetrics;
         #if OS == .ANDROID {
 	    fontSize : u32 = 64;
@@ -153,10 +153,14 @@ main :: () {
 		handle_keycode_input(cast(Key_Code) it_index, .{});
 	    }
 	}
+
+	TIMING_MARKER("Events & Input");
 	
 	loam_start_update();
+
+	TIMING_MARKER("Update Start");
 	
-	#if IS_DEBUG {
+	#if IS_DEV {
 	    update_debug_metrics(*metrics);
 	    update_debug_ui_regions();
 	}
@@ -167,25 +171,25 @@ main :: () {
 	    update_ui_element(loam.mainPointer, it);
 	}
 
-	#if IS_DEBUG {
+	#if IS_DEV {
 	    for loam.debugUIElements {
 		update_ui_element(loam.mainPointer, it);
 	    }
 	}
 
-	TIMING_MARKER("Events, Input, & Update Recording");
+	TIMING_MARKER("Update Recording");
 	
 	loam_finish_update();
 	
 	TIMING_MARKER("Update Finish");
+
+	loam_start_render();
 	
-	reset_info_for_rendering();
+	TIMING_MARKER("Render Start");
 	
-	TIMING_MARKER("Render Reset");
-	
-	#if IS_DEBUG
+	#if IS_DEV
 	{
-	    render_debug_ui(*metrics);
+	    render_debug_ui();
 	}
 	
 	add_render_command(.Sprite, loam.sceneCamera, *sprite.renderable, sprite.transform);
@@ -197,11 +201,11 @@ main :: () {
 	    add_ui_render_command(it);
 	}
 
-	TIMING_MARKER("Draw Record");
-	
-	draw_frame();
+	TIMING_MARKER("Render Record");
 
-	TIMING_MARKER("Draw Execute");
+	loam_finish_render();
+
+	TIMING_MARKER("Render Finish");
 	
 	/*
 	if vk.vsync {

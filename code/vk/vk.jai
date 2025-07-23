@@ -116,6 +116,9 @@ AllPushConstants :: struct {
 
 
 init_vk :: (window : Window_Type) {
+    context.vk = loam.vk;
+    vk = context.vk;
+    
     check_vk(create_vk_instance("Test App"), "create_vk_instance failed: ");
     check_vk(create_vk_surface(window), "create_vk_surface failed: ");
     check_vk(get_vk_physical_device(), "get_vk_physical_device failed: ");
@@ -225,7 +228,7 @@ create_vk_instance :: (appName : string) -> VkResult {
     createInfo : VkInstanceCreateInfo;
     createInfo.pApplicationInfo = *appInfo;
     
-    #if IS_DEBUG {
+    #if IS_DEV {
 	for supportedExtensions {
 	    ext := from_array_cstr(it.extensionName);
 	    if ext == VK_EXT_DEBUG_UTILS_EXTENSION_NAME {
@@ -255,7 +258,7 @@ create_vk_instance :: (appName : string) -> VkResult {
     defer free(supportedLayers.data);
     vkEnumerateInstanceLayerProperties(*layerCount, supportedLayers.data);
     
-    #if IS_DEBUG {
+    #if IS_DEV {
 	validationLayerName := "VK_LAYER_KHRONOS_validation";
 	for supportedLayers {
     	    layer := from_array_cstr(it.layerName);

@@ -40,7 +40,7 @@ ThreadWork :: struct {
 
 create_thread :: (thread_proc : Thread_Proc) -> *Thread {
     thread := New(Thread);
-    #if IS_DEBUG then this_allocation_is_not_a_leak(thread);
+    #if IS_DEV then this_allocation_is_not_a_leak(thread);
     thread.starting_context.loam = context.loam;
     thread.starting_context.vk = context.vk;
     thread_init(thread, thread_proc);
