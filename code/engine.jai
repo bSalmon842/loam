@@ -48,7 +48,8 @@ LoamState :: struct {
 
     sceneCamera : *Camera;
     uiCamera : *Camera;
-    
+
+    fonts : *Table(string, *FontAtlas);
     defaultFont : *FontData;
 
     binds : *InputBinds;
@@ -106,7 +107,12 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.threadCount = get_number_of_threads_for_device();
     log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
     loam.renderingThread = create_thread(rendering_thread_proc);
+
+    loam.fonts = New(Table(string, *FontAtlas));
+    init(loam.fonts);
     
+    build_font_atlas("internal", 32, .English, true);
+    build_font_atlas("internal", 64, .English, true);
     fontAsset := request_asset(.Font, "internal", true);
     loam.defaultFont = cast(*FontData) fontAsset.data;
 
@@ -154,9 +160,12 @@ render_debug_ui :: () {
 
 #load "assets.jai";
 #load "camera.jai";
+#load "font.jai";
 #load "input.jai";
 #load "math.jai";
 #load "metrics.jai";
+#load "sprite.jai";
+#load "text.jai";
 #load "thread.jai";
 #load "transform.jai";
 #load "utility.jai";

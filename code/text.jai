@@ -1,30 +1,9 @@
 /*
 Project: Loam
-File: vk/text.jai
+File: text.jai
 Author: Brock Salmon
 Created: 25JUN2025
 */
-
-FontData :: struct {
-    lib : FT_Library;
-    face : FT_Face;
-    data : [] u8;
-}
-
-FontAtlas :: struct {
-    bitmap : [] u8;
-    
-    GlyphInfo :: struct {
-	glyph      : u8;
-	dimensions : Vector2;
-	
-	uv0 : Vector2;
-	uv1 : Vector2;
-    }
-    
-    glyphs : [] GlyphInfo;
-}
-Implement font atlas
 
 Text :: struct {
     str : string;
@@ -43,6 +22,9 @@ TemporaryGlyph :: struct {
 build_text_buffers :: (info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
     // TODO: Handle text colour codes
     // TODO: Handle escape sequences
+
+    TIMING_SCOPE();
+    TIMING_MARKER("BUILD_TEXT_START");
     
     // Create Data for string texture
     ftError := FT_Set_Pixel_Sizes(info.font.face, 0, info.size);
@@ -73,8 +55,7 @@ build_text_buffers :: (info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
     }
     
     textureHeight = maxHeight + baseline;
-
-    __mark := get_temporary_storage_mark();
+TIMING_MARKER("BUILD_TEXT_MID");
     textureData, rawTextureData := NewArray(textureWidth * textureHeight, u8);
     
     assert(savedGlyphs.count == info.str.count, "Did not get the correct amount of glyphs for this string ( % / % )", savedGlyphs.count, info.str.count);
@@ -108,11 +89,10 @@ build_text_buffers :: (info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
 	cursorX += glyph.advance;
 	previousGlyphIndex = glyphIndex;
     }
-    
+TIMING_MARKER("BUILD_TEXT_MID_TEXTURE");
     extent := VkExtent2D.{ cast(u32) textureWidth, cast(u32) textureHeight };
     stringTexture := create_vk_image_from_data(textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
     
-    set_temporary_storage_mark(__mark);
     array_reset(*savedGlyphs);
     
     free(rawTextureData);
@@ -125,7 +105,7 @@ build_text_buffers :: (info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
     vertices[1] = .{ position=.{ info.dimensions.x, info.dimensions.y, 0 }, uv=.{ 1, 0 } };
     vertices[2] = .{ position=.{ 0,                 0,                 0 }, uv=.{ 0, 1 } };
     vertices[3] = .{ position=.{ 0,                 info.dimensions.y, 0 }, uv=.{ 0, 0 } };
-
+TIMING_MARKER("BUILD_TEXT_END");
     return vertices, vertexMemory, stringTexture;
 }
 
@@ -143,6 +123,7 @@ make_text :: (str : string, font : *FontData, size : u32, transform : Transform,
 }
 
 update_text :: (text : *Text, str : string) {
+    TIMING_SCOPE();
     text.str = str;
     if text.texture {
 	free(text.vertexMemory);

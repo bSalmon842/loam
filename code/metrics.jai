@@ -63,9 +63,24 @@ TimingData :: struct {
 	name : string;
     }
     markers : [..] Marker;
+
+    Scope :: struct {
+	timeStart : float64;
+	timeEnd   : float64;
+	name      : string;
+    }
+    scopes : [..] Scope;
 }
 __timingData : TimingData;
 
+TIMING_SCOPE :: (name := "") #expand {
+    scopeName := name;
+    if name.count == 0 {
+	scopeName = context.stack_trace.info.name;
+    }
+    __loam_scope_time_start := seconds_since_init();
+    `defer array_add(*__timingData.scopes, .{ __loam_scope_time_start, seconds_since_init(), scopeName });
+}
 
 TIMING_FRAME_START :: () #expand {
     __timingData.start = seconds_since_init();
@@ -84,17 +99,26 @@ TIMING_MARKER :: (name : string) #expand {
 TIMING_FRAME_END :: (print : bool) #expand {
     if print then TIMING_PRINT_DATA();
     array_reset(*__timingData.markers);
+    array_reset(*__timingData.scopes);
     __timingData.start = 0;
 }
 
 TIMING_PRINT_DATA :: () #expand {
-    print("\n");
+    print("\n=================================================\n");
+    print("\nMARKERS:\n");
     deltaMs := loam.deltaTime * 1000.0;
     for * __timingData.markers {
 	it.timeForSection *= 1000.0;
 	print("%: % (%\%)\n", it.name, it.timeForSection, (it.timeForSection / deltaMs) * 100.0);
     }
-    print("Total Frame Time: % (%)\n\n", deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
+    print("Total Frame Time: % (%)\n", deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
+
+    print_color("\nSCOPES:\n", color=.HI_BLUE);
+    for * __timingData.scopes {
+	timeForScope := (it.timeEnd - it.timeStart) * 1000.0;
+	print_color("%: % (%\%)\n", it.name, timeForScope, (timeForScope / deltaMs) * 100.0, color=.HI_BLUE);
+    }
+    print("\n=================================================\n");
 }
 
 

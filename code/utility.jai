@@ -38,6 +38,10 @@ to_size_string :: (value : u64) -> string {
     }
 }
 
+round_to :: (value : $T, $type : Type) -> s64 {
+    return cast(type) (value + 0.5);
+}
+
 to_radians :: (degrees : float) -> float {
     return degrees * (TAU / 360.0);
 }

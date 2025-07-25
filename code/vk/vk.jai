@@ -520,7 +520,5 @@ create_vk_swapchain :: () -> VkResult {
 #load "render.jai";
 #load "render_commands.jai";
 #load "shaders.jai";
-#load "sprite.jai";
-#load "text.jai";
 #load "update_commands.jai";
 #load "util.jai";
