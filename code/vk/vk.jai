@@ -6,17 +6,18 @@ Created: 11JUN2025
 */
 
 FRAMES_IN_FLIGHT :: 2;
+ERROR_TEXTURE_NAME :: "error_texture";
 
 Vk :: struct {
     // Requested options
     instanceExtensions : [..] *u8;
     deviceExtensions : [..] *u8;
     
-    reqFeatures_1_0 : VkPhysicalDeviceFeatures;
-    reqFeatures_1_1 : VkPhysicalDeviceVulkan11Features;
-    reqFeatures_1_2 : VkPhysicalDeviceVulkan12Features;
-    reqFeatures_1_3 : VkPhysicalDeviceVulkan13Features;
-
+    reqFeatures_1_0     : VkPhysicalDeviceFeatures;
+    reqFeatures_1_1     : VkPhysicalDeviceVulkan11Features;
+    reqFeatures_1_2     : VkPhysicalDeviceVulkan12Features;
+    reqFeatures_1_3     : VkPhysicalDeviceVulkan13Features;
+    
     // Base Vulkan structs
     instance : VkInstance;
     surface : VkSurfaceKHR;
@@ -53,10 +54,14 @@ Vk :: struct {
 
     descriptorAllocator : DynamicDescriptorPoolAllocator;
 
+    bindlessDescriptorPool   : VkDescriptorPool;
+    bindlessDescriptorLayout : VkDescriptorSetLayout;
+    bindlessDescriptorSet    : VkDescriptorSet;
+    bindlessTextureUpdates   : [..] *ImageResource;
+
     // Update Commands
-    updateCmdPool       : VkCommandPool;
-    updateCommands      : [..] *UpdateCommand;
-    updateSubmitInfos : [..] VkCommandBufferSubmitInfo;
+    updateCmdPool  : VkCommandPool;
+    updateCommands : [..] *UpdateCommand;
     ///////////////////
 
     // Pipelines
@@ -144,6 +149,9 @@ init_vk :: (window : Window_Type) {
     ];
     
     dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
+
+    vk.bindlessDescriptorPool = create_bindless_descriptor_pool();
+    vk.bindlessDescriptorSet  = create_bindless_descriptor_set();
     
     for * vk.frames {
 	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
@@ -197,6 +205,7 @@ init_vk :: (window : Window_Type) {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
     vk.errorCheckerboard = create_vk_image_from_data(pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
+    add_resource(ERROR_TEXTURE_NAME, vk.errorCheckerboard);
 }
 
 create_vk_instance :: (appName : string) -> VkResult {
@@ -262,7 +271,6 @@ create_vk_instance :: (appName : string) -> VkResult {
 	validationLayerName := "VK_LAYER_KHRONOS_validation";
 	for supportedLayers {
     	    layer := from_array_cstr(it.layerName);
-    	    print("\t%\n", layer);
 	    if compare(layer, validationLayerName) == 0 {
 		createInfo.enabledLayerCount = 1;
 		createInfo.ppEnabledLayerNames = *validationLayerName.data;
@@ -301,6 +309,10 @@ get_vk_physical_device :: () -> VkResult {
     vk.reqFeatures_1_0.shaderInt64 = 1;
     vk.reqFeatures_1_2.bufferDeviceAddress = 1;
     vk.reqFeatures_1_2.descriptorIndexing = 1;
+    vk.reqFeatures_1_2.descriptorBindingPartiallyBound = 1;
+    vk.reqFeatures_1_2.descriptorBindingSampledImageUpdateAfterBind = 1;
+    vk.reqFeatures_1_2.descriptorBindingVariableDescriptorCount = 1;
+    vk.reqFeatures_1_2.runtimeDescriptorArray = 1;
     vk.reqFeatures_1_3.dynamicRendering = 1;
     vk.reqFeatures_1_3.synchronization2 = 1;
     
@@ -354,7 +366,7 @@ create_vk_device :: () -> VkResult {
     featureChain := chain_physical_device_features(*vk.reqFeatures_1_1, *vk.reqFeatures_1_2, *vk.reqFeatures_1_3);
     featureChain.features = vk.reqFeatures_1_0;
     deviceCreateInfo.pNext = *featureChain;
-
+    
     deviceCreateInfo.enabledExtensionCount = cast(u32) vk.deviceExtensions.count;
     deviceCreateInfo.ppEnabledExtensionNames = vk.deviceExtensions.data;
 
@@ -513,7 +525,7 @@ create_vk_swapchain :: () -> VkResult {
     return .SUCCESS;
 }
 
-
+#load "bindless_descriptors.jai";
 #load "descriptors.jai";
 #load "mesh.jai";
 #load "pipelines.jai";

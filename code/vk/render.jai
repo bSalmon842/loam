@@ -8,7 +8,7 @@ Created: 17MAY2025
 DEFAULT_TEXTURE_TINT :: Vector4.{1,1,1,1};
 
 Renderable :: struct {
-    texture : *AllocatedImageInfo;
+    texture : *ImageResource;
     vertices : [] Vertex;
     vertexMemory : *void;
     

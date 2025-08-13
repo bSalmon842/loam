@@ -144,7 +144,7 @@ RenderingPipelineInfo :: struct {
     descriptorLayout : VkDescriptorSetLayout;
     orthographic     : bool;
 
-    renderCommands : [..] RenderCommand;
+    renderCommands : [..] *RenderCommand;
 }
 
 draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
@@ -161,8 +161,8 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
     
     scissor := VkRect2D.{ .{}, drawExtent };
     vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
-
-    for * pipeline.renderCommands {
+    
+    for pipeline.renderCommands {
 	render_command(cmdBuffer, it, pipeline.layout);
     }
     

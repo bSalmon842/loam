@@ -38,8 +38,7 @@ is_default_plane_indices :: (arr : [] u32) -> bool {
 upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshBuffers) {
     indexBufferSize := cast(u64) (indices.count * size_of(u32));
     vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
-
-    // TODO: If we create the buffer here we need to destroy it as well
+    
     buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
     buffers.indexCount   = cast(u32) indices.count;
     
@@ -49,13 +48,9 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshB
     
     // Set up staging buffer and copy to buffers
     stagingBuffer := create_vk_buffer(indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT);
-
-    TIMING_MARKER("PRE_MEMCPY");
     
     memcpy(stagingBuffer.allocationInfo.pMappedData, cast(*u8) vertices.data, cast(s64) vertexBufferSize);
     memcpy(cast(*u8) stagingBuffer.allocationInfo.pMappedData + vertexBufferSize, cast(*u8) indices.data, cast(s64) indexBufferSize);
-    
-    TIMING_MARKER("POST_MEMCPY");
     
     gpu_mesh_copy :: (cmdBuffer : VkCommandBuffer, data : *void) {
 	meshData := cast(*MeshCopyData) data;
@@ -66,11 +61,16 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshB
 	indexCopy := VkBufferCopy.{ meshData.vertexBufferSize, 0, meshData.indexBufferSize };
 	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.indexBuffer.buffer, 1, *indexCopy);
     }
+    
+    meshData := New(MeshCopyData);
+    meshData.* = .{ vertexBufferSize, indexBufferSize, stagingBuffer, buffers };
+    
+    buffersToCleanup : *BuffersToCleanup;
+    if is_default_plane_indices(indices) {
+	buffersToCleanup = pack_buffers_for_cleanup(stagingBuffer);
+    } else {
+	buffersToCleanup = pack_buffers_for_cleanup(stagingBuffer, buffers.indexBuffer);
+    }
 
-    meshData := MeshCopyData.{ vertexBufferSize, indexBufferSize, stagingBuffer, buffers };
-
-    TIMING_MARKER("PRE_UPDATE_COMMAND");
-    buffersToCleanup := pack_buffers_for_cleanup(stagingBuffer);
-    add_update_command(gpu_mesh_copy, *meshData, buffersToCleanup);
-    TIMING_MARKER("POST_UPDATE_COMMAND");
+    add_update_command_work(gpu_mesh_copy, meshData, buffersToCleanup);
 }

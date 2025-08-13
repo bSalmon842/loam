@@ -5,9 +5,6 @@ Author: Brock Salmon
 Created: 08JUN2025
 */
 
-// TODO: Change to using font atlases, cleanup freetype when it's no longer needed
-
-
 // TODO: Meshes
 // TODO: Audio
 // TODO: A struct for holding data all renderables will need (visibility, etc) (Currently this is Renderable2D in render.jai)
@@ -41,20 +38,23 @@ vk : *Vk;
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
-
+    
     threadCount : s32;
     renderingThread : *Thread;
     updateThread    : *Thread;
-
+    
+    mutexes : [#run enum_highest_value(MutexUsage) + 1] *Mutex;
+    
     sceneCamera : *Camera;
     uiCamera : *Camera;
-
+    
     fonts : *Table(string, *FontAtlas);
-    defaultFont : *FontData;
-
+    
+    resources : *ResourcePools;
+    
     binds : *InputBinds;
     mainPointer : PointerStatus;
-
+    
     #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
     }
@@ -81,12 +81,13 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     context.loam = _loam;
     loam = context.loam;
+
+    loam.resources = New(ResourcePools);
+    #if IS_DEV then this_allocation_is_not_a_leak(loam.resources);
     
     loam.assets = New(AssetState);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.assets);
     loam.assets.directory = load_asset_directory();
-    loam.assets.cacheSentinel.prev = *loam.assets.cacheSentinel;
-    loam.assets.cacheSentinel.next = *loam.assets.cacheSentinel;
 
     loam.sceneCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
@@ -100,22 +101,26 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.uiCamera.dimensions = .{ initialWidth, initialHeight };
     loam.uiCamera.isOrthographic = true;
     
+    loam.threadCount = get_number_of_threads_for_device();
+    log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
+    loam.renderingThread = create_thread("Loam_Render", rendering_thread_proc);
+    loam.updateThread    = create_thread("Loam_Update", update_thread_proc);
+    
+    for * loam.mutexes {
+	it.* = New(Mutex);
+	init(it.*, enum_names(MutexUsage)[it_index], cast(s32) (it_index + 1));
+    }
+    
     loam.vk = New(Vk);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.vk);
     init_vk(window);
     
-    loam.threadCount = get_number_of_threads_for_device();
-    log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
-    loam.renderingThread = create_thread(rendering_thread_proc);
-
     loam.fonts = New(Table(string, *FontAtlas));
     init(loam.fonts);
     
     build_font_atlas("internal", 32, .English, true);
     build_font_atlas("internal", 64, .English, true);
-    fontAsset := request_asset(.Font, "internal", true);
-    loam.defaultFont = cast(*FontData) fontAsset.data;
-
+    
     loam.binds = New(InputBinds);
     
     loam.windowWidth = xx initialWidth;
@@ -134,7 +139,19 @@ loam_start_update :: () {
 }
 
 loam_finish_update :: () {
+    wait_for_work_to_finish_on_thread(loam.updateThread);
     process_update_commands();
+
+    for vk.updateCommands {
+	vkFreeCommandBuffers(vk.device, vk.updateCmdPool, 1, *it.cmdBuffer);
+	for it.bufferCleanup.array {
+	    destroy_vk_buffer(it);
+	}
+	free(it.bufferCleanup.memory);
+	free(it.bufferCleanup);
+	free(it);
+    }
+    array_reset(*vk.updateCommands);
 }
 
 loam_start_render :: () {
@@ -144,12 +161,20 @@ loam_start_render :: () {
     cleanup_single_frame_buffers();
 
     for * vk.pipelines {
+	for it.renderCommands {
+	    free(it);
+	}
 	array_reset(*it.renderCommands);
     }
 }
 
 loam_finish_render :: () {
+    wait_for_work_to_finish_on_thread(loam.renderingThread);
+    TIMING_MARKER("Render Wait");
+    update_bindless_descriptor_textures();
+    TIMING_MARKER("Descriptor Update");
     draw_frame();
+    TIMING_MARKER("Render Draw");
 }
 
 render_debug_ui :: () {
@@ -173,14 +198,13 @@ render_debug_ui :: () {
 #load "vk/vk.jai";
 
 #import "Atomics";
-#import "Basic";
+#import "Basic"() (MEMORY_DEBUGGER = OS == .WINDOWS);
 #import "File";
 #import "File_Utilities";
 #import "freetype-2.12.1";
 #import "Hash_Table";
 #import "Input";
 #import "Math";
-#import "Pool";
 #import "Print_Color"() (USE_ANSI_CODES_ON_WINDOWS=true);
 #import "Process";
 #import "Reflection";
@@ -188,10 +212,12 @@ Simp :: #import "Simp";
 #import "String";
 #import "System";
 #import "Thread";
+#import "Unicode";
 #import "Window_Creation";
 
 #if OS == .WINDOWS {
     Windows :: #import "Windows";
+    WindowsUTF8 :: #import "Windows_Utf8";
     
     WindowsE :: #import "WindowsExtras";
 } else #if OS == .LINUX {

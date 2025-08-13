@@ -13,26 +13,20 @@ Sprite :: struct {
 make_sprite :: (textureName : string, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Sprite {
     sprite := New(Sprite);
     
-    textureAsset := request_asset(.Image, textureName);
-    if textureAsset {
-	sprite.texture = create_vk_image_from_ktx(cast(*ktxTexture2) textureAsset.data);
-    } else {
-	sprite.texture = vk.errorCheckerboard;
-    }
-
+    sprite.texture = get_image_resource(textureName);
     sprite.tint = colour;
     sprite.transform = transform;
 
     sprite.vertices, sprite.vertexMemory = build_sprite_buffers(sprite);
     sprite.buffers = New(MeshBuffers);
-
+    
     upload_mesh_command(DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers);
     
     return sprite;
 }
 
 build_sprite_buffers :: (sprite : *Sprite) -> [] Vertex, *void {
-    sprite.dimensions = extent_to_vector(sprite.texture.extent, 0);
+    sprite.dimensions = extent_to_vector(sprite.texture.image.extent, 0);
     
     // Build info to upload to GPU
     vertices, vertexMemory := NewArray(4, Vertex);

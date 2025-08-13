@@ -48,15 +48,15 @@ main :: () {
 	}
 
 	{
-	    text := make_text("", loam.defaultFont, fontSize, make_transform( frameTimePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    text := make_text("", "internal", fontSize, make_transform( frameTimePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
 	    frameTimeText = make_ui_element(text, true, .{ 0, 0.5, 1, 1 });
 	}
 	{
-	    text := make_text("", loam.defaultFont, fontSize, make_transform( ramUsagePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    text := make_text("", "internal", fontSize, make_transform( ramUsagePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
 	    ramUsageText = make_ui_element(text, true, .{ 1, 0, 1, 1 });
 	}
 	{
-	    text := make_text("", loam.defaultFont, fontSize, make_transform( drawCallPosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    text := make_text("", "internal", fontSize, make_transform( drawCallPosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
 	    drawCallText = make_ui_element(text, false);
 	}
 	
@@ -116,7 +116,19 @@ main :: () {
 	register_keycode_input(#char "S", .{}, move_sprite_down,  sprite);
     }
 
+    wait_for_work_to_finish_on_thread(loam.updateThread);
     process_update_commands();
+
+    for vk.updateCommands {
+	vkFreeCommandBuffers(vk.device, vk.updateCmdPool, 1, *it.cmdBuffer);
+	for it.bufferCleanup.array {
+	    destroy_vk_buffer(it);
+	}
+	free(it.bufferCleanup.memory);
+	free(it.bufferCleanup);
+	free(it);
+    }
+    array_reset(*vk.updateCommands);
     
     while loam.running {
 	TIMING_FRAME_START();
@@ -190,22 +202,27 @@ main :: () {
 	#if IS_DEV
 	{
 	    render_debug_ui();
+    	    TIMING_MARKER("Render Record (Debug UI)");
 	}
 	
 	add_render_command(.Sprite, loam.sceneCamera, *sprite.renderable, sprite.transform);
 	for testSprites {
 	    add_render_command(.Sprite, loam.sceneCamera, *it.renderable, it.transform);
 	}
+
+	TIMING_MARKER("Render Record (Sprites)");
 	
 	for loam.uiElements {
 	    add_ui_render_command(it);
 	}
 
-	TIMING_MARKER("Render Record");
+	TIMING_MARKER("Render Record (UI)");
+
+	//TIMING_MARKER("Render Record");
 
 	loam_finish_render();
 
-	TIMING_MARKER("Render Finish");
+	//TIMING_MARKER("Render Finish");
 	
 	/*
 	if vk.vsync {
@@ -222,7 +239,7 @@ main :: () {
         loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
 
-	TIMING_FRAME_END(true);
+	TIMING_FRAME_END(false);
 	
         reset_temporary_storage();
 

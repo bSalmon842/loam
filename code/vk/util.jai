@@ -51,9 +51,9 @@ find_best_gpu_for_conditions :: (availableDevices : [] VkPhysicalDevice) -> VkPh
 	
 	// Check features are available
 	// TODO: We probably need a way to establish if a feature is really needed or not.
-	features_1_1 : VkPhysicalDeviceVulkan11Features;
-	features_1_2 : VkPhysicalDeviceVulkan12Features;
-	features_1_3 : VkPhysicalDeviceVulkan13Features;
+	features_1_1     : VkPhysicalDeviceVulkan11Features;
+	features_1_2     : VkPhysicalDeviceVulkan12Features;
+	features_1_3     : VkPhysicalDeviceVulkan13Features;
 	featureChain := chain_physical_device_features(*features_1_1, *features_1_2, *features_1_3);
 	vkGetPhysicalDeviceFeatures2(device, *featureChain);
 	features_1_0 := featureChain.features;
@@ -317,7 +317,12 @@ create_vk_image :: (extent : VkExtent2D, format : VkFormat, usage : VkImageUsage
     return image;
 }
 
-// TODO: Maybe make this threaded if it gets called too often
+DataCopyData :: struct {
+    buffer : *AllocatedBufferInfo;
+    image : *AllocatedImageInfo;
+    extent : VkExtent2D;
+}
+
 create_vk_image_from_data :: (data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
     dataSize := extent.width * extent.height * bytesPerPixel;
     uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
@@ -325,14 +330,8 @@ create_vk_image_from_data :: (data : *void, extent : VkExtent2D, format : VkForm
     
     image := create_vk_image(extent, format, usage, 0, mipmapped);
     
-    CopyData :: struct {
-	buffer : *AllocatedBufferInfo;
-	image : *AllocatedImageInfo;
-	extent : VkExtent2D;
-    }
-
     imm_copy_into_image :: (cmdBuffer : VkCommandBuffer, data : *void) {
-	copyData := cast(*CopyData) data;
+	copyData := cast(*DataCopyData) data;
 
 	transition_image(cmdBuffer, copyData.image.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
 	copyRegion := VkBufferImageCopy.{ 0, 0, 0, VkImageSubresourceLayers.{ .COLOR_BIT, 0, 0, 1 }, .{}, .{ copyData.extent.width, copyData.extent.height, 1 } };
@@ -340,15 +339,21 @@ create_vk_image_from_data :: (data : *void, extent : VkExtent2D, format : VkForm
 	transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
     }
     
-    imageCopyData := CopyData.{ uploadBuffer, image, extent };
+    imageCopyData := New(DataCopyData);
+    imageCopyData.* = .{ uploadBuffer, image, extent };
     
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command(imm_copy_into_image, *imageCopyData, buffersToCleanup);
-
+    add_update_command_work(imm_copy_into_image, imageCopyData, buffersToCleanup);
+    
     return image;
 }
 
-// TODO: Maybe make this threaded if it gets called too often
+KTXCopyData :: struct {
+    buffer : *AllocatedBufferInfo;
+    image : AllocatedImageInfo;
+    ktx : *ktxTexture2;
+}
+
 create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
 				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
@@ -369,14 +374,8 @@ create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
     uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
     memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
     
-    CopyData :: struct {
-	buffer : *AllocatedBufferInfo;
-	image : AllocatedImageInfo;
-	ktx : *ktxTexture2;
-    }
-
     imm_copy_into_image :: (cmdBuffer : VkCommandBuffer, data : *void) {
-	copyData := cast(*CopyData) data;
+	copyData := cast(*KTXCopyData) data;
 
 	transition_image(cmdBuffer, copyData.image.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
 
@@ -396,10 +395,11 @@ create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
 	transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
     }
     
-    imageCopyData := CopyData.{ uploadBuffer, image, ktx };
-
+    imageCopyData := New(KTXCopyData);
+    imageCopyData.* = .{ uploadBuffer, image, ktx };
+    
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command(imm_copy_into_image, *imageCopyData, buffersToCleanup);
+    add_update_command_work(imm_copy_into_image, imageCopyData, buffersToCleanup);
     
     return image;
 }

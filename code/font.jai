@@ -23,22 +23,23 @@ FontData :: struct {
 }
 
 FontAtlas :: struct {
-    image : *AllocatedImageInfo;
+    image : *ImageResource;
     
     GlyphInfo :: struct {
-	glyph   : u32;
-	bearing : Vector2;
-	advance : s32;
+	bearing    : Vector2;
+	advance    : s32;
+	dimensions : Vector2;
 	
 	uv0 : Vector2;
 	uv1 : Vector2;
     }
     
-    glyphs : [..] GlyphInfo;
+    glyphs : *Table(u32, GlyphInfo);
 
     lineSpacing : float;
     ascender    : float;
     descender   : float;
+    spaceWidth  : float;
 }
 
 CodepointRange :: struct {
@@ -72,15 +73,17 @@ get_codepoint_ranges_for_language :: (language : Language) -> [] CodepointRange 
 
 build_font_atlas :: (fontName : string, size : u32, language : Language, core : bool = false) {
     atlasName := get_font_atlas_name(fontName, size);
-    _, exists := table_find(loam.fonts, atlasName);
+    exists := table_find_new(loam.fonts, atlasName);
     if exists {
 	log(.WARN, tprint("% already exists", atlasName));
     }
     
-    fontData := cast(*FontData) request_asset(.Font, fontName, core).data;
+    fontData := cast(*FontData) get_asset(.Font, fontName, core).data;
     check_ft(FT_Set_Pixel_Sizes(fontData.face, 0, size), "Failed to set Pixel Sizes");
     
     atlas := New(FontAtlas);
+    atlas.glyphs = New(Table(u32, FontAtlas.GlyphInfo));
+    init(atlas.glyphs);
     atlasBitmap, bitmapMemory := NewArray(ATLAS_MAX_SIZE * ATLAS_MAX_SIZE, u8);
     defer free(bitmapMemory);
 
@@ -107,7 +110,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 	    glyphBitmap := fontData.face.glyph.bitmap;
 	    if cursorX + cast(s64) glyphBitmap.width >= ATLAS_MAX_SIZE {
 		cursorX = 0;
-		cursorY += heightForAtlasRow;
+		cursorY += heightForAtlasRow + 1;
 		heightForAtlasRow = 0;
 	    }
 
@@ -120,13 +123,16 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 	    }
 
 	    glyph : FontAtlas.GlyphInfo;
-	    glyph.glyph = it;
 	    glyph.uv0 = .{ cursorX / cast(float) ATLAS_MAX_SIZE, cursorY / cast(float) ATLAS_MAX_SIZE };
 	    glyph.uv1 = .{ (cursorX + cast(float) glyphBitmap.width) / cast(float) ATLAS_MAX_SIZE, (cursorY + cast(float) glyphBitmap.rows) / cast(float) ATLAS_MAX_SIZE };
 
 	    glyph.advance = cast(s32) (fontData.face.glyph.advance.x >> 6);
 	    glyph.bearing = .{ cast(float) fontData.face.glyph.bitmap_left, cast(float) fontData.face.glyph.bitmap_top };
-	    array_add(*atlas.glyphs, glyph);
+	    glyph.dimensions = .{ cast(float) glyphBitmap.width, cast(float) glyphBitmap.rows };
+
+	    if it == #char "A" then atlas.spaceWidth = cast(float) glyphBitmap.width;
+	    
+	    table_add(atlas.glyphs, it, glyph);
 
 	    cursorX += glyphBitmap.width;
 	    if glyphBitmap.rows > heightForAtlasRow {
@@ -135,7 +141,8 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 	}
     }
 
-    atlas.image = create_vk_image_from_data(atlasBitmap.data, .{ ATLAS_MAX_SIZE, ATLAS_MAX_SIZE }, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1);
+    atlasImage := create_vk_image_from_data(atlasBitmap.data, .{ ATLAS_MAX_SIZE, ATLAS_MAX_SIZE }, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1);
+    atlas.image = add_resource(atlasName, atlasImage);
     
     table_add(loam.fonts, copy_string(atlasName), atlas);
 

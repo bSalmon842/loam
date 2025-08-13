@@ -5,138 +5,146 @@ Author: Brock Salmon
 Created: 25JUN2025
 */
 
-Text :: struct {
-    str : string;
-    font : *FontData;
-    size : u32;
-
+RenderGlyph :: struct {
     using transform : Transform;
     using renderable : Renderable;
 }
 
-TemporaryGlyph :: struct {
-    width, height : u32;
-    bearingX, bearingY, advance : s32;
+Text :: struct {
+    str : string;
+    font : *FontAtlas;
+    
+    glyphs : [..] RenderGlyph;
+
+    using transform : Transform;
+    dimensions : Vector3;
+    tint : Vector4;
 }
 
-build_text_buffers :: (info : *Text) -> [] Vertex, *void, *AllocatedImageInfo {
-    // TODO: Handle text colour codes
-    // TODO: Handle escape sequences
-
-    TIMING_SCOPE();
-    TIMING_MARKER("BUILD_TEXT_START");
-    
-    // Create Data for string texture
-    ftError := FT_Set_Pixel_Sizes(info.font.face, 0, info.size);
-    if ftError then log(.ERROR, tprint("Failed to set FreeType pixel sizes: %", FT_Error_String(ftError)));
-
-    maxHeight, baseline : s32;
-    textureWidth, textureHeight : s32;
-
-    savedGlyphs : [..] TemporaryGlyph;
-    previousGlyphIndex : FT_UInt;
-    for info.str {
-	glyphIndex := FT_Get_Char_Index(info.font.face, it);
-	if FT_Load_Glyph(info.font.face, glyphIndex, FT_LOAD_RENDER) then continue;
-
-	glyph := info.font.face.glyph;
-	if FT_HAS_KERNING(info.font.face) && previousGlyphIndex && glyphIndex {
-	    delta : FT_Vector;
-	    if !FT_Get_Kerning(info.font.face, previousGlyphIndex, glyphIndex, xx FT_Kerning_Mode.DEFAULT, *delta) then textureWidth += cast(s32) (delta.x >> 6);
+get_string_dimensions :: (str : string, atlas : *FontAtlas) -> Vector2 {
+    dimensions := Vector2.{};
+    for iterate(str) {
+	char := it;
+	found, glyph := table_find_new(atlas.glyphs, char);
+	if found {
+	    dimensions.x += glyph.advance;
 	}
-
-	textureWidth += cast(s32) (glyph.advance.x >> 6);
-	maxHeight = max(maxHeight, glyph.bitmap_top);
-	baseline = max(baseline, cast(s32) glyph.bitmap.rows - glyph.bitmap_top);
-
-	array_add(*savedGlyphs, .{ glyph.bitmap.width, glyph.bitmap.rows, glyph.bitmap_left, glyph.bitmap_top, cast(s32) (glyph.advance.x >> 6) });
-	
-	previousGlyphIndex = glyphIndex;
     }
-    
-    textureHeight = maxHeight + baseline;
-TIMING_MARKER("BUILD_TEXT_MID");
-    textureData, rawTextureData := NewArray(textureWidth * textureHeight, u8);
-    
-    assert(savedGlyphs.count == info.str.count, "Did not get the correct amount of glyphs for this string ( % / % )", savedGlyphs.count, info.str.count);
-    cursorX := 0;
-    previousGlyphIndex = 0;
-    
-    for info.str {
-	glyphIndex := FT_Get_Char_Index(info.font.face, it);
-	if FT_Load_Glyph(info.font.face, glyphIndex, FT_LOAD_RENDER) then continue;
+    dimensions.y = atlas.ascender - atlas.descender;
+    return dimensions;
+}
 
-	ftGlyph := info.font.face.glyph;
-	if FT_HAS_KERNING(info.font.face) && previousGlyphIndex && glyphIndex {
-	    delta : FT_Vector;
-	    if !FT_Get_Kerning(info.font.face, previousGlyphIndex, glyphIndex, xx FT_Kerning_Mode.DEFAULT, *delta) then cursorX += delta.x >> 6;
-	}
-
-	glyph := *savedGlyphs[it_index];
-	if it != #char " " {
-	    for y : 0 .. glyph.height-1 {
-		for x : 0 .. glyph.width-1 {
-		    drawX := cursorX + glyph.bearingX + x;
-		    drawY := textureHeight - glyph.bearingY + cast(s32) y;
-		    if drawX >= 0 && drawX < textureWidth &&
-			drawY >= 0 && drawY < textureHeight {
-			    textureData[drawY * textureWidth + drawX] = ftGlyph.bitmap.buffer[y * glyph.width + x];
-			}
-		}
-	    }
-	}
-	
-	cursorX += glyph.advance;
-	previousGlyphIndex = glyphIndex;
-    }
-TIMING_MARKER("BUILD_TEXT_MID_TEXTURE");
-    extent := VkExtent2D.{ cast(u32) textureWidth, cast(u32) textureHeight };
-    stringTexture := create_vk_image_from_data(textureData.data, extent, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1 );
-    
-    array_reset(*savedGlyphs);
-    
-    free(rawTextureData);
-    
-    info.dimensions = extent_to_vector(extent, 0);
-    
-    // Build info to upload to GPU
+build_glyph_buffers :: (glyph : *FontAtlas.GlyphInfo) -> [] Vertex, *void {
     vertices, vertexMemory := NewArray(4, Vertex);
-    vertices[0] = .{ position=.{ info.dimensions.x, 0,                 0 }, uv=.{ 1, 1 } };
-    vertices[1] = .{ position=.{ info.dimensions.x, info.dimensions.y, 0 }, uv=.{ 1, 0 } };
-    vertices[2] = .{ position=.{ 0,                 0,                 0 }, uv=.{ 0, 1 } };
-    vertices[3] = .{ position=.{ 0,                 info.dimensions.y, 0 }, uv=.{ 0, 0 } };
-TIMING_MARKER("BUILD_TEXT_END");
-    return vertices, vertexMemory, stringTexture;
+    vertices[0] = .{ position=.{ glyph.dimensions.x, 0,                  0 }, uv=.{ glyph.uv1.x, glyph.uv1.y } };
+    vertices[1] = .{ position=.{ glyph.dimensions.x, glyph.dimensions.y, 0 }, uv=.{ glyph.uv1.x, glyph.uv0.y } };
+    vertices[2] = .{ position=.{ 0,                  0,                  0 }, uv=.{ glyph.uv0.x, glyph.uv1.y } };
+    vertices[3] = .{ position=.{ 0,                  glyph.dimensions.y, 0 }, uv=.{ glyph.uv0.x, glyph.uv0.y } };
+
+    return vertices, vertexMemory;
 }
 
-make_text :: (str : string, font : *FontData, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
+make_text :: (str : string, font : string, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
     text := New(Text);
-    text.* = .{ str, font, size, transform, .{} };
-    text.tint = colour;
-    if str.count > 0 {
-	text.vertices, text.texture = build_text_buffers(text);
-	text.buffers = New(MeshBuffers);
 
-	upload_mesh_command(DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
+    atlasName := get_font_atlas_name(font, size);
+    exists, font := table_find_new(loam.fonts, atlasName);
+    if !exists {
+	log(.ERROR, tprint("Font atlas \"%\" does not exist", atlasName));
     }
+    text.font = font;
+    text.transform = transform;
+    text.tint = colour;
+
+    if str.count > 0 {
+	update_text(text, str);
+    }
+    
     return text;
 }
 
 update_text :: (text : *Text, str : string) {
-    TIMING_SCOPE();
+    // TODO: Add some text formatting tags handling for changing colour mid string?
+    // TODO: Handle rotation correctly
+    
     text.str = str;
-    if text.texture {
-	free(text.vertexMemory);
-	destroy_vk_image(text.texture);
-    }
-    text.vertices, text.vertexMemory, text.texture = build_text_buffers(text);
+    for text.glyphs {
+	if it.vertexMemory {
+	    free(it.vertexMemory);
+	}
 
-    if text.buffers {
-	destroy_vk_buffer(text.buffers.vertexBuffer);
-	free(text.buffers);
+	if it.buffers {
+	    destroy_vk_buffer(it.buffers.vertexBuffer);
+	    free(it.buffers);
+	}
     }
+    array_reset(*text.glyphs);
+    
+    text.dimensions.xy = get_string_dimensions(str, text.font) * text.transform.scale.xy;
+    cursorX := text.transform.position.x;
+    cursorY := text.transform.position.y;
 
-    text.buffers = New(MeshBuffers);
-    upload_mesh_command(DEFAULT_PLANE_INDICES, text.vertices, text.buffers);
+    if text.transform.alignment & .Center then cursorX -= text.dimensions.x * 0.5;
+    if text.transform.alignment & .Right  then cursorX -= text.dimensions.x;
+    if text.transform.alignment & .Top    then cursorY -= text.dimensions.y * 0.5;
+    if text.transform.alignment & .Bottom then cursorY += text.dimensions.y * 0.5;
+
+    for iterate(text.str) {
+	char := it;
+	if char == #char " " {
+	    cursorX += text.font.spaceWidth * text.transform.scale.x;
+	    continue;
+	}
+	
+	found, fontGlyph := table_find_new(text.font.glyphs, char);
+	if !found {
+	    log(.ERROR, tprint("Failed to get glyph for %", character_utf32_to_utf8(char)));
+	    continue;
+	}
+	
+	glyph : RenderGlyph;
+	glyph.transform  = make_transform( position = .{ cursorX, cursorY, text.transform.position.z }, scale = text.transform.scale);
+	glyph.tint = text.tint;
+	glyph.texture = text.font.image;
+	glyph.vertices, glyph.vertexMemory = build_glyph_buffers(*fontGlyph);
+	glyph.buffers = New(MeshBuffers);
+	
+	upload_mesh_command(DEFAULT_PLANE_INDICES, glyph.vertices, glyph.buffers);
+	
+	array_add(*text.glyphs, glyph);
+
+	cursorX += cast(float) fontGlyph.advance * text.transform.scale.x;
+    }
+}
+
+// NOTE: Better UTF8 looping by Lunatoid from the jai discord
+UTF8_Iterable_String :: struct {
+    s: string;
+};
+
+for_expansion :: (iterable_str: UTF8_Iterable_String, body: Code, flags: For_Flags) #expand {
+    char_idx : s64 = 0;
+
+    i : s64 = 0;
+    while i < iterable_str.s.count {
+        char, byte_len, result := character_utf8_to_utf32(*iterable_str.s[i], iterable_str.s.count-i);
+        if result != .CONVERSION_OK
+            break;
+
+        `it       := char;
+        `it_index := char_idx;
+
+        defer {
+            char_idx += 1;
+            i += byte_len;
+        }
+
+        #insert body;
+
+    }
+}
+
+iterate :: (s : string) -> UTF8_Iterable_String {
+    return UTF8_Iterable_String.{s};
 }
 

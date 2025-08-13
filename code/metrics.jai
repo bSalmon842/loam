@@ -35,7 +35,13 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 	}
 
 	metrics.nonDebugDrawCalls = metrics.totalDrawCalls;
-	metrics.nonDebugDrawCalls -= xx loam.debugUIElements.count;
+	for loam.debugUIElements {
+	    if it.type == .Text {
+		metrics.nonDebugDrawCalls -= xx it.text.glyphs.count;
+	    } else {
+		metrics.nonDebugDrawCalls -= 1;
+	    }
+	}
 
 	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
 
@@ -113,10 +119,12 @@ TIMING_PRINT_DATA :: () #expand {
     }
     print("Total Frame Time: % (%)\n", deltaMs, cast(u32) (1.0 / loam.deltaTime + 1.0));
 
-    print_color("\nSCOPES:\n", color=.HI_BLUE);
-    for * __timingData.scopes {
-	timeForScope := (it.timeEnd - it.timeStart) * 1000.0;
-	print_color("%: % (%\%)\n", it.name, timeForScope, (timeForScope / deltaMs) * 100.0, color=.HI_BLUE);
+    if __timingData.scopes.count {
+	print_color("\nSCOPES:\n", color=.HI_BLUE);
+	for * __timingData.scopes {
+	    timeForScope := (it.timeEnd - it.timeStart) * 1000.0;
+	    print_color("%: % (%\%)\n", it.name, timeForScope, (timeForScope / deltaMs) * 100.0, color=.HI_BLUE);
+	}
     }
     print("\n=================================================\n");
 }

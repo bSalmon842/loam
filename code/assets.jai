@@ -48,11 +48,72 @@ pack_file_code :: (fileCode : [4] u8) -> u32 {
     return result;
 }
 
+MAX_RESOURCE_POOL_ELEMENTS :: 1024;
+ImageResource :: struct {
+    index : u32;
+    name  : string;
+    image : *AllocatedImageInfo;
+}
+
+ResourcePools :: struct {
+    images : [MAX_RESOURCE_POOL_ELEMENTS] *ImageResource;
+}
+
+add_resource :: (name : string, image : *AllocatedImageInfo) -> *ImageResource {
+    for loam.resources.images {
+	if it && compare(it.name, name) == 0 {
+	    log(.WARN, tprint("Failed to add Image to Resource Pool: %", name));
+	    return null;
+	}
+    }
+    
+    for * loam.resources.images {
+	if !it.* {
+	    resource := New(ImageResource);
+	    resource.* = .{ cast(u32) it_index, copy_string(name), image };
+	    it.* = resource;
+	    array_add(*vk.bindlessTextureUpdates, resource);
+	    return resource;
+	}
+    }
+    
+    log(.ERROR, "Failed to find an empty slot in image resource pool");
+    return null;
+}
+
+remove_image_resource :: (name : string) {
+    for * loam.resources.images {
+	if it.* && compare(it.*.name, name) == 0 {
+	    free(it.*.name.data);
+	    free(it.*.image);
+	    free(it.*);
+	    it.* = null;
+	    return;
+	}
+    }
+    
+    log(.ERROR, tprint("Failed to remove an image from the resource pool: %", name));
+}
+
+get_image_resource :: (name : string, core : bool = false) -> *ImageResource {
+    for loam.resources.images {
+	if it && compare(it.name, name) == 0 {
+	    return it;
+	}
+    }
+
+    asset := get_asset(.Image, name, core);
+    if asset {
+	image := create_vk_image_from_ktx(cast(*ktxTexture2) asset.data);
+	resource := add_resource(name, image);
+	return resource;
+    }
+    
+    return get_image_resource(ERROR_TEXTURE_NAME);
+}
+
 MAX_ASSET_CACHE_SIZE : u64 : 512;
 AssetState :: struct {
-    cacheSentinel : Asset;
-    cacheSize : u64;
-
     fontAtlases : [..] *FontAtlas;
 
     directory : *AssetDirectory;
@@ -111,77 +172,6 @@ Asset :: struct {
     
     // NOTE: This is only used in the engine to store processed asset data (image data after ktx processing for example, not the ktx file contents), it is packaged as 0
     data : *void;
-}
-
-// NOTE: This also updates the asset to the 'top' of the asset cache
-find_asset_in_cache :: (state : *AssetState, asset : *Asset) -> *Asset {
-    currentAsset := state.cacheSentinel.next;
-    while currentAsset != *state.cacheSentinel {
-	if currentAsset == asset {
-	    // Update to the front of the queue
-	    state.cacheSentinel.next.prev = asset;
-	    asset.next = state.cacheSentinel.next;
-	    
-	    state.cacheSentinel.next = asset;
-	    asset.prev = *state.cacheSentinel;
-	    
-	    return currentAsset;
-	}
-	
-	currentAsset = currentAsset.next;
-    }
-
-    return null;
-}
-
-find_asset_in_cache :: (state : *AssetState, name : string) -> *Asset {
-    currentAsset := state.cacheSentinel.next;
-    while currentAsset != *state.cacheSentinel {
-	if cast(string) currentAsset.header.name == name {
-	    // Update to the front of the queue
-	    state.cacheSentinel.next.prev = currentAsset;
-	    currentAsset.next = state.cacheSentinel.next;
-	    
-	    state.cacheSentinel.next = currentAsset;
-	    currentAsset.prev = *state.cacheSentinel;
-	    
-	    return currentAsset;
-	}
-	
-	currentAsset = currentAsset.next;
-    }
-
-    return null;
-}
-
-asset_cache_add :: (state : *AssetState, asset : *Asset) {
-    // If we don't have any space, evict the oldest cached asset
-    if state.cacheSize == MAX_ASSET_CACHE_SIZE then asset_cache_evict(state);
-
-    // Add a new asset to the cache
-    state.cacheSentinel.next.prev = asset;
-    asset.next = state.cacheSentinel.next;
-	    
-    state.cacheSentinel.next = asset;
-    asset.prev = *state.cacheSentinel;
-    
-    state.cacheSize += 1;
-}
-
-asset_cache_evict :: (state : *AssetState, asset : *Asset = null) {
-    // TODO: Either destroy the asset here or make a destroy_asset function
-    if !asset {
-	last := state.cacheSentinel.prev;
-	if last == *state.cacheSentinel then return;
-
-	last.prev.next = *state.cacheSentinel;
-	state.cacheSentinel.prev = last.prev;
-
-	free(last);
-	state.cacheSize -= 1;
-    } else {
-	// TODO: Find asset to evict
-    }
 }
 
 get_packaged_assets_path :: () -> string {
@@ -256,18 +246,12 @@ load_asset_directory :: () -> *AssetDirectory {
     return directory;
 }
 
-request_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Asset {
+get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Asset {
     if type == .Invalid {
 	log(.ERROR, "Requested asset type cannot be Invalid");
 	return null;
     }
     
-    // Check if we've already loaded this recently
-    assetInCache := find_asset_in_cache(loam.assets, assetName);
-    if assetInCache {
-	return assetInCache;
-    }
-
     // Otherwise, load the asset and add it to the cache
     assetFile : string;
     assetHeader : *AssetHeader;
@@ -279,7 +263,7 @@ request_asset :: (type : AssetType, assetName : string, core : bool = false) -> 
     if !assetHeader {
 	return null;
     }
-
+    
     if assetHeader.type != type {
 	free(assetFile.data);
 	log(.ERROR, tprint("Asset found with name \"%\" does not match requested type % (Got %)", cast(string) assetHeader.name, type, assetHeader.type));
@@ -300,8 +284,6 @@ request_asset :: (type : AssetType, assetName : string, core : bool = false) -> 
 		free(asset);
 		return null;
 	    }
-
-	    asset_cache_add(loam.assets, asset);
 	    
 	    return asset;
 	}
@@ -318,8 +300,6 @@ request_asset :: (type : AssetType, assetName : string, core : bool = false) -> 
 		return null;
 	    }
 	    
-	    asset_cache_add(loam.assets, asset);
-	    
 	    return asset;
 	}
 	
@@ -335,7 +315,7 @@ request_asset :: (type : AssetType, assetName : string, core : bool = false) -> 
 }
 
 get_raw_asset_data :: (directory : *AssetDirectory, assetName : string) -> fileContents : string, assetInfo : *AssetHeader {
-    item, found := table_find(directory, assetName);
+    found, item := table_find_new(directory, assetName);
     if !found {
 	log(.ERROR, tprint("Failed to find asset \"%\" in the asset directory file", assetName));
 	return "", null;
