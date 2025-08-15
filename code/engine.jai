@@ -155,8 +155,6 @@ loam_finish_update :: () {
 }
 
 loam_start_render :: () {
-    dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
-    
     cleanup_single_frame_images();
     cleanup_single_frame_buffers();
 

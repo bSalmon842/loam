@@ -239,7 +239,7 @@ main :: () {
         loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
 
-	TIMING_FRAME_END(false);
+	TIMING_FRAME_END(true);
 	
         reset_temporary_storage();
 

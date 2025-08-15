@@ -48,7 +48,7 @@ pack_file_code :: (fileCode : [4] u8) -> u32 {
     return result;
 }
 
-MAX_RESOURCE_POOL_ELEMENTS :: 1024;
+MAX_RESOURCE_POOL_ELEMENTS :: 256;
 ImageResource :: struct {
     index : u32;
     name  : string;

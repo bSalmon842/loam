@@ -17,6 +17,7 @@ Vk :: struct {
     reqFeatures_1_1     : VkPhysicalDeviceVulkan11Features;
     reqFeatures_1_2     : VkPhysicalDeviceVulkan12Features;
     reqFeatures_1_3     : VkPhysicalDeviceVulkan13Features;
+    reqFeatures_Robust  : VkPhysicalDeviceRobustness2FeaturesEXT;
     
     // Base Vulkan structs
     instance : VkInstance;
@@ -51,8 +52,6 @@ Vk :: struct {
     }
     queueFamilyIndices : QueueFamilyIndices;
     queueCountsPerFamily : QueueFamilyIndices;
-
-    descriptorAllocator : DynamicDescriptorPoolAllocator;
 
     bindlessDescriptorPool   : VkDescriptorPool;
     bindlessDescriptorLayout : VkDescriptorSetLayout;
@@ -113,10 +112,10 @@ AllocatedBufferInfo :: struct {
 }
 
 AllPushConstants :: struct {
-    renderMatrix : Matrix4;
-    colourTint   : Vector4;
-    
-    vertexBuffer : VkDeviceAddress;
+    renderMatrix    : Matrix4;
+    colourTint      : Vector4;
+    descriptorIndex : u32;
+    vertexBuffer    : VkDeviceAddress;
 }
 
 
@@ -141,15 +140,7 @@ init_vk :: (window : Window_Type) {
     cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
     fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
     semaphoreCreateInfo := VkSemaphoreCreateInfo.{};
-    frameRatios := PoolSizeRatio.[
-	.{ .STORAGE_IMAGE, 3 },
-	.{ .STORAGE_BUFFER, 3 },
-	.{ .UNIFORM_BUFFER, 3 },
-	.{ .COMBINED_IMAGE_SAMPLER, 4 },
-    ];
     
-    dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
-
     vk.bindlessDescriptorPool = create_bindless_descriptor_pool();
     vk.bindlessDescriptorSet  = create_bindless_descriptor_set();
     
@@ -168,6 +159,7 @@ init_vk :: (window : Window_Type) {
     check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.updateCmdPool), "Failed to create Command Pool for Update Commands");
     
     // Descriptors
+    /*
     for enum_values_as_enum(PipelineType) {
 	pipeline := *vk.pipelines[it];
 	
@@ -184,6 +176,7 @@ init_vk :: (window : Window_Type) {
 	    case .UI_Text;
 	}
     }
+    */
     
     init_pipelines();
 
@@ -305,6 +298,7 @@ create_vk_surface :: (window : Window_Type) -> VkResult {
 
 get_vk_physical_device :: () -> VkResult {
     array_add(*vk.deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME.data);
+    array_add(*vk.deviceExtensions, VK_EXT_ROBUSTNESS_2_EXTENSION_NAME.data);
 
     vk.reqFeatures_1_0.shaderInt64 = 1;
     vk.reqFeatures_1_2.bufferDeviceAddress = 1;
@@ -312,9 +306,13 @@ get_vk_physical_device :: () -> VkResult {
     vk.reqFeatures_1_2.descriptorBindingPartiallyBound = 1;
     vk.reqFeatures_1_2.descriptorBindingSampledImageUpdateAfterBind = 1;
     vk.reqFeatures_1_2.descriptorBindingVariableDescriptorCount = 1;
+    vk.reqFeatures_1_2.shaderSampledImageArrayNonUniformIndexing = 1;
     vk.reqFeatures_1_2.runtimeDescriptorArray = 1;
     vk.reqFeatures_1_3.dynamicRendering = 1;
     vk.reqFeatures_1_3.synchronization2 = 1;
+    vk.reqFeatures_Robust.robustBufferAccess2 = 1;
+    vk.reqFeatures_Robust.robustImageAccess2 = 1;
+    vk.reqFeatures_Robust.nullDescriptor = 1;
     
     gpuCount : u32;
     vkEnumeratePhysicalDevices(vk.instance, *gpuCount, null);
@@ -363,7 +361,7 @@ create_vk_device :: () -> VkResult {
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data;
 
     // NOTE: We've already checked these features and extensions are available when creating the physical device
-    featureChain := chain_physical_device_features(*vk.reqFeatures_1_1, *vk.reqFeatures_1_2, *vk.reqFeatures_1_3);
+    featureChain := chain_physical_device_features(*vk.reqFeatures_1_1, *vk.reqFeatures_1_2, *vk.reqFeatures_1_3, *vk.reqFeatures_Robust);
     featureChain.features = vk.reqFeatures_1_0;
     deviceCreateInfo.pNext = *featureChain;
     
@@ -526,7 +524,7 @@ create_vk_swapchain :: () -> VkResult {
 }
 
 #load "bindless_descriptors.jai";
-#load "descriptors.jai";
+//#load "descriptors.jai";
 #load "mesh.jai";
 #load "pipelines.jai";
 #load "render.jai";

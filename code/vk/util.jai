@@ -54,12 +54,14 @@ find_best_gpu_for_conditions :: (availableDevices : [] VkPhysicalDevice) -> VkPh
 	features_1_1     : VkPhysicalDeviceVulkan11Features;
 	features_1_2     : VkPhysicalDeviceVulkan12Features;
 	features_1_3     : VkPhysicalDeviceVulkan13Features;
-	featureChain := chain_physical_device_features(*features_1_1, *features_1_2, *features_1_3);
+	features_Robust  : VkPhysicalDeviceRobustness2FeaturesEXT;
+	featureChain := chain_physical_device_features(*features_1_1, *features_1_2, *features_1_3, *features_Robust);
 	vkGetPhysicalDeviceFeatures2(device, *featureChain);
 	features_1_0 := featureChain.features;
 
 	typeInfos := Type_Info_Struct.[ type_info(VkPhysicalDeviceFeatures), type_info(VkPhysicalDeviceVulkan11Features),
-					type_info(VkPhysicalDeviceVulkan12Features), type_info(VkPhysicalDeviceVulkan13Features) ];
+					type_info(VkPhysicalDeviceVulkan12Features), type_info(VkPhysicalDeviceVulkan13Features),
+				        type_info(VkPhysicalDeviceRobustness2FeaturesEXT)];
 
 	allFeaturesSupported := true;
 	for info : typeInfos {
@@ -91,6 +93,10 @@ find_best_gpu_for_conditions :: (availableDevices : [] VkPhysicalDevice) -> VkPh
 		    case 3; {
 			requested = get_member_at_offset(*vk.reqFeatures_1_3);
 			supported = get_member_at_offset(*features_1_3);
+		    }
+		    case 4; {
+			requested = get_member_at_offset(*vk.reqFeatures_Robust);
+			supported = get_member_at_offset(*features_Robust);
 		    }
 		    case; assert(false, "Invalid feature struct type info index");
 		}
@@ -255,11 +261,12 @@ get_queue_family_index :: (flag : VkQueueFlags, queueFamilies : [] VkQueueFamily
     return found, index;
 }
 
-chain_physical_device_features :: (_1_1 : *VkPhysicalDeviceVulkan11Features, _1_2 : *VkPhysicalDeviceVulkan12Features, _1_3 : *VkPhysicalDeviceVulkan13Features) -> VkPhysicalDeviceFeatures2 {
+chain_physical_device_features :: (_1_1 : *VkPhysicalDeviceVulkan11Features, _1_2 : *VkPhysicalDeviceVulkan12Features, _1_3 : *VkPhysicalDeviceVulkan13Features, robustness : *VkPhysicalDeviceRobustness2FeaturesEXT) -> VkPhysicalDeviceFeatures2 {
     featureChain : VkPhysicalDeviceFeatures2;
     featureChain.pNext = _1_1;
     _1_1.pNext = _1_2;
     _1_2.pNext = _1_3;
+    _1_3.pNext = robustness;
 
     return featureChain;
 }

@@ -13,6 +13,7 @@ Created: 21MAY2025
 
 layout (location = 0) out vec4 outColour;
 layout (location = 1) out vec2 outUV;
+layout (location = 2) out uint outTextureIndex;
 
 layout (push_constant) uniform constants {
   CommonPushConstants pc;
@@ -24,4 +25,5 @@ void main() {
     gl_Position = PushConstants.pc.renderMatrix * vec4(loadedVertex.position, 1.0f);
     outColour = loadedVertex.colour * PushConstants.pc.colour;
     outUV = loadedVertex.uv;
+    outTextureIndex = PushConstants.pc.textureIndex;
 }

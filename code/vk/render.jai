@@ -14,7 +14,7 @@ Renderable :: struct {
     
     dimensions : Vector3;
     tint : Vector4 = DEFAULT_TEXTURE_TINT;
-
+    
     buffers : *MeshBuffers;
 }
 
@@ -44,7 +44,7 @@ draw_frame :: () {
 
     cmdBuffer := vk.currentFrame.cmdBuffer;
     check_vk(vkResetCommandBuffer(cmdBuffer, 0), tprint("Failed to reset Command Buffer for frame %", vk.currentFrame));
-
+    
     cmdBufferBeginInfo := VkCommandBufferBeginInfo.{ .COMMAND_BUFFER_BEGIN_INFO, null, .ONE_TIME_SUBMIT_BIT, null };
     check_vk(vkBeginCommandBuffer(cmdBuffer, *cmdBufferBeginInfo), tprint("Failed to begin Command Buffer for frame %", vk.currentFrame));
 
@@ -53,7 +53,7 @@ draw_frame :: () {
     render_clear(cmdBuffer, vk.drawImage.image, .{0.1, 0.1, 0.1, 1.0});
     
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
-
+    
     for * vk.pipelines {
 	draw_pipeline(cmdBuffer, it, drawExtent);
     }
