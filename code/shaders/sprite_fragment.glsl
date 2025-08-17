@@ -12,11 +12,10 @@ Created: 06JUL2025
 
 layout (location = 0) in vec4 inColour;
 layout (location = 1) in vec2 inUV;
-layout (location = 2) flat in uint inTextureIndex;
 
 layout (location = 0) out vec4 fragColour;
 
 void main() {   
-  fragColour = inColour * texture(bindlessTextures[nonuniformEXT(inTextureIndex)], inUV);
+  fragColour = inColour * texture(colourTexture, inUV);
 }
 

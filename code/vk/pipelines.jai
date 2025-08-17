@@ -141,6 +141,7 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineInfo, 
 RenderingPipelineInfo :: struct {
     layout           : VkPipelineLayout;
     pipeline         : VkPipeline;
+    descriptorLayout : VkDescriptorSetLayout;
     orthographic     : bool;
 
     renderCommands : [..] *RenderCommand;
@@ -161,13 +162,9 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
     scissor := VkRect2D.{ .{}, drawExtent };
     vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
     
-    vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, pipeline.layout, 0, 1, *vk.bindlessDescriptorSet, 0, null);
-    print("\tPipeline Render Count: %\n", pipeline.renderCommands.count);
-    TIMING_MARKER("Pipeline Start");
     for pipeline.renderCommands {
 	render_command(cmdBuffer, it, pipeline.layout);
     }
-    TIMING_MARKER("Pipeline End");
     
     vkCmdEndRendering(cmdBuffer);
 }
@@ -181,7 +178,7 @@ init_pipelines :: () {
 	pipeline := *vk.pipelines[it];
 	
 	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(AllPushConstants) };
-	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.bindlessDescriptorLayout, 1, *bufferRange };
+	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *pipeline.descriptorLayout, 1, *bufferRange };
 	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *pipeline.layout), tprint("Failed to create pipeline layout for %", it));
 
 	builder : GraphicsPipelineInfo;
