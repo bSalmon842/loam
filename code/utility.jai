@@ -51,6 +51,15 @@ is_in_array :: (value : $T, array : [] T) -> bool {
     return false;
 }
 
+are_array_contents_same :: (a : [] $T, b : [] T) -> bool {
+    if a.count != b.count then return false;
+    for 0 .. a.count-1 {
+	if a[it] != b[it] then return false;
+    }
+
+    return true;
+}
+
 from_array_cstr :: (cstr : [] u8) -> string {
     result := cast(string) cstr;
     result.count = find_index_from_left(result, "\0");

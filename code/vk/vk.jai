@@ -53,12 +53,7 @@ Vk :: struct {
     queueCountsPerFamily : QueueFamilyIndices;
 
     descriptorAllocator : DynamicDescriptorPoolAllocator;
-
-    bindlessDescriptorPool   : VkDescriptorPool;
-    bindlessDescriptorLayout : VkDescriptorSetLayout;
-    bindlessDescriptorSet    : VkDescriptorSet;
-    bindlessTextureUpdates   : [..] *ImageResource;
-
+    
     // Update Commands
     updateCmdPool  : VkCommandPool;
     updateCommands : [..] *UpdateCommand;
@@ -149,9 +144,6 @@ init_vk :: (window : Window_Type) {
     ];
     
     dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
-
-    vk.bindlessDescriptorPool = create_bindless_descriptor_pool();
-    vk.bindlessDescriptorSet  = create_bindless_descriptor_set();
     
     for * vk.frames {
 	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
@@ -204,6 +196,7 @@ init_vk :: (window : Window_Type) {
     for * pixels {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
+    
     vk.errorCheckerboard = create_vk_image_from_data(pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
     add_resource(ERROR_TEXTURE_NAME, vk.errorCheckerboard);
 }
@@ -525,7 +518,7 @@ create_vk_swapchain :: () -> VkResult {
     return .SUCCESS;
 }
 
-#load "bindless_descriptors.jai";
+//#load "bindless_descriptors.jai";
 #load "descriptors.jai";
 #load "mesh.jai";
 #load "pipelines.jai";

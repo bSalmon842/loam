@@ -48,75 +48,128 @@ pack_file_code :: (fileCode : [4] u8) -> u32 {
     return result;
 }
 
-MAX_RESOURCE_POOL_ELEMENTS :: 1024;
+ResourceType :: enum {
+    Image;
+}
+
+ResourceBase :: struct (T : Type) {
+    name : string;
+    core : bool;
+    next : *T;
+    prev : *T;
+}
+
 ImageResource :: struct {
-    index : u32;
-    name  : string;
+    using _res : ResourceBase(#this);
     image : *AllocatedImageInfo;
 }
 
-ResourcePools :: struct {
-    images : [MAX_RESOURCE_POOL_ELEMENTS] *ImageResource;
-}
+add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *$R
+    #modify {
+	if T == AllocatedImageInfo { R = ImageResource; }
+	else { R = void; }
+	
+	return true;
+    } {
+    #if T == {
+	case AllocatedImageInfo; {
+	    resource := New(ImageResource);
+	    resource.name = copy_string(name);
+	    resource.core = core;
+	    resource.image = resourceContent;
+	    
+	    resource.prev = loam.assets.imageSentinel.prev;
+	    resource.next = *loam.assets.imageSentinel;
+	    
+	    loam.assets.imageSentinel.prev.next = resource;
+	    loam.assets.imageSentinel.prev = resource;
 
-add_resource :: (name : string, image : *AllocatedImageInfo) -> *ImageResource {
-    for loam.resources.images {
-	if it && compare(it.name, name) == 0 {
-	    log(.WARN, tprint("Failed to add Image to Resource Pool: %", name));
+	    loam.assets.imageCount += 1;
+	    
+	    return resource;
+	}
+
+	case; {
+	    log(.FATAL, "Failed to add resource to cache");
 	    return null;
 	}
     }
-    
-    for * loam.resources.images {
-	if !it.* {
-	    resource := New(ImageResource);
-	    resource.* = .{ cast(u32) it_index, copy_string(name), image };
-	    it.* = resource;
-	    array_add(*vk.bindlessTextureUpdates, resource);
-	    return resource;
+}
+
+remove_resource :: ($T : Type, name : string, core : bool = false) {
+    #if T == {
+	case ImageResource; {
+	    sentinel := *loam.assets.imageSentinel;
+	    resource := loam.assets.imageSentinel.next;
+
+	    while resource != sentinel {
+		if compare(resource.name, name) == 0 && resource.core == core {
+		    resource.prev.next = resource.next;
+		    resource.next.prev = resource.prev;
+
+		    destroy_vk_image(resource.image);
+		    free(resource.name.data);
+		    resource.* = .{};
+		    free(resource);
+
+		    loam.assets.imageCount -= 1;
+		    return;
+		}
+
+		resource = resource.next;
+	    }
 	}
     }
-    
-    log(.ERROR, "Failed to find an empty slot in image resource pool");
+
+    log(.WARN, tprint("Failed to find resource to remove: { %, %, % }", T, name, core));
+}
+
+find_resource :: ($T : Type, name : string, core : bool = false) -> *T {
+    sentinel, resource : *T;
+    #if T == {
+	case ImageResource; {
+	    sentinel = *loam.assets.imageSentinel;
+	    resource = loam.assets.imageSentinel.next;
+	}
+    }
+
+    while resource != sentinel {
+	if compare(resource.name, name) == 0 && resource.core == core {
+	    return resource;
+	}
+
+	resource = resource.next;
+    }
+
     return null;
 }
 
-remove_image_resource :: (name : string) {
-    for * loam.resources.images {
-	if it.* && compare(it.*.name, name) == 0 {
-	    free(it.*.name.data);
-	    free(it.*.image);
-	    free(it.*);
-	    it.* = null;
-	    return;
+get_resource :: ($T : Type, name : string, core : bool = false) -> *T {
+    resource := find_resource(T, name, core);
+    if resource then return resource;
+    
+    #if T == {
+	case ImageResource; {
+	    asset := get_asset(.Image, name, core);
+	    if asset {
+		image := create_vk_image_from_ktx(cast(*ktxTexture2) asset.data);
+		resource := add_resource(name, image, core);
+		return resource;
+	    }
+
+	    if name == ERROR_TEXTURE_NAME then log(.FATAL, "Failed to find error texture in cache");
+	    return get_resource(T, ERROR_TEXTURE_NAME, true);
 	}
     }
-    
-    log(.ERROR, tprint("Failed to remove an image from the resource pool: %", name));
-}
-
-get_image_resource :: (name : string, core : bool = false) -> *ImageResource {
-    for loam.resources.images {
-	if it && compare(it.name, name) == 0 {
-	    return it;
-	}
-    }
-
-    asset := get_asset(.Image, name, core);
-    if asset {
-	image := create_vk_image_from_ktx(cast(*ktxTexture2) asset.data);
-	resource := add_resource(name, image);
-	return resource;
-    }
-    
-    return get_image_resource(ERROR_TEXTURE_NAME);
 }
 
 MAX_ASSET_CACHE_SIZE : u64 : 512;
 AssetState :: struct {
     fontAtlases : [..] *FontAtlas;
-
     directory : *AssetDirectory;
+    
+    imageSentinel : ImageResource;
+    imageCount : u32;
 }
 
 AssetHeader :: struct {
@@ -166,9 +219,6 @@ AssetHeader :: struct {
 
 Asset :: struct {
     header : AssetHeader;
-
-    next : *Asset;
-    prev : *Asset;
     
     // NOTE: This is only used in the engine to store processed asset data (image data after ktx processing for example, not the ktx file contents), it is packaged as 0
     data : *void;
@@ -200,6 +250,17 @@ get_raw_assets_path :: () -> string {
     }
 
     return "";
+}
+
+init_assets :: (assets : *AssetState) {
+    assets.directory = load_asset_directory();
+
+    setup_sentinel :: (sentinel : *$T) {
+	sentinel.prev = sentinel;
+	sentinel.next = sentinel;
+    }
+
+    setup_sentinel(*assets.imageSentinel);
 }
 
 load_asset_directory :: () -> *AssetDirectory {

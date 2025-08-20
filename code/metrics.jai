@@ -17,9 +17,10 @@ DebugMetrics :: struct {
     nonDebugDrawCalls : u32;
 }
 
-frameTimeText : *UI_Element;
-ramUsageText  : *UI_Element;
-drawCallText  : *UI_Element;
+frameTimeText     : *UI_Element;
+ramUsageText      : *UI_Element;
+drawCallText      : *UI_Element;
+imageResourceText : *UI_Element;
 
 update_debug_metrics :: (metrics : *DebugMetrics) {
     metrics.timeSinceLastMetricUpdate += loam.deltaTime;
@@ -47,9 +48,10 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 
 	TIMING_MARKER("Pre Metric Text Update");
 	
-	update_text(frameTimeText.text, tprint("Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
-	update_text(ramUsageText.text,  tprint(" RAM Usage: %", to_size_string(metrics.ramUsage)));
-	update_text(drawCallText.text,  tprint("Draw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
+	update_text(frameTimeText.text,     tprint("        Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+	update_text(ramUsageText.text,      tprint("         RAM Usage: %",           to_size_string(metrics.ramUsage)));
+	update_text(drawCallText.text,      tprint("        Draw Calls: % (D: %)",    metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
+	update_text(imageResourceText.text, tprint("Resources (Image): %",           loam.assets.imageCount));
     }
 }
 

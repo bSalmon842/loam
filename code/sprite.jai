@@ -13,7 +13,7 @@ Sprite :: struct {
 make_sprite :: (textureName : string, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Sprite {
     sprite := New(Sprite);
     
-    sprite.texture = get_image_resource(textureName);
+    sprite.texture = get_resource(ImageResource, textureName);
     sprite.tint = colour;
     sprite.transform = transform;
 

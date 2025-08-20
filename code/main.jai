@@ -36,15 +36,19 @@ main :: () {
 	metrics : DebugMetrics;
         #if OS == .ANDROID {
 	    fontSize : u32 = 64;
-	    frameTimePosition := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
-	    ramUsagePosition  := Vector3.{ 10, loam.windowHeight - 40.0, 0 };
-	    drawCallPosition  := Vector3.{ 10, loam.windowHeight - 70.0, 0 };
+	    build_font_atlas("internal", 64, .English, true);
+	    frameTimePosition     := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
+	    ramUsagePosition      := Vector3.{ 10, loam.windowHeight - 40.0, 0 };
+	    drawCallPosition      := Vector3.{ 10, loam.windowHeight - 70.0, 0 };
+	    imageResourcePosition := Vector3.{ 10, loam.windowHeight - 100.0, 0 };
 	    
 	} else {
 	    fontSize : u32 = 32;
-    	    frameTimePosition := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
-	    ramUsagePosition  := Vector3.{ 10, loam.windowHeight - 30.0, 0 };
-	    drawCallPosition  := Vector3.{ 10, loam.windowHeight - 50.0, 0 };
+	    build_font_atlas("internal", 32, .English, true);
+    	    frameTimePosition     := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
+	    ramUsagePosition      := Vector3.{ 10, loam.windowHeight - 30.0, 0 };
+	    drawCallPosition      := Vector3.{ 10, loam.windowHeight - 50.0, 0 };
+	    imageResourcePosition := Vector3.{ 10, loam.windowHeight - 70.0, 0 };
 	}
 
 	{
@@ -59,10 +63,15 @@ main :: () {
 	    text := make_text("", "internal", fontSize, make_transform( drawCallPosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
 	    drawCallText = make_ui_element(text, false);
 	}
+	{
+	    text := make_text("", "internal", fontSize, make_transform( imageResourcePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
+	    imageResourceText = make_ui_element(text, false);
+	}
 	
 	array_add(*loam.debugUIElements, frameTimeText);
 	array_add(*loam.debugUIElements, ramUsageText);
 	array_add(*loam.debugUIElements, drawCallText);
+	array_add(*loam.debugUIElements, imageResourceText);
     }
 
     sprite := make_sprite("test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5, 0 }));

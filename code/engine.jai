@@ -50,8 +50,6 @@ LoamState :: struct {
     
     fonts : *Table(string, *FontAtlas);
     
-    resources : *ResourcePools;
-    
     binds : *InputBinds;
     mainPointer : PointerStatus;
     
@@ -81,14 +79,11 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     context.loam = _loam;
     loam = context.loam;
-
-    loam.resources = New(ResourcePools);
-    #if IS_DEV then this_allocation_is_not_a_leak(loam.resources);
     
     loam.assets = New(AssetState);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.assets);
-    loam.assets.directory = load_asset_directory();
-
+    init_assets(loam.assets);
+    
     loam.sceneCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
     loam.sceneCamera.verticalFOV = 80.0;
@@ -117,9 +112,6 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     loam.fonts = New(Table(string, *FontAtlas));
     init(loam.fonts);
-    
-    build_font_atlas("internal", 32, .English, true);
-    build_font_atlas("internal", 64, .English, true);
     
     loam.binds = New(InputBinds);
     
@@ -171,8 +163,6 @@ loam_start_render :: () {
 loam_finish_render :: () {
     wait_for_work_to_finish_on_thread(loam.renderingThread);
     TIMING_MARKER("Render Wait");
-    update_bindless_descriptor_textures();
-    TIMING_MARKER("Descriptor Update");
     draw_frame();
     TIMING_MARKER("Render Draw");
 }

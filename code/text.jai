@@ -46,7 +46,7 @@ build_glyph_buffers :: (glyph : *FontAtlas.GlyphInfo) -> [] Vertex, *void {
 
 make_text :: (str : string, font : string, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
     text := New(Text);
-
+    
     atlasName := get_font_atlas_name(font, size);
     exists, font := table_find_new(loam.fonts, atlasName);
     if !exists {
