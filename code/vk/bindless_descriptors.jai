@@ -5,8 +5,8 @@ Author: Brock Salmon
 Created: 04AUG2025
 */
 
-MAX_BINDLESS_RESOURCES : u32 : U16_MAX;
-BINDLESS_TEXTURE_BINDING : u32 : 10;
+MAX_BINDLESS_RESOURCES : u32 : 256;
+BINDLESS_TEXTURE_BINDING : u32 : 0;
 MAX_UPDATES_PER_FRAME : u32 : 16;
 
 create_bindless_descriptor_pool :: () -> VkDescriptorPool {
@@ -23,7 +23,7 @@ create_bindless_descriptor_set :: () -> VkDescriptorSet {
     // Create the set layout
     binding := VkDescriptorSetLayoutBinding.{ BINDLESS_TEXTURE_BINDING, .COMBINED_IMAGE_SAMPLER, MAX_BINDLESS_RESOURCES, .ALL, null };
 
-    bindlessFlags : VkDescriptorBindingFlags = .PARTIALLY_BOUND_BIT | .VARIABLE_DESCRIPTOR_COUNT_BIT | .UPDATE_AFTER_BIND_BIT;
+    bindlessFlags : VkDescriptorBindingFlags = .PARTIALLY_BOUND_BIT | .UPDATE_AFTER_BIND_BIT;
     bindingFlagsCreateInfo := VkDescriptorSetLayoutBindingFlagsCreateInfo.{ .DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, null, 1, *bindlessFlags };
     layoutCreateInfo := VkDescriptorSetLayoutCreateInfo.{ .DESCRIPTOR_SET_LAYOUT_CREATE_INFO, *bindingFlagsCreateInfo, .UPDATE_AFTER_BIND_POOL_BIT, 1, *binding };
     

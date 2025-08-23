@@ -52,11 +52,21 @@ ResourceType :: enum {
     Image;
 }
 
+MAX_RESOURCE_POOL_COUNT : u32 : 256;
+ResourcePool :: struct (T : Type) {
+    sentinel : T;
+    count    : u32;
+    
+    array : [MAX_RESOURCE_POOL_COUNT] *ImageResource;
+}
+
 ResourceBase :: struct (T : Type) {
     name : string;
     core : bool;
     next : *T;
     prev : *T;
+
+    index : u32;
 }
 
 ImageResource :: struct {
@@ -73,18 +83,32 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
     } {
     #if T == {
 	case AllocatedImageInfo; {
+	    if loam.assets.images.count == MAX_RESOURCE_POOL_COUNT {
+		log(.FATAL, "Failed to image resource cache is full, failed to add resource");
+		return null;
+	    }
 	    resource := New(ImageResource);
 	    resource.name = copy_string(name);
 	    resource.core = core;
 	    resource.image = resourceContent;
 	    
-	    resource.prev = loam.assets.imageSentinel.prev;
-	    resource.next = *loam.assets.imageSentinel;
+	    resource.prev = loam.assets.images.sentinel.prev;
+	    resource.next = *loam.assets.images.sentinel;
 	    
-	    loam.assets.imageSentinel.prev.next = resource;
-	    loam.assets.imageSentinel.prev = resource;
+	    loam.assets.images.sentinel.prev.next = resource;
+	    loam.assets.images.sentinel.prev = resource;
 
-	    loam.assets.imageCount += 1;
+	    loam.assets.images.count += 1;
+
+	    for * loam.assets.images.array {
+		if !it.* {
+		    it.* = resource;
+		    resource.index = cast(u32) it_index;
+		    break;
+		}
+	    }
+
+	    array_add(*vk.bindlessTextureUpdates, resource);
 	    
 	    return resource;
 	}
@@ -107,12 +131,15 @@ remove_resource :: ($T : Type, name : string, core : bool = false) {
 		    resource.prev.next = resource.next;
 		    resource.next.prev = resource.prev;
 
+		    loam.assets.images.array[resource.index] = null;
+		    
 		    destroy_vk_image(resource.image);
 		    free(resource.name.data);
 		    resource.* = .{};
 		    free(resource);
 
-		    loam.assets.imageCount -= 1;
+		    loam.assets.images.count -= 1;
+		    
 		    return;
 		}
 
@@ -128,8 +155,8 @@ find_resource :: ($T : Type, name : string, core : bool = false) -> *T {
     sentinel, resource : *T;
     #if T == {
 	case ImageResource; {
-	    sentinel = *loam.assets.imageSentinel;
-	    resource = loam.assets.imageSentinel.next;
+	    sentinel = *loam.assets.images.sentinel;
+	    resource = loam.assets.images.sentinel.next;
 	}
     }
 
@@ -167,9 +194,8 @@ MAX_ASSET_CACHE_SIZE : u64 : 512;
 AssetState :: struct {
     fontAtlases : [..] *FontAtlas;
     directory : *AssetDirectory;
-    
-    imageSentinel : ImageResource;
-    imageCount : u32;
+
+    images : ResourcePool(ImageResource);
 }
 
 AssetHeader :: struct {
@@ -260,7 +286,7 @@ init_assets :: (assets : *AssetState) {
 	sentinel.next = sentinel;
     }
 
-    setup_sentinel(*assets.imageSentinel);
+    setup_sentinel(*assets.images.sentinel);
 }
 
 load_asset_directory :: () -> *AssetDirectory {
