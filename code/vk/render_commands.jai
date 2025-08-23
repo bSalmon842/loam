@@ -21,17 +21,17 @@ add_ui_render_command :: (elem : *UI_Element) {
 
 add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
 		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
-    add_render_command_work(pipelineType, camera, renderable, transform, useTintOverride, tintOverride);
-}
+    pipeline := *vk.pipelines[pipelineType];
+    render := New(RenderCommand);
+    array_add(*pipeline.renderCommands, render);
 
-add_render_command_on_thread :: (pipeline : *RenderingPipelineInfo, renderCommand : *RenderCommand, camera : *Camera, renderable : *Renderable, transform : Transform,
-				 useTintOverride : bool, tintOverride : Vector4) {
     // Save and reset the camera projection for after the command is made and use the pipeline's projection mode
     currentCameraProjection := camera.isOrthographic;
     camera.isOrthographic = pipeline.orthographic;
-    
-    renderCommand.pushConstants = .{ get_transform_matrix(transform, renderable.dimensions) * get_view_matrix(camera) * get_projection_matrix(camera),
-				     ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, renderCommand.buffers.vertexBufferAddress };
+
+    render.buffers = renderable.buffers;
+    render.pushConstants = .{ get_transform_matrix(transform, renderable.dimensions) * get_view_matrix(camera) * get_projection_matrix(camera),
+				     ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, render.buffers.vertexBufferAddress };
     
     camera.isOrthographic = currentCameraProjection;
 }
