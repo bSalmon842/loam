@@ -52,7 +52,12 @@ Vk :: struct {
     queueFamilyIndices : QueueFamilyIndices;
     queueCountsPerFamily : QueueFamilyIndices;
 
-    descriptorAllocator : DynamicDescriptorPoolAllocator;
+    //descriptorAllocator : DynamicDescriptorPoolAllocator;
+
+    bindlessDescriptorPool   : VkDescriptorPool;
+    bindlessDescriptorSet    : VkDescriptorSet;
+    bindlessDescriptorLayout : VkDescriptorSetLayout;
+    bindlessTextureUpdates   : [..] *ImageResource;
     
     // Update Commands
     updateCmdPool  : VkCommandPool;
@@ -110,7 +115,7 @@ AllocatedBufferInfo :: struct {
 AllPushConstants :: struct {
     renderMatrix : Matrix4;
     colourTint   : Vector4;
-    
+    textureID    : u32;
     vertexBuffer : VkDeviceAddress;
 }
 
@@ -136,6 +141,8 @@ init_vk :: (window : Window_Type) {
     cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
     fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
     semaphoreCreateInfo := VkSemaphoreCreateInfo.{};
+
+    /*
     frameRatios := PoolSizeRatio.[
 	.{ .STORAGE_IMAGE, 3 },
 	.{ .STORAGE_BUFFER, 3 },
@@ -144,7 +151,8 @@ init_vk :: (window : Window_Type) {
     ];
     
     dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
-    
+    */
+
     for * vk.frames {
 	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
 
@@ -158,26 +166,11 @@ init_vk :: (window : Window_Type) {
 
     // Update Commands
     check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.updateCmdPool), "Failed to create Command Pool for Update Commands");
-    
-    // Descriptors
-    for enum_values_as_enum(PipelineType) {
-	pipeline := *vk.pipelines[it];
-	
-	{
-	    bindings : DescriptorSetBindings;
-	    add_binding(*bindings, 0, .COMBINED_IMAGE_SAMPLER);
-	    pipeline.descriptorLayout = create_descriptor_set_layout(*bindings, vk.device, .FRAGMENT_BIT);
-	}
-	
-	if #complete it == {
-	    case .Mesh;
-	    case .Sprite;
-	    case .UI_Sprite;
-	    case .UI_Text;
-	}
-    }
-    
-    init_pipelines();
+
+    // Samplers
+    props : VkPhysicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(vk.physicalDevice, *props);
+    maxSamplerAnisotropy := props.limits.maxSamplerAnisotropy;
 
     samplerCreateInfo : VkSamplerCreateInfo;
 
@@ -187,8 +180,19 @@ init_vk :: (window : Window_Type) {
 
     samplerCreateInfo.minFilter = .LINEAR;
     samplerCreateInfo.magFilter = .LINEAR;
+    samplerCreateInfo.mipmapMode = .LINEAR;
+    samplerCreateInfo.anisotropyEnable = VK_TRUE;
+    samplerCreateInfo.maxAnisotropy = maxSamplerAnisotropy;
     vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
 
+    // Bindless Descriptors
+    vk.bindlessDescriptorPool = create_bindless_descriptor_pool();
+    vk.bindlessDescriptorSet  = create_bindless_descriptor_set();
+    
+    // Pipelines
+    init_pipelines();
+
+    // Default Engine values
     vk.defaultPlaneIndexBuffer = create_vk_buffer(cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
 
     // Write error checkerboard texture
@@ -300,11 +304,13 @@ get_vk_physical_device :: () -> VkResult {
     array_add(*vk.deviceExtensions, VK_KHR_SWAPCHAIN_EXTENSION_NAME.data);
 
     vk.reqFeatures_1_0.shaderInt64 = 1;
+    vk.reqFeatures_1_0.samplerAnisotropy = 1;
     vk.reqFeatures_1_2.bufferDeviceAddress = 1;
     vk.reqFeatures_1_2.descriptorIndexing = 1;
     vk.reqFeatures_1_2.descriptorBindingPartiallyBound = 1;
     vk.reqFeatures_1_2.descriptorBindingSampledImageUpdateAfterBind = 1;
     vk.reqFeatures_1_2.descriptorBindingVariableDescriptorCount = 1;
+    //vk.reqFeatures_1_2.shaderSampledImageArrayNonUniformIndexing = 1;
     vk.reqFeatures_1_2.runtimeDescriptorArray = 1;
     vk.reqFeatures_1_3.dynamicRendering = 1;
     vk.reqFeatures_1_3.synchronization2 = 1;
@@ -518,8 +524,8 @@ create_vk_swapchain :: () -> VkResult {
     return .SUCCESS;
 }
 
-//#load "bindless_descriptors.jai";
-#load "descriptors.jai";
+#load "bindless_descriptors.jai";
+//#load "descriptors.jai";
 #load "mesh.jai";
 #load "pipelines.jai";
 #load "render.jai";

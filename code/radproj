@@ -1,5 +1,9 @@
 // raddbg 0.9.20 project file
 
+recent_file: path: "assets.jai"
+recent_file: path: "vk/render_commands.jai"
+recent_file: path: "ui.jai"
+recent_file: path: "text.jai"
 recent_file: path: "thread.jai"
 recent_file: path: "../../jai/modules/flat_pool.jai"
 recent_file: path: "../../jai/modules/runtime_support.jai"
@@ -8,7 +12,6 @@ recent_file: path: "../../jai/modules/basic/array.jai"
 recent_file: path: "../../jai/modules/default_allocator/module.jai"
 recent_file: path: "../../jai/modules/basic/module.jai"
 recent_file: path: "vk/update_commands.jai"
-recent_file: path: "text.jai"
 recent_file: path: "metrics.jai"
 recent_file: path: "../../../j/msdk/build/Vulkan-ValidationLayers/repo/layers/core_checks/cc_image_layout.cpp"
 recent_file: path: "vk/mesh.jai"
@@ -17,12 +20,10 @@ recent_file: path: "vk/util.jai"
 recent_file: path: "vk/render.jai"
 recent_file: path: "../../../j/msdk/build/Vulkan-ValidationLayers/repo/layers/vulkan/generated/layer_chassis_dispatch.cpp"
 recent_file: path: "engine.jai"
-recent_file: path: "assets.jai"
 recent_file: path: "../../bs_modules/logger/module.jai"
 recent_file: path: "../../jai/modules/unicode.jai"
 recent_file: path: "../../jai/modules/basic/print.jai"
 recent_file: path: "D:/a/_work/1/s/src/vctools/crt/vcstartup/src/misc/amd64/chkstk.asm"
-recent_file: path: "vk/render_commands.jai"
 target:
 {
   executable: "../build/windows/debug/debug_loam.exe"
@@ -31,11 +32,6 @@ target:
 }
 breakpoint:
 {
-  source_location: "thread.jai:74:1"
-  hit_count: 1
-}
-breakpoint:
-{
-  source_location: "thread.jai:62:1"
+  source_location: "assets.jai:103:1"
   hit_count: 1
 }

@@ -6,9 +6,10 @@ Created: 04JUN2025
 */
 
 #extension GL_EXT_buffer_reference : require
+#extension GL_GOOGLE_include_directive : require
 //#extension GL_EXT_debug_printf : enable
 
-layout (set = 0, binding = 0) uniform sampler2D colourTexture;
+#include "bindless.glsl"
 
 struct VertexInfo {
   vec3 position;
@@ -24,5 +25,6 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
 struct CommonPushConstants {
   mat4 renderMatrix;
   vec4 colour;
+  uint textureID;
   VertexBuffer vertexBuffer;
 };

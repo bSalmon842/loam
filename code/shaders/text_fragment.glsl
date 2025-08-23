@@ -12,11 +12,12 @@ Created: 23JUN2025
 
 layout (location = 0) in vec4 inColour;
 layout (location = 1) in vec2 inUV;
+layout (location = 2) flat in uint inTextureID;
 
 layout (location = 0) out vec4 fragColour;
 
-void main() {   
-  vec4 texColour = vec4(inColour.rgb, inColour.a * texture(colourTexture, inUV).r);
+void main() {
+  vec4 texColour = vec4(inColour.rgb, inColour.a * sampleTexture(inTextureID, inUV).r);
   if (texColour.a < 0.05) { discard; }
   fragColour = texColour;
 }

@@ -21,16 +21,20 @@ Text :: struct {
     tint : Vector4;
 }
 
-get_string_dimensions :: (str : string, atlas : *FontAtlas) -> Vector2 {
+get_string_dimensions :: (str : string, text : *Text) -> Vector2 {
     dimensions := Vector2.{};
     for iterate(str) {
 	char := it;
-	found, glyph := table_find_new(atlas.glyphs, char);
-	if found {
-	    dimensions.x += glyph.advance;
+	if char == #char " " {
+	    dimensions.x += text.font.spaceWidth;
+	} else {
+	    found, glyph := table_find_new(text.font.glyphs, char);
+	    if found {
+		dimensions.x += glyph.advance;
+	    }
 	}
     }
-    dimensions.y = atlas.ascender - atlas.descender;
+    dimensions.y = text.font.ascender - text.font.descender;
     return dimensions;
 }
 
@@ -80,15 +84,15 @@ update_text :: (text : *Text, str : string) {
     }
     array_reset(*text.glyphs);
     
-    text.dimensions.xy = get_string_dimensions(str, text.font) * text.transform.scale.xy;
+    text.dimensions.xy = get_string_dimensions(str, text);
     cursorX := text.transform.position.x;
     cursorY := text.transform.position.y;
-
+    
     if text.transform.alignment & .Center then cursorX -= text.dimensions.x * 0.5;
     if text.transform.alignment & .Right  then cursorX -= text.dimensions.x;
     if text.transform.alignment & .Top    then cursorY -= text.dimensions.y * 0.5;
     if text.transform.alignment & .Bottom then cursorY += text.dimensions.y * 0.5;
-
+    
     for iterate(text.str) {
 	char := it;
 	if char == #char " " {

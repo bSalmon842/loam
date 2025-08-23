@@ -147,7 +147,7 @@ loam_finish_update :: () {
 }
 
 loam_start_render :: () {
-    dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
+    //dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
     
     cleanup_single_frame_images();
     cleanup_single_frame_buffers();
@@ -163,6 +163,8 @@ loam_start_render :: () {
 loam_finish_render :: () {
     wait_for_work_to_finish_on_thread(loam.renderingThread);
     TIMING_MARKER("Render Wait");
+    update_bindless_descriptor_textures();
+    TIMING_MARKER("Update Bindless Descriptor");
     draw_frame();
     TIMING_MARKER("Render Draw");
 }
