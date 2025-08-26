@@ -40,9 +40,6 @@ LoamState :: struct {
     vk : *Vk;
     
     threadCount : s32;
-    updateThread    : *Thread;
-    
-    mutexes : [#run enum_highest_value(MutexUsage) + 1] *Mutex;
     
     sceneCamera : *Camera;
     uiCamera : *Camera;
@@ -97,12 +94,6 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     loam.threadCount = get_number_of_threads_for_device();
     log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
-    loam.updateThread    = create_thread("Loam_Update", update_thread_proc);
-    
-    for * loam.mutexes {
-	it.* = New(Mutex);
-	init(it.*, enum_names(MutexUsage)[it_index], cast(s32) (it_index + 1));
-    }
     
     loam.vk = New(Vk);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.vk);
@@ -125,37 +116,30 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 }
 
 loam_start_update :: () {
-    if vk.updateCommands.count > 0 then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
+    // TODO: We probably don't need to do this once we have section guards
+    for vk.updateCommands {
+	if it then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
+    }
 }
 
 loam_finish_update :: () {
-    wait_for_work_to_finish_on_thread(loam.updateThread);
     process_update_commands();
 
-    for vk.updateCommands {
-	vkFreeCommandBuffers(vk.device, vk.updateCmdPool, 1, *it.cmdBuffer);
-	for it.bufferCleanup.array {
-	    destroy_vk_buffer(it);
+    for * vk.updateCommands {
+	if it.* {
+	    vkFreeCommandBuffers(vk.device, vk.updateCmdPool, 1, *it.*.cmdBuffer);
+	    cleanup_buffers(it.*.bufferCleanup);
+	    free(it.*.data);
+	    free(it.*);
+	    it.* = null;
 	}
-	free(it.bufferCleanup.memory);
-	free(it.bufferCleanup);
-	free(it);
     }
-    array_reset(*vk.updateCommands);
 }
 
 loam_start_render :: () {
     //dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
-    
     cleanup_single_frame_images();
     cleanup_single_frame_buffers();
-
-    for * vk.pipelines {
-	for it.renderCommands {
-	    free(it);
-	}
-	array_reset(*it.renderCommands);
-    }
 }
 
 loam_finish_render :: () {
@@ -163,6 +147,15 @@ loam_finish_render :: () {
     TIMING_MARKER("Update Bindless Descriptor");
     draw_frame();
     TIMING_MARKER("Render Draw");
+
+    for * vk.pipelines {
+	for * it.renderCommands {
+	    if it.* {
+		free(it.*);
+		it.* = null;
+	    }
+	}
+    }
 }
 
 render_debug_ui :: () {

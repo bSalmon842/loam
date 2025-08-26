@@ -343,7 +343,7 @@ create_vk_image_from_data :: (data : *void, extent : VkExtent2D, format : VkForm
     imageCopyData.* = .{ uploadBuffer, image, extent };
     
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command_work(imm_copy_into_image, imageCopyData, buffersToCleanup);
+    add_update_command(imm_copy_into_image, imageCopyData, buffersToCleanup);
     
     return image;
 }
@@ -399,7 +399,7 @@ create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
     imageCopyData.* = .{ uploadBuffer, image, ktx };
     
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command_work(imm_copy_into_image, imageCopyData, buffersToCleanup);
+    add_update_command(imm_copy_into_image, imageCopyData, buffersToCleanup);
     
     return image;
 }

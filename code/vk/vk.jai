@@ -8,6 +8,7 @@ Created: 11JUN2025
 FRAMES_IN_FLIGHT :: 2;
 ERROR_TEXTURE_NAME :: "error_texture";
 
+MAX_UPDATE_COMMANDS :: U16_MAX;
 Vk :: struct {
     // Requested options
     instanceExtensions : [..] *u8;
@@ -61,7 +62,7 @@ Vk :: struct {
     
     // Update Commands
     updateCmdPool  : VkCommandPool;
-    updateCommands : [..] *UpdateCommand;
+    updateCommands : [MAX_UPDATE_COMMANDS] *UpdateCommand;
     ///////////////////
 
     // Pipelines

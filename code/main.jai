@@ -125,19 +125,7 @@ main :: () {
 	register_keycode_input(#char "S", .{}, move_sprite_down,  sprite);
     }
 
-    wait_for_work_to_finish_on_thread(loam.updateThread);
-    process_update_commands();
-
-    for vk.updateCommands {
-	vkFreeCommandBuffers(vk.device, vk.updateCmdPool, 1, *it.cmdBuffer);
-	for it.bufferCleanup.array {
-	    destroy_vk_buffer(it);
-	}
-	free(it.bufferCleanup.memory);
-	free(it.bufferCleanup);
-	free(it);
-    }
-    array_reset(*vk.updateCommands);
+    loam_finish_update();
     
     while loam.running {
 	TIMING_FRAME_START();
@@ -181,13 +169,15 @@ main :: () {
 
 	TIMING_MARKER("Update Start");
 	
-	#if IS_DEV {
-	    update_debug_metrics(*metrics);
-	    update_debug_ui_regions();
+        #if IS_DEV {
+	    if metrics.updateMetrics {
+		update_debug_ui_text(*metrics);
+		update_debug_ui_regions();
+	    }
 	}
-
+	
 	update_pointer_status(window, *loam.mainPointer);
-
+	
 	for loam.uiElements {
 	    update_ui_element(loam.mainPointer, it);
 	}
@@ -199,11 +189,11 @@ main :: () {
 	}
 
 	TIMING_MARKER("Update Recording");
-	
+
 	loam_finish_update();
 	
 	TIMING_MARKER("Update Finish");
-
+	
 	loam_start_render();
 	
 	TIMING_MARKER("Render Start");
@@ -215,6 +205,7 @@ main :: () {
 	}
 	
 	add_render_command(.Sprite, loam.sceneCamera, *sprite.renderable, sprite.transform);
+	
 	for testSprites {
 	    add_render_command(.Sprite, loam.sceneCamera, *it.renderable, it.transform);
 	}
@@ -226,12 +217,14 @@ main :: () {
 	}
 
 	TIMING_MARKER("Render Record (UI)");
-
-	//TIMING_MARKER("Render Record");
-
+	
+	#if IS_DEV {
+	    update_debug_metrics(*metrics);
+	}
+	
 	loam_finish_render();
-
-	//TIMING_MARKER("Render Finish");
+	
+	TIMING_MARKER("Render Finish");
 	
 	/*
 	if vk.vsync {
@@ -251,7 +244,7 @@ main :: () {
 	TIMING_FRAME_END(false);
 	
         reset_temporary_storage();
-
+	
 	/*
         #if IS_DEBUG {
             #if OS != .ANDROID {

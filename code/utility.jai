@@ -38,6 +38,11 @@ to_size_string :: (value : u64) -> string {
     }
 }
 
+abs_to_u64 :: (value : s64) -> u64 {
+    if value >= 0 then return cast(u64) value;
+    else return cast(u64) (value * -1);
+}
+
 round_to :: (value : $T, $type : Type) -> s64 {
     return cast(type) (value + 0.5);
 }

@@ -72,5 +72,5 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshB
 	buffersToCleanup = pack_buffers_for_cleanup(stagingBuffer, buffers.indexBuffer);
     }
 
-    add_update_command_work(gpu_mesh_copy, meshData, buffersToCleanup);
+    add_update_command(gpu_mesh_copy, meshData, buffersToCleanup);
 }

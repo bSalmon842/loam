@@ -138,12 +138,13 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineInfo, 
     }
 }
 
+MAX_RENDER_COMMANDS :: 1024;
 RenderingPipelineInfo :: struct {
     layout           : VkPipelineLayout;
     pipeline         : VkPipeline;
     orthographic     : bool;
 
-    renderCommands : [..] *RenderCommand;
+    renderCommands : [MAX_RENDER_COMMANDS] *RenderCommand;
 }
 
 draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
@@ -163,7 +164,9 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
 
     vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, pipeline.layout, 0, 1, *vk.bindlessDescriptorSet, 0, null);
     for pipeline.renderCommands {
-	render_command(cmdBuffer, it, pipeline.layout);
+	if it {
+	    render_command(cmdBuffer, it, pipeline.layout);
+	}
     }
     
     vkCmdEndRendering(cmdBuffer);

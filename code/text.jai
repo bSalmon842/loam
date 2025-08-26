@@ -10,11 +10,12 @@ RenderGlyph :: struct {
     using renderable : Renderable;
 }
 
+MAX_TEXT_LENGTH :: 256;
 Text :: struct {
     str : string;
     font : *FontAtlas;
     
-    glyphs : [..] RenderGlyph;
+    glyphs : [..] *RenderGlyph;
 
     using transform : Transform;
     dimensions : Vector3;
@@ -72,15 +73,18 @@ update_text :: (text : *Text, str : string) {
     // TODO: Handle rotation correctly
     
     text.str = str;
-    for text.glyphs {
-	if it.vertexMemory {
-	    free(it.vertexMemory);
+    for * text.glyphs {
+	if it.*.vertexMemory {
+	    free(it.*.vertexMemory);
 	}
 
-	if it.buffers {
-	    destroy_vk_buffer(it.buffers.vertexBuffer);
-	    free(it.buffers);
+	if it.*.buffers {
+	    if it.*.buffers.vertexBuffer then destroy_vk_buffer(it.*.buffers.vertexBuffer);
+	    free(it.*.buffers);
 	}
+
+	free(it.*);
+	it.* = null;
     }
     array_reset(*text.glyphs);
     
@@ -106,7 +110,7 @@ update_text :: (text : *Text, str : string) {
 	    continue;
 	}
 	
-	glyph : RenderGlyph;
+	glyph := New(RenderGlyph);
 	glyph.transform  = make_transform( position = .{ cursorX, cursorY, text.transform.position.z }, scale = text.transform.scale);
 	glyph.tint = text.tint;
 	glyph.texture = text.font.image;
@@ -118,7 +122,9 @@ update_text :: (text : *Text, str : string) {
 	array_add(*text.glyphs, glyph);
 
 	cursorX += cast(float) fontGlyph.advance * text.transform.scale.x;
+
     }
+
 }
 
 // NOTE: Better UTF8 looping by Lunatoid from the jai discord

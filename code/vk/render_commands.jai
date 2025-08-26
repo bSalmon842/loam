@@ -6,7 +6,7 @@ Created: 23JUN2025
 */
 
 RenderCommand :: struct {
-    buffers : MeshBuffers;
+    buffers : *MeshBuffers;
     pushConstants : AllPushConstants;
 }
 
@@ -21,17 +21,32 @@ add_ui_render_command :: (elem : *UI_Element) {
 
 add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
 		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
+    if !renderable.buffers.vertexBuffer then return;
+    
     pipeline := *vk.pipelines[pipelineType];
+    
     render := New(RenderCommand);
-    array_add(*pipeline.renderCommands, render);
-
+    found := false;
+    for * pipeline.renderCommands {
+	if !it.* {
+	    it.* = render;
+	    found = true;
+	    break;
+	}
+    }
+    if !found {
+	log(.ERROR, "Render Command array is full");
+	free(render);
+	return;
+    }
+    
     // Save and reset the camera projection for after the command is made and use the pipeline's projection mode
     currentCameraProjection := camera.isOrthographic;
     camera.isOrthographic = pipeline.orthographic;
-
+    
     render.buffers = renderable.buffers;
     render.pushConstants = .{ get_transform_matrix(transform, renderable.dimensions) * get_view_matrix(camera) * get_projection_matrix(camera),
-				     ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, render.buffers.vertexBufferAddress };
+			      ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, render.buffers.vertexBufferAddress };
     
     camera.isOrthographic = currentCameraProjection;
 }

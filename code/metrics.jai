@@ -5,9 +5,12 @@ Author: Brock Salmon
 Created: 22JUN2025
 */
 
+ACTIVATE_TIMING :: false;
+
 METRIC_UPDATE_RATE :: 0.1;
 DebugMetrics :: struct {
     timeSinceLastMetricUpdate : float64;
+    updateMetrics : bool;
     
     framesPerSecond : u32;
     msPerFrame : float64;
@@ -23,6 +26,7 @@ drawCallText      : *UI_Element;
 imageResourceText : *UI_Element;
 
 update_debug_metrics :: (metrics : *DebugMetrics) {
+    metrics.updateMetrics = false;
     metrics.timeSinceLastMetricUpdate += loam.deltaTime;
     if metrics.timeSinceLastMetricUpdate >= METRIC_UPDATE_RATE {
 	metrics.framesPerSecond = cast(u32) (1.0 / loam.deltaTime + 0.5);
@@ -31,8 +35,12 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 
 	metrics.totalDrawCalls = 0;
 	metrics.nonDebugDrawCalls = 0;
-	for vk.pipelines {
-	    metrics.totalDrawCalls += cast(u32) it.renderCommands.count;
+	for pipeline : vk.pipelines {
+	    for render : pipeline.renderCommands {
+		if render {
+		    metrics.totalDrawCalls += 1;
+		}
+	    }
 	}
 
 	metrics.nonDebugDrawCalls = metrics.totalDrawCalls;
@@ -45,14 +53,15 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 	}
 
 	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
-
-	TIMING_MARKER("Pre Metric Text Update");
-	
-	update_text(frameTimeText.text,     tprint("        Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
-	update_text(ramUsageText.text,      tprint("         RAM Usage: %",           to_size_string(metrics.ramUsage)));
-	update_text(drawCallText.text,      tprint("        Draw Calls: % (D: %)",    metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
-	update_text(imageResourceText.text, tprint("Resources (Image): %",           loam.assets.images.count));
+	metrics.updateMetrics = true;
     }
+}
+
+update_debug_ui_text :: (metrics : *DebugMetrics) {
+    update_text(frameTimeText.text,     tprint("        Frame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+    update_text(ramUsageText.text,      tprint("         RAM Usage: %",           to_size_string(metrics.ramUsage)));
+    update_text(drawCallText.text,      tprint("        Draw Calls: % (D: %)",    metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
+    update_text(imageResourceText.text, tprint("Resources (Image): %",           loam.assets.images.count));
 }
 
 update_debug_ui_regions :: () {
@@ -82,34 +91,41 @@ TimingData :: struct {
 }
 __timingData : TimingData;
 
-TIMING_SCOPE :: (name := "") #expand {
-    scopeName := name;
-    if name.count == 0 {
-	scopeName = context.stack_trace.info.name;
+#if ACTIVATE_TIMING {
+    TIMING_SCOPE :: (name := "") #expand {
+	scopeName := name;
+	if name.count == 0 {
+	    scopeName = context.stack_trace.info.name;
+	}
+	__loam_scope_time_start := seconds_since_init();
+	`defer array_add(*__timingData.scopes, .{ __loam_scope_time_start, seconds_since_init(), scopeName });
     }
-    __loam_scope_time_start := seconds_since_init();
-    `defer array_add(*__timingData.scopes, .{ __loam_scope_time_start, seconds_since_init(), scopeName });
-}
 
-TIMING_FRAME_START :: () #expand {
-    __timingData.start = seconds_since_init();
-}
-
-TIMING_MARKER :: (name : string) #expand {
-    timeAtPoint := seconds_since_init();
-    cumulativeMarkerTime : float64;
-    for __timingData.markers {
-	cumulativeMarkerTime += it.timeForSection;
+    TIMING_FRAME_START :: () #expand {
+	__timingData.start = seconds_since_init();
     }
-    timeForSection := timeAtPoint - (cumulativeMarkerTime + __timingData.start);
-    array_add(*__timingData.markers, .{ timeAtPoint, timeForSection, name });
-}
 
-TIMING_FRAME_END :: (print : bool) #expand {
-    if print then TIMING_PRINT_DATA();
-    array_reset(*__timingData.markers);
-    array_reset(*__timingData.scopes);
-    __timingData.start = 0;
+    TIMING_MARKER :: (name : string) #expand {
+	timeAtPoint := seconds_since_init();
+	cumulativeMarkerTime : float64;
+	for __timingData.markers {
+	    cumulativeMarkerTime += it.timeForSection;
+	}
+	timeForSection := timeAtPoint - (cumulativeMarkerTime + __timingData.start);
+	array_add(*__timingData.markers, .{ timeAtPoint, timeForSection, name });
+    }
+
+    TIMING_FRAME_END :: (print : bool) #expand {
+	if print then TIMING_PRINT_DATA();
+	array_reset(*__timingData.markers);
+	array_reset(*__timingData.scopes);
+	__timingData.start = 0;
+    }
+} else {
+    TIMING_SCOPE :: (name := "") #expand {}
+    TIMING_FRAME_START :: () #expand {}
+    TIMING_MARKER :: (name : string) #expand {}
+    TIMING_FRAME_END :: (print : bool) #expand {}
 }
 
 TIMING_PRINT_DATA :: () #expand {
@@ -132,4 +148,18 @@ TIMING_PRINT_DATA :: () #expand {
     print("\n=================================================\n");
 }
 
+// RAM Tracking (must be in same scope currently
+__totalRAMDiff := 0;
+RAM_CHECK_START :: () #expand {
+    `__frameRAMStart := cast(s64) get_ram_usage();
+}
+
+RAM_CHECK_END :: () #expand {
+    ramDiff := cast(s64) get_ram_usage() - `__frameRAMStart;
+    if ramDiff != 0 {
+	__totalRAMDiff += ramDiff;
+	print(ifx ramDiff > 0 then "Frame: +%\n" else "Frame: -%\n", to_size_string(abs_to_u64(ramDiff)));
+	print(ifx totalRAMDiff > 0 then "\tTotal: +%\n" else "\tTotal: -%\n", to_size_string(abs_to_u64(__totalRAMDiff)));
+    }
+}
 
