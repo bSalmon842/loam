@@ -23,6 +23,8 @@ get_current_frame :: () -> *FrameCommandInfo {
 }
 
 draw_frame :: () {
+    assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
+    
     check_vk(vkWaitForFences(vk.device, 1, *vk.currentFrame.renderFence, VK_TRUE, FENCE_WAIT_TIME), "(draw_frame) vkWaitForFences failed");
     check_vk(vkResetFences(vk.device, 1, *vk.currentFrame.renderFence), "vkResetFences failed");
     

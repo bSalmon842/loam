@@ -28,7 +28,7 @@ main :: () {
     init_loam(window, xx START_WIDTH, xx START_HEIGHT);
 
     refreshRate = get_refresh_rate(window);
-    
+
     loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
 

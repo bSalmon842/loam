@@ -21,6 +21,7 @@ add_ui_render_command :: (elem : *UI_Element) {
 
 add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
 		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
+    assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
     if !renderable.buffers.vertexBuffer then return;
     
     pipeline := *vk.pipelines[pipelineType];

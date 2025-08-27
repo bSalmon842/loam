@@ -54,6 +54,9 @@ LoamState :: struct {
     }
     uiElements : [..] *UI_Element;
     
+    updateActive : bool;
+    renderActive : bool;
+    
     windowWidth  : s64;
     windowHeight : s64;
     deltaTime    : float64;
@@ -75,6 +78,9 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     context.loam = _loam;
     loam = context.loam;
+    
+    // NOTE: Set update to true so we can setup everything for initialisation
+    loam.updateActive = true;
     
     loam.assets = New(AssetState);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.assets);
@@ -120,6 +126,8 @@ loam_start_update :: () {
     for vk.updateCommands {
 	if it then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
     }
+
+    loam.updateActive = true;
 }
 
 loam_finish_update :: () {
@@ -134,12 +142,16 @@ loam_finish_update :: () {
 	    it.* = null;
 	}
     }
+
+    loam.updateActive = false;
 }
 
 loam_start_render :: () {
     //dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
     cleanup_single_frame_images();
     cleanup_single_frame_buffers();
+
+    loam.renderActive = true;
 }
 
 loam_finish_render :: () {
@@ -156,6 +168,8 @@ loam_finish_render :: () {
 	    }
 	}
     }
+
+    loam.renderActive = false;
 }
 
 render_debug_ui :: () {

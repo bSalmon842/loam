@@ -36,6 +36,7 @@ UpdateCommand :: struct {
 // Add a Vulkan immediate command to be run during the update phase which are then queued once
 UpdateCommandFunc :: #type (VkCommandBuffer, *void);
 add_update_command :: (func : UpdateCommandFunc, data : *void, buffersToCleanup : *BuffersToCleanup) {
+    assert(loam.updateActive, "Not within the update section, be sure to call loam_start_update before adding and loam_finish_update after processing updates");
     update := New(UpdateCommand);
     found := false;
     for * vk.updateCommands {
@@ -66,6 +67,8 @@ add_update_command :: (func : UpdateCommandFunc, data : *void, buffersToCleanup 
 }
 
 process_update_commands :: () {
+    assert(loam.updateActive, "Not within the update section, be sure to call loam_start_update before adding and loam_finish_update after processing updates");
+    
     fenceCreateInfo : VkFenceCreateInfo;
     fence : VkFence;
     check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *fence), "Failed to create Fence for Update Commands");
