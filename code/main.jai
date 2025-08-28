@@ -36,42 +36,11 @@ main :: () {
 	metrics : DebugMetrics;
         #if OS == .ANDROID {
 	    fontSize : u32 = 64;
-	    build_font_atlas("internal", 64, .English, true);
-	    frameTimePosition     := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
-	    ramUsagePosition      := Vector3.{ 10, loam.windowHeight - 40.0, 0 };
-	    drawCallPosition      := Vector3.{ 10, loam.windowHeight - 70.0, 0 };
-	    imageResourcePosition := Vector3.{ 10, loam.windowHeight - 100.0, 0 };
-	    
+	    build_font_atlas("internal", fontSize, .English, true);	    
 	} else {
 	    fontSize : u32 = 32;
-	    build_font_atlas("internal", 32, .English, true);
-    	    frameTimePosition     := Vector3.{ 10, loam.windowHeight - 10.0, 0 };
-	    ramUsagePosition      := Vector3.{ 10, loam.windowHeight - 30.0, 0 };
-	    drawCallPosition      := Vector3.{ 10, loam.windowHeight - 50.0, 0 };
-	    imageResourcePosition := Vector3.{ 10, loam.windowHeight - 70.0, 0 };
+	    build_font_atlas("internal", fontSize, .English, true);
 	}
-
-	{
-	    text := make_text("", "internal", fontSize, make_transform( frameTimePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    frameTimeText = make_ui_element(text, true, .{ 0, 0.5, 1, 1 });
-	}
-	{
-	    text := make_text("", "internal", fontSize, make_transform( ramUsagePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    ramUsageText = make_ui_element(text, true, .{ 1, 0, 1, 1 });
-	}
-	{
-	    text := make_text("", "internal", fontSize, make_transform( drawCallPosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    drawCallText = make_ui_element(text, false);
-	}
-	{
-	    text := make_text("", "internal", fontSize, make_transform( imageResourcePosition, scale = make_vector3(0.5), alignment = .Left | .Top ));
-	    imageResourceText = make_ui_element(text, false);
-	}
-	
-	array_add(*loam.debugUIElements, frameTimeText);
-	array_add(*loam.debugUIElements, ramUsageText);
-	array_add(*loam.debugUIElements, drawCallText);
-	array_add(*loam.debugUIElements, imageResourceText);
     }
 
     sprite := make_sprite("test_sprite", make_transform(.{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5, 0 }));
@@ -169,13 +138,6 @@ main :: () {
 
 	TIMING_MARKER("Update Start");
 	
-        #if IS_DEV {
-	    if metrics.updateMetrics {
-		update_debug_ui_text(*metrics);
-		update_debug_ui_regions();
-	    }
-	}
-	
 	update_pointer_status(window, *loam.mainPointer);
 	
 	for loam.uiElements {
@@ -193,6 +155,11 @@ main :: () {
 	loam_finish_update();
 	
 	TIMING_MARKER("Update Finish");
+
+        #if IS_DEV && OS == .WINDOWS {
+	    frame_imgui(*metrics);
+	    TIMING_MARKER("Handle ImGui");
+	}
 	
 	loam_start_render();
 	

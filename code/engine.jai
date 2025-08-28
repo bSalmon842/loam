@@ -104,6 +104,10 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.vk = New(Vk);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.vk);
     init_vk(window);
+
+    #if IS_DEV && OS == .WINDOWS {
+	init_imgui(window);
+    }
     
     loam.fonts = New(Table(string, *FontAtlas));
     init(loam.fonts);
@@ -181,6 +185,7 @@ render_debug_ui :: () {
 #load "assets.jai";
 #load "camera.jai";
 #load "font.jai";
+#if IS_DEV then #load "imgui.jai";
 #load "input.jai";
 #load "math.jai";
 #load "metrics.jai";
@@ -229,3 +234,5 @@ Simp :: #import "Simp";
 #import "Logger" (IS_DEV);
 #import "VMA";
 #import "Vulkan_1_3";
+#if IS_DEV && OS == .WINDOWS then ImGui :: #import "ImGui_1_9";
+

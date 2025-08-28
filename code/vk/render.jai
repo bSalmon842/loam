@@ -65,7 +65,13 @@ draw_frame :: () {
 
     copy_image(cmdBuffer, vk.drawImage.image, drawExtent, currentSwapchainImage, vk.swapchainExtent);
 
-    transition_image(cmdBuffer, currentSwapchainImage, .TRANSFER_DST_OPTIMAL, .PRESENT_SRC_KHR);
+    #if IS_DEV && OS == .WINDOWS {
+	transition_image(cmdBuffer, currentSwapchainImage, .TRANSFER_DST_OPTIMAL, .COLOR_ATTACHMENT_OPTIMAL);
+	draw_imgui(cmdBuffer, vk.swapchainImageViews[swapchainImageIndex]);
+	transition_image(cmdBuffer, currentSwapchainImage, .COLOR_ATTACHMENT_OPTIMAL, .PRESENT_SRC_KHR);
+    } else {
+	transition_image(cmdBuffer, currentSwapchainImage, .TRANSFER_DST_OPTIMAL, .PRESENT_SRC_KHR);
+    }
     
     check_vk(vkEndCommandBuffer(cmdBuffer), tprint("Failed to end Command Buffer for frame %", vk.currentFrame));
 

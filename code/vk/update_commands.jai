@@ -20,6 +20,7 @@ pack_buffers_for_cleanup :: (buffers : .. *AllocatedBufferInfo) -> *BuffersToCle
 }
 
 cleanup_buffers :: (buffersToCleanup : *BuffersToCleanup) {
+    if !buffersToCleanup then return;
     for buffersToCleanup.array {
 	destroy_vk_buffer(it);
     }
@@ -53,7 +54,7 @@ add_update_command :: (func : UpdateCommandFunc, data : *void, buffersToCleanup 
 	return;
     }
     
-    update.bufferCleanup = buffersToCleanup;
+    if buffersToCleanup then update.bufferCleanup = buffersToCleanup;
     update.data = data;
     cmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, vk.updateCmdPool, .PRIMARY, 1 };
     check_vk(vkAllocateCommandBuffers(vk.device, *cmdBufferAllocInfo, *update.cmdBuffer), "Failed to allocate Command Buffer for Update Command");
