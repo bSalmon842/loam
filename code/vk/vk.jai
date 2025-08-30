@@ -113,13 +113,17 @@ AllocatedBufferInfo :: struct {
     allocationInfo : VmaAllocationInfo;
 }
 
-AllPushConstants :: struct {
+SpritePushConstants :: struct {
+    viewProj : Matrix4;
+    spriteBuffer : VkDeviceAddress;
+}
+
+MeshPushConstants :: struct {
     renderMatrix : Matrix4;
     colourTint   : Vector4;
     textureID    : u32;
     vertexBuffer : VkDeviceAddress;
 }
-
 
 init_vk :: (window : Window_Type) {
     context.vk = loam.vk;

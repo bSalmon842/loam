@@ -5,9 +5,14 @@ Author: Brock Salmon
 Created: 23JUN2025
 */
 
-RenderCommand :: struct {
-    buffers : *MeshBuffers;
-    pushConstants : AllPushConstants;
+MeshRenderCommand :: struct {
+    buffers : *GPUBuffers;
+    pushConstants : MeshPushConstants;
+}
+
+SpriteRenderCommand :: struct {
+    buffers : *GPUBuffers;
+    pushConstants : SpritePushConstants;
 }
 
 add_ui_render_command :: (elem : *UI_Element) {
@@ -22,11 +27,11 @@ add_ui_render_command :: (elem : *UI_Element) {
 add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
 		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
     assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
-    if !renderable.buffers.vertexBuffer then return;
+    if !renderable.buffers.indexBuffer then return;
     
     pipeline := *vk.pipelines[pipelineType];
     
-    render := New(RenderCommand);
+    render := New(MeshRenderCommand);
     found := false;
     for * pipeline.renderCommands {
 	if !it.* {
@@ -47,13 +52,13 @@ add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable
     
     render.buffers = renderable.buffers;
     render.pushConstants = .{ get_transform_matrix(transform, renderable.dimensions) * get_view_matrix(camera) * get_projection_matrix(camera),
-			      ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, render.buffers.vertexBufferAddress };
+			      ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, render.buffers.vertex.bufferAddress };
     
     camera.isOrthographic = currentCameraProjection;
 }
 
-render_command :: (cmdBuffer : VkCommandBuffer, render : *RenderCommand, pipelineLayout : VkPipelineLayout) {
-    vkCmdPushConstants(cmdBuffer, pipelineLayout, .VERTEX_BIT, 0, size_of(AllPushConstants), *render.pushConstants);
+render_command :: (cmdBuffer : VkCommandBuffer, render : *MeshRenderCommand, pipelineLayout : VkPipelineLayout) {
+    vkCmdPushConstants(cmdBuffer, pipelineLayout, .VERTEX_BIT, 0, size_of(MeshPushConstants), *render.pushConstants);
     
     vkCmdBindIndexBuffer(cmdBuffer, render.buffers.indexBuffer.buffer, 0, .UINT32);
     vkCmdDrawIndexed(cmdBuffer, render.buffers.indexCount, 1, 0, 0, 0);

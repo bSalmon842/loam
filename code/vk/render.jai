@@ -15,7 +15,7 @@ Renderable :: struct {
     dimensions : Vector3;
     tint : Vector4 = DEFAULT_TEXTURE_TINT;
 
-    buffers : *MeshBuffers;
+    buffers : *GPUBuffers;
 }
 
 get_current_frame :: () -> *FrameCommandInfo {

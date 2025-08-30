@@ -12,7 +12,7 @@ PipelineType :: enum {
     UI_Text;
 }
 
-GraphicsPipelineInfo :: struct {
+GraphicsPipelineBuildInfo :: struct {
     shaderStages       : [..] VkPipelineShaderStageCreateInfo;
     inputAssembly      : VkPipelineInputAssemblyStateCreateInfo;
     rasteriser         : VkPipelineRasterizationStateCreateInfo;
@@ -24,7 +24,7 @@ GraphicsPipelineInfo :: struct {
     colourAttachFormat : VkFormat;
 }
 
-build_graphics_pipeline :: (using pipelineInfo : *GraphicsPipelineInfo) -> VkPipeline {
+build_graphics_pipeline :: (using pipelineInfo : *GraphicsPipelineBuildInfo) -> VkPipeline {
     // NOTE: We use a dynamic viewport state, so say we have a single viewport and scissor as they will be bound during rendering
     viewportStateCreateInfo := VkPipelineViewportStateCreateInfo.{ viewportCount = 1, scissorCount = 1 };
     colourBlendStateCreateInfo := VkPipelineColorBlendStateCreateInfo.{ logicOp = .COPY, attachmentCount = 1, pAttachments = *blending };
@@ -42,22 +42,22 @@ build_graphics_pipeline :: (using pipelineInfo : *GraphicsPipelineInfo) -> VkPip
     return pipeline;
 }
 
-set_pipeline_shaders :: (using pipelineInfo : *GraphicsPipelineInfo, vertexShader : VkShaderModule, fragmentShader : VkShaderModule) {
+set_pipeline_shaders :: (using pipelineInfo : *GraphicsPipelineBuildInfo, vertexShader : VkShaderModule, fragmentShader : VkShaderModule) {
     array_reset(*shaderStages);
     array_add(*shaderStages, make_shader_stage_info(.VERTEX_BIT, vertexShader));
     array_add(*shaderStages, make_shader_stage_info(.FRAGMENT_BIT, fragmentShader));
 }
 
-set_pipeline_input_topology :: (using pipelineInfo : *GraphicsPipelineInfo, topology : VkPrimitiveTopology) {
+set_pipeline_input_topology :: (using pipelineInfo : *GraphicsPipelineBuildInfo, topology : VkPrimitiveTopology) {
     inputAssembly.topology = topology;
 }
 
-set_pipeline_polygon_mode :: (using pipelineInfo : *GraphicsPipelineInfo, mode : VkPolygonMode) {
+set_pipeline_polygon_mode :: (using pipelineInfo : *GraphicsPipelineBuildInfo, mode : VkPolygonMode) {
     rasteriser.polygonMode = mode;
     rasteriser.lineWidth = 1;
 }
 
-set_pipeline_cull_mode :: (using pipelineInfo : *GraphicsPipelineInfo, cullFlags : VkCullModeFlags, frontFaceDirection : VkFrontFace) {
+set_pipeline_cull_mode :: (using pipelineInfo : *GraphicsPipelineBuildInfo, cullFlags : VkCullModeFlags, frontFaceDirection : VkFrontFace) {
     rasteriser.cullMode = cullFlags;
     rasteriser.frontFace = frontFaceDirection;
 }
@@ -66,7 +66,7 @@ MultisamplingMode :: enum u8 {
     None;
 }
 
-set_pipeline_multisampling_mode :: (using pipelineInfo : *GraphicsPipelineInfo, mode : MultisamplingMode) {
+set_pipeline_multisampling_mode :: (using pipelineInfo : *GraphicsPipelineBuildInfo, mode : MultisamplingMode) {
     if #complete mode == {
 	case .None; {
 	    multisampling.rasterizationSamples = ._1_BIT;
@@ -81,7 +81,7 @@ BlendingMode :: enum u8 {
     Alpha;
 }
 
-set_pipeline_blending_mode :: (using pipelineInfo : *GraphicsPipelineInfo, enabled : bool, mode := BlendingMode.None) {
+set_pipeline_blending_mode :: (using pipelineInfo : *GraphicsPipelineBuildInfo, enabled : bool, mode := BlendingMode.None) {
     blending = .{};
     blending.colorWriteMask = .R_BIT | .G_BIT | .B_BIT | .A_BIT;
 
@@ -118,17 +118,17 @@ set_pipeline_blending_mode :: (using pipelineInfo : *GraphicsPipelineInfo, enabl
     }
 }
 
-set_pipeline_colour_attachment_format :: (using pipelineInfo : *GraphicsPipelineInfo, format : VkFormat) {
+set_pipeline_colour_attachment_format :: (using pipelineInfo : *GraphicsPipelineBuildInfo, format : VkFormat) {
     colourAttachFormat = format;
     renderInfo.colorAttachmentCount = 1;
     renderInfo.pColorAttachmentFormats = *colourAttachFormat;
 }
 
-set_pipeline_depth_format :: (using pipelineInfo : *GraphicsPipelineInfo, format : VkFormat) {
+set_pipeline_depth_format :: (using pipelineInfo : *GraphicsPipelineBuildInfo, format : VkFormat) {
     renderInfo.depthAttachmentFormat = format;
 }
 
-set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineInfo, enabled : bool, writeEnabled : bool, compareOp : VkCompareOp) {
+set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineBuildInfo, enabled : bool, writeEnabled : bool, compareOp : VkCompareOp) {
     depthStencil = .{};
     depthStencil.depthWriteEnable = ifx writeEnable then VK_TRUE;
     depthStencil.maxDepthBounds = 1;
@@ -138,13 +138,19 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineInfo, 
     }
 }
 
+set_pipeline_layout :: (builder : *GraphicsPipelineBuildInfo, bufferSize : u32, pipelineType : PipelineType) {
+    bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, bufferSize };
+    layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.bindlessDescriptorLayout, 1, *bufferRange };
+    check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *builder.layout), tprint("Failed to create pipeline layout for %", pipelineType));
+}
+
 MAX_RENDER_COMMANDS :: 1024;
 RenderingPipelineInfo :: struct {
     layout           : VkPipelineLayout;
     pipeline         : VkPipeline;
     orthographic     : bool;
 
-    renderCommands : [MAX_RENDER_COMMANDS] *RenderCommand;
+    renderCommands : [MAX_RENDER_COMMANDS] *MeshRenderCommand;
 }
 
 draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
@@ -180,13 +186,7 @@ init_pipelines :: () {
     for enum_values_as_enum(PipelineType) {
 	pipeline := *vk.pipelines[it];
 	
-	bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, size_of(AllPushConstants) };
-	layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.bindlessDescriptorLayout, 1, *bufferRange };
-	check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *pipeline.layout), tprint("Failed to create pipeline layout for %", it));
-
-	builder : GraphicsPipelineInfo;
-	builder.layout = pipeline.layout;
-
+	builder : GraphicsPipelineBuildInfo;
 	vertShader : VkShaderModule;
 	fragShader : VkShaderModule;
 	
@@ -205,6 +205,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
 	    }
 	    
 	    case .Sprite; {
@@ -221,6 +222,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
 	    }
 	    
 	    case .UI_Sprite; {
@@ -237,6 +239,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
 	    }
 	    
 	    case .UI_Text; {
@@ -253,9 +256,11 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
 	    }
 	}
 
+	pipeline.layout = builder.layout;
 	pipeline.pipeline = build_graphics_pipeline(*builder);
 
 	vkDestroyShaderModule(vk.device, vertShader, null);

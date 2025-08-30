@@ -10,6 +10,16 @@ Sprite :: struct {
     using renderable : Renderable;
 }
 
+GPUSpriteInfo :: struct {
+    transform  : Matrix4 #align 16;
+    colour     : Vector4 #align 16;
+    uv0        : Vector2 #align 16;
+    uv1        : Vector2 #align 16;
+    dimensions : Vector2 #align 16;
+    textureID  : u32 #align 16;
+    padding    : u32 #align 16;
+}
+
 make_sprite :: (textureName : string, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Sprite {
     sprite := New(Sprite);
     
@@ -18,7 +28,7 @@ make_sprite :: (textureName : string, transform : Transform, colour := DEFAULT_T
     sprite.transform = transform;
 
     sprite.vertices, sprite.vertexMemory = build_sprite_buffers(sprite);
-    sprite.buffers = New(MeshBuffers);
+    sprite.buffers = New(GPUBuffers);
     
     upload_mesh_command(DEFAULT_PLANE_INDICES, sprite.vertices, sprite.buffers);
     

@@ -12,18 +12,25 @@ Vertex :: struct {
     colour   := Vector4.{1,1,1,1} #align 16;
 }
 
-MeshBuffers :: struct {
+GPUBufferInfo :: struct {
+    buffer        : *AllocatedBufferInfo;
+    bufferAddress : VkDeviceAddress;
+}
+
+GPUBuffers :: struct {
     indexBuffer         : *AllocatedBufferInfo;
     indexCount          : u32;
-    vertexBuffer        : *AllocatedBufferInfo;
-    vertexBufferAddress : VkDeviceAddress;
+    union {
+	vertex : GPUBufferInfo;
+	sprite : GPUBufferInfo;
+    }
 }
 
 MeshCopyData :: struct {
     vertexBufferSize : u64;
     indexBufferSize  : u64;
     stagingBuffer    : *AllocatedBufferInfo;
-    buffers          : *MeshBuffers;
+    buffers          : *GPUBuffers;
 }
 
 DEFAULT_PLANE_INDICES :: u32.[0, 1, 2,
@@ -35,16 +42,16 @@ is_default_plane_indices :: (arr : [] u32) -> bool {
     return true;
 }
 
-upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshBuffers) {
+upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *GPUBuffers) {
     indexBufferSize := cast(u64) (indices.count * size_of(u32));
     vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
     
     buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
     buffers.indexCount   = cast(u32) indices.count;
     
-    buffers.vertexBuffer = create_vk_buffer(vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
-    deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertexBuffer.buffer };
-    buffers.vertexBufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
+    buffers.vertex.buffer = create_vk_buffer(vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
+    deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertex.buffer.buffer };
+    buffers.vertex.bufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
     
     // Set up staging buffer and copy to buffers
     stagingBuffer := create_vk_buffer(indexBufferSize + vertexBufferSize, .TRANSFER_SRC_BIT);
@@ -56,7 +63,7 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *MeshB
 	meshData := cast(*MeshCopyData) data;
 
 	vertexCopy := VkBufferCopy.{ 0, 0, meshData.vertexBufferSize };
-	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.vertexBuffer.buffer, 1, *vertexCopy);
+	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.vertex.buffer.buffer, 1, *vertexCopy);
 	
 	indexCopy := VkBufferCopy.{ meshData.vertexBufferSize, 0, meshData.indexBufferSize };
 	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.indexBuffer.buffer, 1, *indexCopy);
