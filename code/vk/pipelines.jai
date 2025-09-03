@@ -144,17 +144,33 @@ set_pipeline_layout :: (builder : *GraphicsPipelineBuildInfo, bufferSize : u32, 
     check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *builder.layout), tprint("Failed to create pipeline layout for %", pipelineType));
 }
 
+SpriteCommands :: struct {
+    count  : u32;
+    array  : [MAX_SPRITES] GPUSpriteInfo;
+    buffer : GPUBufferInfo;
+}
+
 MAX_RENDER_COMMANDS :: 1024;
 RenderingPipelineInfo :: struct {
+    type             : PipelineType;
     layout           : VkPipelineLayout;
     pipeline         : VkPipeline;
     orthographic     : bool;
+    isSpritePipeline : bool;
 
-    renderCommands : [MAX_RENDER_COMMANDS] *MeshRenderCommand;
+    union {
+	renderCommands : [MAX_RENDER_COMMANDS] *MeshRenderCommand;
+	sprites        : SpriteCommands;
+    }
 }
 
 draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
-    if pipeline.renderCommands.count == 0 then return;
+    if pipeline.isSpritePipeline {
+	if pipeline.sprites.count == 0 then return;
+	memcpy(pipeline.sprites.buffer.buffer.allocationInfo.pMappedData, cast(*u8) pipeline.sprites.array.data, pipeline.sprites.count * size_of(GPUSpriteInfo));
+    } else {
+	if pipeline.renderCommands.count == 0 then return;
+    }
     
     vkCmdBindPipeline(cmdBuffer, .GRAPHICS, pipeline.pipeline);
     
@@ -169,13 +185,30 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
     vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
 
     vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, pipeline.layout, 0, 1, *vk.bindlessDescriptorSet, 0, null);
-    for pipeline.renderCommands {
-	if it {
-	    render_command(cmdBuffer, it, pipeline.layout);
+    if pipeline.isSpritePipeline {
+	// TODO: What if we have more than 1 scene camera?
+	camera := ifx pipeline.type == .Sprite then loam.sceneCamera else loam.uiCamera;
+	currentCameraProjection := camera.isOrthographic;
+	camera.isOrthographic = pipeline.orthographic;
+	pushConstants := SpritePushConstants.{ get_view_matrix(camera) * get_projection_matrix(camera), pipeline.sprites.buffer.bufferAddress };
+	camera.isOrthographic = currentCameraProjection;
+	
+	render_sprite_batch(cmdBuffer, pushConstants, pipeline.sprites.count, pipeline.layout);
+    } else {
+	for pipeline.renderCommands {
+	    if it {
+		render_command(cmdBuffer, it, pipeline.layout);
+	    }
 	}
     }
     
     vkCmdEndRendering(cmdBuffer);
+}
+
+init_sprite_buffer :: (pipeline : *RenderingPipelineInfo) {
+    pipeline.sprites.buffer.buffer = create_vk_buffer(MAX_SPRITES * size_of(GPUSpriteInfo), .STORAGE_BUFFER_BIT | .SHADER_DEVICE_ADDRESS_BIT);
+    deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, pipeline.sprites.buffer.buffer.buffer };
+    pipeline.sprites.buffer.bufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
 }
 
 init_pipelines :: () {
@@ -210,8 +243,9 @@ init_pipelines :: () {
 	    
 	    case .Sprite; {
 		pipeline.orthographic = true;
+		pipeline.isSpritePipeline = true;
 		
-		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
+		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, SPRITE_FRAGMENT_SHADER);
 
 		set_pipeline_shaders(*builder, vertShader, fragShader);
@@ -223,12 +257,15 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+
+		init_sprite_buffer(pipeline);
 	    }
 	    
 	    case .UI_Sprite; {
 		pipeline.orthographic = true;
+		pipeline.isSpritePipeline = true;
 		
-		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
+		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, UI_FRAGMENT_SHADER);
 
 		set_pipeline_shaders(*builder, vertShader, fragShader);
@@ -240,6 +277,8 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+
+		init_sprite_buffer(pipeline);
 	    }
 	    
 	    case .UI_Text; {
@@ -261,6 +300,7 @@ init_pipelines :: () {
 	}
 
 	pipeline.layout = builder.layout;
+	pipeline.type = it;
 	pipeline.pipeline = build_graphics_pipeline(*builder);
 
 	vkDestroyShaderModule(vk.device, vertShader, null);

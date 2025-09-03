@@ -51,5 +51,6 @@ struct SpritePushConstants {
 };
 
 // Store the 6 uvs for a basic sprite so we don't need to 
-const vec2 SPRITE_BASE_UVS[] = { { 1, 1 }, { 1, 0 }, { 0, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } };
-const vec2 SPRITE_BASE_POSITIONS[] = { { 1, 0 }, { 1, 1 }, { 0, 0 }, { 0, 0 }, { 1, 1 }, { 0, 1 } };
+const vec2 SPRITE_BASE_UVS[] = { { 1, 1 }, { 1, 0 }, { 0, 1 }, { 0, 0 } };
+const vec2 SPRITE_BASE_VERTICES[] = { { 1, 0 }, { 1, 1 }, { 0, 0 }, { 0, 1 } };
+

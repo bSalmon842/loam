@@ -15,6 +15,8 @@ START_WIDTH  :: 1920;
 START_HEIGHT :: 1080;
 refreshRate  := 60;
 
+testText : *UI_Element;
+
 main :: () {
     #if OS == .WINDOWS {
         Windows.SetProcessDPIAware();
@@ -40,6 +42,12 @@ main :: () {
 	} else {
 	    fontSize : u32 = 32;
 	    build_font_atlas("internal", fontSize, .English, true);
+	}
+
+	{
+	    //text := make_text("Player", "internal", fontSize, make_transform( .{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5 + 50.0, 0 }, scale = make_vector3(0.75)));
+	    //testText = make_ui_element(text, false);
+	    //array_add(*loam.uiElements, testText);
 	}
     }
 
@@ -150,6 +158,9 @@ main :: () {
 	    }
 	}
 
+	//testText.text.position = sprite.position + .{ 0, 50, 0 };
+	//update_text(testText.text);
+	
 	TIMING_MARKER("Update Recording");
 
 	loam_finish_update();
@@ -171,10 +182,10 @@ main :: () {
     	    TIMING_MARKER("Render Record (Debug UI)");
 	}
 	
-	add_render_command(.Sprite, loam.sceneCamera, *sprite.renderable, sprite.transform);
+	add_sprite_render_command(.Sprite, sprite.renderable, sprite.transform);
 	
 	for testSprites {
-	    add_render_command(.Sprite, loam.sceneCamera, *it.renderable, it.transform);
+	    add_sprite_render_command(.Sprite, it.renderable, it.transform);
 	}
 
 	TIMING_MARKER("Render Record (Sprites)");

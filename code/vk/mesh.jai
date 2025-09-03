@@ -42,12 +42,13 @@ is_default_plane_indices :: (arr : [] u32) -> bool {
     return true;
 }
 
-upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *GPUBuffers) {
-    indexBufferSize := cast(u64) (indices.count * size_of(u32));
+copy_mesh_to_gpu_buffers :: (indices : [] u32, vertices : [] Vertex, buffers : *GPUBuffers) {
+    isPlane := is_default_plane_indices(indices);
+    indexBufferSize : u64 = ifx isPlane then 0 else cast(u64) (indices.count * size_of(u32));
     vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
     
-    buffers.indexBuffer  = ifx is_default_plane_indices(indices) then vk.defaultPlaneIndexBuffer else create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
-    buffers.indexCount   = cast(u32) indices.count;
+    buffers.indexBuffer = ifx isPlane then vk.defaultPlaneIndexBuffer else create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
+    buffers.indexCount  = cast(u32) indices.count;
     
     buffers.vertex.buffer = create_vk_buffer(vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
     deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertex.buffer.buffer };
@@ -61,12 +62,14 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *GPUBu
     
     gpu_mesh_copy :: (cmdBuffer : VkCommandBuffer, data : *void) {
 	meshData := cast(*MeshCopyData) data;
-
+	
 	vertexCopy := VkBufferCopy.{ 0, 0, meshData.vertexBufferSize };
 	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.vertex.buffer.buffer, 1, *vertexCopy);
 	
-	indexCopy := VkBufferCopy.{ meshData.vertexBufferSize, 0, meshData.indexBufferSize };
-	vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.indexBuffer.buffer, 1, *indexCopy);
+	if meshData.indexBufferSize != 0 {
+	    indexCopy := VkBufferCopy.{ meshData.vertexBufferSize, 0, meshData.indexBufferSize };
+	    vkCmdCopyBuffer(cmdBuffer, meshData.stagingBuffer.buffer, meshData.buffers.indexBuffer.buffer, 1, *indexCopy);
+	}
     }
     
     meshData := New(MeshCopyData);
@@ -81,3 +84,4 @@ upload_mesh_command :: (indices : [] u32, vertices : [] Vertex, buffers : *GPUBu
 
     add_update_command(gpu_mesh_copy, meshData, buffersToCleanup);
 }
+

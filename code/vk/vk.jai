@@ -146,29 +146,18 @@ init_vk :: (window : Window_Type) {
     cmdPoolCreateInfo := VkCommandPoolCreateInfo.{.COMMAND_POOL_CREATE_INFO, null, .RESET_COMMAND_BUFFER_BIT, vk.queueFamilyIndices.graphics};
     fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
     semaphoreCreateInfo := VkSemaphoreCreateInfo.{};
-
-    /*
-    frameRatios := PoolSizeRatio.[
-	.{ .STORAGE_IMAGE, 3 },
-	.{ .STORAGE_BUFFER, 3 },
-	.{ .UNIFORM_BUFFER, 3 },
-	.{ .COMBINED_IMAGE_SAMPLER, 4 },
-    ];
     
-    dynamic_descriptor_pool_allocator_init(*vk.descriptorAllocator, vk.device, 1000, frameRatios);
-    */
-
     for * vk.frames {
 	check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *it.cmdPool), tprint("Failed to create Command Pool for Frame %", it_index));
-
+	
 	cmdBufferAllocInfo := VkCommandBufferAllocateInfo.{ .COMMAND_BUFFER_ALLOCATE_INFO, null, it.cmdPool, .PRIMARY, 1 };
 	check_vk(vkAllocateCommandBuffers(vk.device, *cmdBufferAllocInfo, *it.cmdBuffer), tprint("Failed to create Command Buffer for Frame %", it_index));
-
+	
 	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.swapSemaphore), tprint("Failed to create Swap Semaphore for Frame %", it_index));
 	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.renderSemaphore), tprint("Failed to create Render Semaphore for Frame %", it_index));
 	check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *it.renderFence), tprint("Failed to create Render Fence for Frame %", it_index));
     }
-
+    
     // Update Commands
     check_vk(vkCreateCommandPool(vk.device, *cmdPoolCreateInfo, null, *vk.updateCmdPool), "Failed to create Command Pool for Update Commands");
 
@@ -199,6 +188,7 @@ init_vk :: (window : Window_Type) {
 
     // Default Engine values
     vk.defaultPlaneIndexBuffer = create_vk_buffer(cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
+    memcpy(vk.defaultPlaneIndexBuffer.allocationInfo.pMappedData, cast(*u8) DEFAULT_PLANE_INDICES.data, size_of(u32) * DEFAULT_PLANE_INDICES.count);
 
     // Write error checkerboard texture
     pixels : [256] u32;

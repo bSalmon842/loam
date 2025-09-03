@@ -22,7 +22,7 @@ Text :: struct {
     tint : Vector4;
 }
 
-get_string_dimensions :: (str : string, text : *Text) -> Vector2 {
+get_string_original_dimensions :: (str : string, text : *Text) -> Vector2 {
     dimensions := Vector2.{};
     for iterate(str) {
 	char := it;
@@ -37,6 +37,10 @@ get_string_dimensions :: (str : string, text : *Text) -> Vector2 {
     }
     dimensions.y = text.font.ascender - text.font.descender;
     return dimensions;
+}
+
+get_string_dimensions :: (str : string, text : *Text) -> Vector2 {
+    return get_string_original_dimensions(str, text) * text.scale.xy;
 }
 
 build_glyph_buffers :: (glyph : *FontAtlas.GlyphInfo) -> [] Vertex, *void {
@@ -68,6 +72,10 @@ make_text :: (str : string, font : string, size : u32, transform : Transform, co
     return text;
 }
 
+update_text :: (text : *Text) {
+    update_text(text, text.str);
+}
+
 update_text :: (text : *Text, str : string) {
     // TODO: Add some text formatting tags handling for changing colour mid string?
     // TODO: Handle rotation correctly
@@ -79,7 +87,7 @@ update_text :: (text : *Text, str : string) {
 	}
 
 	if it.*.buffers {
-	    if it.*.buffers.vertexBuffer then destroy_vk_buffer(it.*.buffers.vertexBuffer);
+	    if it.*.buffers.vertex.buffer then destroy_vk_buffer(it.*.buffers.vertex.buffer);
 	    free(it.*.buffers);
 	}
 
@@ -89,11 +97,11 @@ update_text :: (text : *Text, str : string) {
     array_reset(*text.glyphs);
     
     text.dimensions.xy = get_string_dimensions(str, text);
-    cursorX := text.transform.position.x;
+    cursorX := text.transform.position.x - text.dimensions.x * 0.5;
     cursorY := text.transform.position.y;
     
-    if text.transform.alignment & .Center then cursorX -= text.dimensions.x * 0.5;
-    if text.transform.alignment & .Right  then cursorX -= text.dimensions.x;
+    if text.transform.alignment & .Left   then cursorX += text.dimensions.x * 0.5;
+    if text.transform.alignment & .Right  then cursorX -= text.dimensions.x * 0.5;
     if text.transform.alignment & .Top    then cursorY -= text.dimensions.y * 0.5;
     if text.transform.alignment & .Bottom then cursorY += text.dimensions.y * 0.5;
     
@@ -115,14 +123,13 @@ update_text :: (text : *Text, str : string) {
 	glyph.tint = text.tint;
 	glyph.texture = text.font.image;
 	glyph.vertices, glyph.vertexMemory = build_glyph_buffers(*fontGlyph);
-	glyph.buffers = New(MeshBuffers);
+	glyph.buffers = New(GPUBuffers);
 	
-	upload_mesh_command(DEFAULT_PLANE_INDICES, glyph.vertices, glyph.buffers);
+	copy_mesh_to_gpu_buffers(DEFAULT_PLANE_INDICES, glyph.vertices, glyph.buffers);
 	
 	array_add(*text.glyphs, glyph);
 
 	cursorX += cast(float) fontGlyph.advance * text.transform.scale.x;
-
     }
 
 }

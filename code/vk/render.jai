@@ -18,6 +18,15 @@ Renderable :: struct {
     buffers : *GPUBuffers;
 }
 
+Renderable2D :: struct {
+    texture    : *ImageResource;
+    dimensions : Vector2;
+    tint       : Vector4 = DEFAULT_TEXTURE_TINT;
+
+    uv0 : Vector2 = .{ 0, 0 };
+    uv1 : Vector2 = .{ 1, 1 };
+}
+
 get_current_frame :: () -> *FrameCommandInfo {
     return *vk.frames[vk.currentFrameIndex % FRAMES_IN_FLIGHT];
 }

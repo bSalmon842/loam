@@ -13,18 +13,20 @@ Created: 08JUN2025
 
 // Compiled Shaders
 #if OS == .WINDOWS {
-    MESH_VERTEX_SHADER   :: #run compile_glsl_to_spirv("mesh_vertex");
-    MESH_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("mesh_fragment");
-    UI_VERTEX_SHADER     :: #run compile_glsl_to_spirv("ui_vertex");
-    UI_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("ui_fragment");
-    TEXT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("text_fragment");
+    MESH_VERTEX_SHADER     :: #run compile_glsl_to_spirv("mesh_vertex");
+    MESH_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("mesh_fragment");
+    UI_VERTEX_SHADER       :: #run compile_glsl_to_spirv("ui_vertex");
+    UI_FRAGMENT_SHADER     :: #run compile_glsl_to_spirv("ui_fragment");
+    TEXT_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("text_fragment");
+    SPRITE_VERTEX_SHADER   :: #run compile_glsl_to_spirv("sprite_vertex");
     SPRITE_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("sprite_fragment");
 } else #if OS == .ANDROID {
-    MESH_VERTEX_SHADER   : CompiledShader;
-    MESH_FRAGMENT_SHADER : CompiledShader;
-    UI_VERTEX_SHADER     : CompiledShader;
-    UI_FRAGMENT_SHADER   : CompiledShader;
-    TEXT_FRAGMENT_SHADER : CompiledShader;
+    MESH_VERTEX_SHADER     : CompiledShader;
+    MESH_FRAGMENT_SHADER   : CompiledShader;
+    UI_VERTEX_SHADER       : CompiledShader;
+    UI_FRAGMENT_SHADER     : CompiledShader;
+    TEXT_FRAGMENT_SHADER   : CompiledShader;
+    SPRITE_VERTEX_SHADER   : CompiledShader;
     SPRITE_FRAGMENT_SHADER : CompiledShader;
 }
 
@@ -40,7 +42,8 @@ LoamState :: struct {
     vk : *Vk;
     
     threadCount : s32;
-    
+
+    // TODO: Hardcoded cameras probably aren't a good plan
     sceneCamera : *Camera;
     uiCamera : *Camera;
     
@@ -70,6 +73,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 	UI_VERTEX_SHADER     = load_spirv_for_android("ui_vertex");
 	UI_FRAGMENT_SHADER   = load_spirv_for_android("ui_fragment");
 	TEXT_FRAGMENT_SHADER = load_spirv_for_android("text_fragment");
+	SPRITE_VERTEX_SHADER = load_spirv_for_android("sprite_vertex");
 	SPRITE_FRAGMENT_SHADER = load_spirv_for_android("sprite_fragment");
     }
     
@@ -165,10 +169,17 @@ loam_finish_render :: () {
     TIMING_MARKER("Render Draw");
 
     for * vk.pipelines {
-	for * it.renderCommands {
-	    if it.* {
-		free(it.*);
-		it.* = null;
+	if it.isSpritePipeline {
+	    for * it.sprites.array {
+		it.* = .{};
+	    }
+	    it.sprites.count = 0;
+	} else {
+	    for * it.renderCommands {
+		if it.* {
+		    free(it.*);
+		    it.* = null;
+		}
 	    }
 	}
     }

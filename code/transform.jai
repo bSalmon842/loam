@@ -32,6 +32,10 @@ make_transform :: (position := Vector3.{}, orientation := Quaternion.{}, scale :
     return Transform.{ position, orientation, scale, alignment };
 }
 
+get_transform_matrix :: (t : Transform, dims : Vector2) -> Matrix4 {
+    return get_transform_matrix(t, .{ dims.x, dims.y, 0 });
+}
+
 get_transform_matrix :: (t : Transform, dims : Vector3) -> Matrix4 {
     translate, rotation, scale := Matrix4_Identity;
 
