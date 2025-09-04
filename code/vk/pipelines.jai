@@ -256,7 +256,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
-		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 
 		init_sprite_buffer(pipeline);
 	    }
@@ -276,15 +276,16 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
-		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 
 		init_sprite_buffer(pipeline);
 	    }
 	    
 	    case .UI_Text; {
 		pipeline.orthographic = true;
+		pipeline.isSpritePipeline = true;
 		
-		vertShader = load_shader_module(vk.device, UI_VERTEX_SHADER);
+		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, TEXT_FRAGMENT_SHADER);
 		
 		set_pipeline_shaders(*builder, vertShader, fragShader);
@@ -295,7 +296,9 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
-		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+
+		init_sprite_buffer(pipeline);
 	    }
 	}
 

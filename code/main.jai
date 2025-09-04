@@ -45,9 +45,10 @@ main :: () {
 	}
 
 	{
-	    //text := make_text("Player", "internal", fontSize, make_transform( .{ cast(float) loam.windowWidth * 0.5, cast(float) loam.windowHeight * 0.5 + 50.0, 0 }, scale = make_vector3(0.75)));
-	    //testText = make_ui_element(text, false);
-	    //array_add(*loam.uiElements, testText);
+	    transform := make_transform( .{}, scale = make_vector3(0.75), alignment = .Bottom);
+	    text := make_text("Player", "internal", fontSize, transform);
+	    testText = make_ui_element(text, false);
+	    array_add(*loam.uiElements, testText);
 	}
     }
 
@@ -158,8 +159,7 @@ main :: () {
 	    }
 	}
 
-	//testText.text.position = sprite.position + .{ 0, 50, 0 };
-	//update_text(testText.text);
+	update_text_position(testText.text, sprite.position + .{ 0, 50, 0 });
 	
 	TIMING_MARKER("Update Recording");
 

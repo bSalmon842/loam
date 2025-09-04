@@ -15,7 +15,6 @@ Created: 08JUN2025
 #if OS == .WINDOWS {
     MESH_VERTEX_SHADER     :: #run compile_glsl_to_spirv("mesh_vertex");
     MESH_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("mesh_fragment");
-    UI_VERTEX_SHADER       :: #run compile_glsl_to_spirv("ui_vertex");
     UI_FRAGMENT_SHADER     :: #run compile_glsl_to_spirv("ui_fragment");
     TEXT_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("text_fragment");
     SPRITE_VERTEX_SHADER   :: #run compile_glsl_to_spirv("sprite_vertex");
@@ -23,7 +22,6 @@ Created: 08JUN2025
 } else #if OS == .ANDROID {
     MESH_VERTEX_SHADER     : CompiledShader;
     MESH_FRAGMENT_SHADER   : CompiledShader;
-    UI_VERTEX_SHADER       : CompiledShader;
     UI_FRAGMENT_SHADER     : CompiledShader;
     TEXT_FRAGMENT_SHADER   : CompiledShader;
     SPRITE_VERTEX_SHADER   : CompiledShader;
@@ -70,7 +68,6 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     #if OS == .ANDROID {
 	MESH_VERTEX_SHADER   = load_spirv_for_android("mesh_vertex");
 	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
-	UI_VERTEX_SHADER     = load_spirv_for_android("ui_vertex");
 	UI_FRAGMENT_SHADER   = load_spirv_for_android("ui_fragment");
 	TEXT_FRAGMENT_SHADER = load_spirv_for_android("text_fragment");
 	SPRITE_VERTEX_SHADER = load_spirv_for_android("sprite_vertex");

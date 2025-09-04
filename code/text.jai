@@ -7,7 +7,7 @@ Created: 25JUN2025
 
 RenderGlyph :: struct {
     using transform : Transform;
-    using renderable : Renderable;
+    using renderable : Renderable2D;
 }
 
 MAX_TEXT_LENGTH :: 256;
@@ -43,16 +43,6 @@ get_string_dimensions :: (str : string, text : *Text) -> Vector2 {
     return get_string_original_dimensions(str, text) * text.scale.xy;
 }
 
-build_glyph_buffers :: (glyph : *FontAtlas.GlyphInfo) -> [] Vertex, *void {
-    vertices, vertexMemory := NewArray(4, Vertex);
-    vertices[0] = .{ position=.{ glyph.dimensions.x, 0,                  0 }, uv=.{ glyph.uv1.x, glyph.uv1.y } };
-    vertices[1] = .{ position=.{ glyph.dimensions.x, glyph.dimensions.y, 0 }, uv=.{ glyph.uv1.x, glyph.uv0.y } };
-    vertices[2] = .{ position=.{ 0,                  0,                  0 }, uv=.{ glyph.uv0.x, glyph.uv1.y } };
-    vertices[3] = .{ position=.{ 0,                  glyph.dimensions.y, 0 }, uv=.{ glyph.uv0.x, glyph.uv0.y } };
-
-    return vertices, vertexMemory;
-}
-
 make_text :: (str : string, font : string, size : u32, transform : Transform, colour := DEFAULT_TEXTURE_TINT) -> *Text {
     text := New(Text);
     
@@ -72,6 +62,24 @@ make_text :: (str : string, font : string, size : u32, transform : Transform, co
     return text;
 }
 
+update_text_position :: (text : *Text, newPosition : Vector3) {
+    text.dimensions.xy = get_string_dimensions(text.str, text);
+    cursorX := newPosition.x - text.dimensions.x * 0.5;
+    cursorY := newPosition.y;
+
+    if text.transform.alignment & .Left   then cursorX += text.dimensions.x * 0.5;
+    if text.transform.alignment & .Right  then cursorX -= text.dimensions.x * 0.5;
+    if text.transform.alignment & .Top    then cursorY -= text.dimensions.y * 0.5;
+    if text.transform.alignment & .Bottom then cursorY += text.dimensions.y * 0.5;
+
+    diff := newPosition - text.position;
+    for text.glyphs {
+	it.position += diff;
+    }
+
+    text.position = newPosition;
+}
+
 update_text :: (text : *Text) {
     update_text(text, text.str);
 }
@@ -79,18 +87,8 @@ update_text :: (text : *Text) {
 update_text :: (text : *Text, str : string) {
     // TODO: Add some text formatting tags handling for changing colour mid string?
     // TODO: Handle rotation correctly
-    
     text.str = str;
     for * text.glyphs {
-	if it.*.vertexMemory {
-	    free(it.*.vertexMemory);
-	}
-
-	if it.*.buffers {
-	    if it.*.buffers.vertex.buffer then destroy_vk_buffer(it.*.buffers.vertex.buffer);
-	    free(it.*.buffers);
-	}
-
 	free(it.*);
 	it.* = null;
     }
@@ -98,7 +96,7 @@ update_text :: (text : *Text, str : string) {
     
     text.dimensions.xy = get_string_dimensions(str, text);
     cursorX := text.transform.position.x - text.dimensions.x * 0.5;
-    cursorY := text.transform.position.y;
+    cursorY := text.transform.position.y - text.dimensions.y * 0.5;
     
     if text.transform.alignment & .Left   then cursorX += text.dimensions.x * 0.5;
     if text.transform.alignment & .Right  then cursorX -= text.dimensions.x * 0.5;
@@ -119,19 +117,17 @@ update_text :: (text : *Text, str : string) {
 	}
 	
 	glyph := New(RenderGlyph);
-	glyph.transform  = make_transform( position = .{ cursorX, cursorY, text.transform.position.z }, scale = text.transform.scale);
+	glyph.transform  = make_transform( position = .{ cursorX, cursorY, text.transform.position.z }, scale = text.transform.scale, alignment = .Left | .Bottom);
 	glyph.tint = text.tint;
 	glyph.texture = text.font.image;
-	glyph.vertices, glyph.vertexMemory = build_glyph_buffers(*fontGlyph);
-	glyph.buffers = New(GPUBuffers);
-	
-	copy_mesh_to_gpu_buffers(DEFAULT_PLANE_INDICES, glyph.vertices, glyph.buffers);
+	glyph.dimensions = fontGlyph.dimensions;
+	glyph.uv0 = fontGlyph.uv0;
+	glyph.uv1 = fontGlyph.uv1;
 	
 	array_add(*text.glyphs, glyph);
 
 	cursorX += cast(float) fontGlyph.advance * text.transform.scale.x;
     }
-
 }
 
 // NOTE: Better UTF8 looping by Lunatoid from the jai discord
