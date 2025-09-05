@@ -15,9 +15,8 @@ DebugMetrics :: struct {
     framesPerSecond : u32;
     msPerFrame : float64;
     ramUsage : u64;
-
-    totalDrawCalls    : u32;
-    nonDebugDrawCalls : u32;
+    
+    pipelineDrawCalls : [PIPELINE_COUNT] u32;
 }
 
 update_debug_metrics :: (metrics : *DebugMetrics) {
@@ -27,26 +26,20 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 	metrics.framesPerSecond = cast(u32) (1.0 / loam.deltaTime + 0.5);
 	metrics.msPerFrame = loam.deltaTime * 1000.0;
 	metrics.ramUsage = get_ram_usage();
-
-	metrics.totalDrawCalls = 0;
-	metrics.nonDebugDrawCalls = 0;
+	
 	for pipeline : vk.pipelines {
-	    for render : pipeline.renderCommands {
-		if render {
-		    metrics.totalDrawCalls += 1;
+	    metrics.pipelineDrawCalls[it_index] = 0;
+	    if pipeline.isSpritePipeline {
+		metrics.pipelineDrawCalls[it_index] += pipeline.sprites.count;
+	    } else {
+		for render : pipeline.renderCommands {
+		    if render {
+			metrics.pipelineDrawCalls[it_index] += 1;
+		    }
 		}
 	    }
 	}
-
-	metrics.nonDebugDrawCalls = metrics.totalDrawCalls;
-	for loam.debugUIElements {
-	    if it.type == .Text {
-		metrics.nonDebugDrawCalls -= xx it.text.glyphs.count;
-	    } else {
-		metrics.nonDebugDrawCalls -= 1;
-	    }
-	}
-
+	
 	metrics.timeSinceLastMetricUpdate -= METRIC_UPDATE_RATE;
 	metrics.updateMetrics = true;
     }

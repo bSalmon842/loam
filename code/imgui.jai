@@ -36,7 +36,9 @@ init_imgui :: (window : Window_Type) {
     
     create_imgui_vulkan_fonts :: (cmdBuffer : VkCommandBuffer, data : *void) { ImGui.ImplVulkan_CreateFontsTexture(); }
     add_update_command(create_imgui_vulkan_fonts, null, null);
-    
+
+    ImGui.SetNextWindowPos(.{ 0, 0 });
+    ImGui.SetNextWindowSize(.{ 350, 500 });
 }
 
 draw_imgui :: (cmdBuffer : VkCommandBuffer, imageView : VkImageView) {
@@ -48,21 +50,86 @@ draw_imgui :: (cmdBuffer : VkCommandBuffer, imageView : VkImageView) {
     vkCmdEndRendering(cmdBuffer);
 }
 
+tooltipSet : VkDescriptorSet;
+
+// TODO: Extend this for games
 frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.ImplVulkan_NewFrame();
     ImGui.ImplWin32_NewFrame();
     ImGui.NewFrame();
     
-    ImGui.SetNextWindowPos(.{ 0, 0 });
-    ImGui.SetNextWindowSize(.{ 300, 600 });
     ImGui.Begin("Dev Window");
     if ImGui.CollapsingHeader("Metrics") {
-	ImGui.Text(tprint("\tFrame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
-	ImGui.Text(tprint("\t RAM Usage: %", to_size_string(metrics.ramUsage)));
-	ImGui.Text(tprint("\tDraw Calls: % (D: %)", metrics.nonDebugDrawCalls, metrics.totalDrawCalls - metrics.nonDebugDrawCalls));
+	ImGui.Text("General:");
+	colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
+	if metrics.framesPerSecond < refreshRate {
+	    colour = .{ 1, 1, 0, 1 };
+	} else if metrics.framesPerSecond < 30 {
+	    colour = .{ 1, 0, 0, 1 };
+	}
+	
+	ImGui.TextColored(colour, tprint("\tFrame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+	ImGui.Text(tprint("\tRAM Usage:  %", to_size_string(metrics.ramUsage)));
+	
+	ImGui.NewLine();
+	
+	ImGui.Text("Pipelines:");
+	for metrics.pipelineDrawCalls {
+	    if ImGui.CollapsingHeader(tprint("%\0", enum_value_to_name(cast(PipelineType) it_index)).data) {
+		ImGui.Text(tprint("\tDraw Calls: % %", it, ifx vk.pipelines[it_index].isSpritePipeline then tprint("Rendered as Sprite Batch") else ""));
+	    }
+	}
+
+	ImGui.NewLine();
     }
+    
     if ImGui.CollapsingHeader("Resource Counts") {
-	ImGui.Text(tprint("\tImage: %", loam.assets.images.count));
+	if ImGui.CollapsingHeader(tprint("Images: %\0", loam.assets.images.count).data) {
+	    for loam.assets.images.array {
+		if it {
+		    colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
+		    if it.core {
+			colour = .{ 0.71, 0.45, 1, 1 };
+		    }
+		    
+		    ImGui.TextColored(colour, tprint("\t%", it.name));
+		    if ImGui.IsItemHovered() {
+			drawList := ImGui.GetWindowDrawList();
+			min := ImGui.GetItemRectMin();
+			max := ImGui.GetItemRectMax();
+			max.x = min.x + ImGui.GetWindowContentRegionMax().x;
+			ImGui.ImDrawList.AddRectFilled(drawList, min, max, 0x40808080);
+			
+			if ImGui.BeginTooltip() {
+			    if tooltipSet {
+				ImGui.ImplVulkan_RemoveTexture(tooltipSet);
+			    }
+
+			    scaledImageWidth := cast(float) it.image.extent.width;
+			    scaledImageHeight := cast(float) it.image.extent.height;
+			    imageMaxDim := 300.0;
+			    if scaledImageWidth > imageMaxDim || scaledImageHeight > imageMaxDim {
+				fitScaleX := imageMaxDim / it.image.extent.width;
+				fitScaleY := imageMaxDim / it.image.extent.height;
+				if fitScaleX < fitScaleY {
+				    scaledImageWidth *= fitScaleX;
+				    scaledImageHeight *= fitScaleX;
+				} else {
+				    scaledImageWidth *= fitScaleY;
+				    scaledImageHeight *= fitScaleY;
+				}
+			    }
+			    
+			    tooltipSet = ImGui.ImplVulkan_AddTexture(vk.defaultSampler_Nearest, it.image.view, .SHADER_READ_ONLY_OPTIMAL);
+			    ImGui.Image(tooltipSet, ImGui.ImVec2.{ scaledImageWidth, scaledImageHeight });
+			    ImGui.EndTooltip();
+			}
+		    }
+		}
+	    }
+	}
+	
+	ImGui.NewLine();
     }
     ImGui.End();
     

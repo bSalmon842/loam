@@ -5,7 +5,7 @@ Author: Brock Salmon
 Created: 25JUL2025
 */
 
-ATLAS_MAX_SIZE :: 1024;
+ATLAS_MAX_SIZE :: 512;
 
 Language :: enum {
     English;
@@ -142,7 +142,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
     }
 
     atlasImage := create_vk_image_from_data(atlasBitmap.data, .{ ATLAS_MAX_SIZE, ATLAS_MAX_SIZE }, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1);
-    atlas.image = add_resource(atlasName, atlasImage);
+    atlas.image = add_resource(atlasName, atlasImage, core);
     
     table_add(loam.fonts, copy_string(atlasName), atlas);
 

@@ -66,7 +66,7 @@ Vk :: struct {
     ///////////////////
 
     // Pipelines
-    pipelines : [#run enum_highest_value(PipelineType) + 1] RenderingPipelineInfo;
+    pipelines : [PIPELINE_COUNT] RenderingPipelineInfo;
     pipelineCache : VkPipelineCache;
     
     // Sampler for each member of VkFilter (we don't care about CUBIC)
@@ -197,7 +197,7 @@ init_vk :: (window : Window_Type) {
     }
     
     vk.errorCheckerboard = create_vk_image_from_data(pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
-    add_resource(ERROR_TEXTURE_NAME, vk.errorCheckerboard);
+    add_resource(ERROR_TEXTURE_NAME, vk.errorCheckerboard, true);
 }
 
 create_vk_instance :: (appName : string) -> VkResult {

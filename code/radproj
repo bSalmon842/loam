@@ -1,8 +1,9 @@
 // raddbg 0.9.20 project file
 
+recent_file: path: "main.jai"
+recent_file: path: "imgui.jai"
 recent_file: path: "vk/pipelines.jai"
 recent_file: path: "vk/render_commands.jai"
-recent_file: path: "main.jai"
 recent_file: path: "vk/mesh.jai"
 recent_file: path: "vk/util.jai"
 recent_file: path: "../../jai/modules/runtime_support.jai"
@@ -31,3 +32,4 @@ target:
   working_directory: "../build/windows/debug"
   enabled: 1
 }
+breakpoint: source_location: "main.jai:213:1"

@@ -204,17 +204,15 @@ main :: () {
 	
 	TIMING_MARKER("Render Finish");
 	
-	/*
 	if vk.vsync {
-	    targetMs := 1.0 / cast(float) refreshRate;
+	    targetMs := (1.0 / cast(float) refreshRate) * 1000.0;
 	    msSoFar := (seconds_since_init() - lastTime) * 1000.0;
 	    msToWait := targetMs - msSoFar;
 	    while msToWait > 0 {
-		sleep_milliseconds(1);
+		if msToWait > 1 then sleep_milliseconds(1);
 		msToWait = targetMs - (seconds_since_init() - lastTime) * 1000.0;
 	    }
 	}
-*/
 
         loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();

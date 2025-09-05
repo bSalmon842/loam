@@ -11,6 +11,7 @@ PipelineType :: enum {
     UI_Sprite;
     UI_Text;
 }
+PIPELINE_COUNT :: #run enum_highest_value(PipelineType) + 1;
 
 GraphicsPipelineBuildInfo :: struct {
     shaderStages       : [..] VkPipelineShaderStageCreateInfo;
