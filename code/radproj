@@ -1,5 +1,8 @@
 // raddbg 0.9.20 project file
 
+recent_file: path: "font.jai"
+recent_file: path: "text.jai"
+recent_file: path: "assets.jai"
 recent_file: path: "main.jai"
 recent_file: path: "imgui.jai"
 recent_file: path: "vk/pipelines.jai"
@@ -8,9 +11,7 @@ recent_file: path: "vk/mesh.jai"
 recent_file: path: "vk/util.jai"
 recent_file: path: "../../jai/modules/runtime_support.jai"
 recent_file: path: "metrics.jai"
-recent_file: path: "assets.jai"
 recent_file: path: "ui.jai"
-recent_file: path: "text.jai"
 recent_file: path: "thread.jai"
 recent_file: path: "../../jai/modules/flat_pool.jai"
 recent_file: path: "../../jai/modules/thread/primitives.jai"
@@ -32,4 +33,13 @@ target:
   working_directory: "../build/windows/debug"
   enabled: 1
 }
-breakpoint: source_location: "main.jai:213:1"
+breakpoint:
+{
+  source_location: "text.jai:124:1"
+  hit_count: 0
+}
+breakpoint:
+{
+  source_location: "font.jai:134:1"
+  hit_count: 95
+}

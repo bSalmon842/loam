@@ -294,7 +294,7 @@ init_pipelines :: () {
 		set_pipeline_polygon_mode(*builder, .FILL);
 		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
 		set_pipeline_multisampling_mode(*builder, .None);
-		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);

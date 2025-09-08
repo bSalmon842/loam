@@ -22,19 +22,22 @@ FontData :: struct {
     data : [] u8;
 }
 
+FontGlyphInfo :: struct {
+    advance        : s32;
+    baselineAdjust : s32;
+    dimensions     : Vector2;
+    
+    uv0 : Vector2;
+    uv1 : Vector2;
+}
+
+FontKerningKey :: u64;
+
 FontAtlas :: struct {
     image : *ImageResource;
     
-    GlyphInfo :: struct {
-	bearing    : Vector2;
-	advance    : s32;
-	dimensions : Vector2;
-	
-	uv0 : Vector2;
-	uv1 : Vector2;
-    }
-    
-    glyphs : *Table(u32, GlyphInfo);
+    glyphs  : *Table(u32, FontGlyphInfo);
+    kerning : *Table(FontKerningKey, s32);
 
     lineSpacing : float;
     ascender    : float;
@@ -71,6 +74,10 @@ get_codepoint_ranges_for_language :: (language : Language) -> [] CodepointRange 
     }
 }
 
+make_kerning_key :: (first : u32, second : u32) -> u64 {
+    return (cast(u64) first << 32) | cast(u64) second;
+}
+
 build_font_atlas :: (fontName : string, size : u32, language : Language, core : bool = false) {
     atlasName := get_font_atlas_name(fontName, size);
     exists := table_find_new(loam.fonts, atlasName);
@@ -82,8 +89,10 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
     check_ft(FT_Set_Pixel_Sizes(fontData.face, 0, size), "Failed to set Pixel Sizes");
     
     atlas := New(FontAtlas);
-    atlas.glyphs = New(Table(u32, FontAtlas.GlyphInfo));
+    atlas.glyphs = New(Table(u32, FontGlyphInfo));
     init(atlas.glyphs);
+    atlas.kerning = New(Table(FontKerningKey, s32));
+    init(atlas.kerning);
     atlasBitmap, bitmapMemory := NewArray(ATLAS_MAX_SIZE * ATLAS_MAX_SIZE, u8);
     defer free(bitmapMemory);
 
@@ -94,6 +103,9 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
     codepointRanges := get_codepoint_ranges_for_language(language);
 
     cursorX, cursorY : float = 0;
+
+    kerningSupported := fontData.face.face_flags & FT_FACE_FLAG_KERNING;
+    if kerningSupported then log(.DEV, tprint("Font % supports kerning", atlasName)); else log(.DEV, tprint("Font % does not support kerning", atlasName));
     
     heightForAtlasRow := 0;
     for range : codepointRanges {
@@ -106,7 +118,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 		intFmt.minimum_digits = 4;
 		log(.WARN, tprint("[FREETYPE] Failed to load char for codepoint 0x%: %", intFmt, FT_Error_String(charError)));
 	    }
-
+	    
 	    glyphBitmap := fontData.face.glyph.bitmap;
 	    if cursorX + cast(s64) glyphBitmap.width >= ATLAS_MAX_SIZE {
 		cursorX = 0;
@@ -118,16 +130,17 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 		for col : 0 .. glyphBitmap.width-1 {
 		    x := round_to(cursorX, s32) + col;
 		    y := round_to(cursorY, s32) + row;
-		    atlasBitmap[y * ATLAS_MAX_SIZE + x] = glyphBitmap.buffer[cast(s32) row * glyphBitmap.pitch + cast(s32) col];
+		    value := glyphBitmap.buffer[cast(s32) row * glyphBitmap.pitch + cast(s32) col];
+		    atlasBitmap[y * ATLAS_MAX_SIZE + x] = value;
 		}
 	    }
 
-	    glyph : FontAtlas.GlyphInfo;
+	    glyph : FontGlyphInfo;
 	    glyph.uv0 = .{ cursorX / cast(float) ATLAS_MAX_SIZE, cursorY / cast(float) ATLAS_MAX_SIZE };
 	    glyph.uv1 = .{ (cursorX + cast(float) glyphBitmap.width) / cast(float) ATLAS_MAX_SIZE, (cursorY + cast(float) glyphBitmap.rows) / cast(float) ATLAS_MAX_SIZE };
 
 	    glyph.advance = cast(s32) (fontData.face.glyph.advance.x >> 6);
-	    glyph.bearing = .{ cast(float) fontData.face.glyph.bitmap_left, cast(float) fontData.face.glyph.bitmap_top };
+	    glyph.baselineAdjust = cast(s32) (fontData.face.glyph.metrics.height >> 6) - fontData.face.glyph.bitmap_top;
 	    glyph.dimensions = .{ cast(float) glyphBitmap.width, cast(float) glyphBitmap.rows };
 
 	    if it == #char "A" then atlas.spaceWidth = cast(float) glyphBitmap.width;
@@ -138,6 +151,18 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 	    if glyphBitmap.rows > heightForAtlasRow {
 		heightForAtlasRow = glyphBitmap.rows;
 	    }
+
+	    if kerningSupported {
+		firstCodepoint : u32 = it;
+		for secondCodepoint : range.start .. range.end {
+		    kerningVector : FT_Vector;
+		    check_ft(FT_Get_Kerning(fontData.face, firstCodepoint, secondCodepoint, cast(u32) FT_Kerning_Mode.DEFAULT, *kerningVector),
+			     tprint("Failed to get kerning for % and % on font %", firstCodepoint, secondCodepoint, atlasName), .WARN);
+		    if kerningVector.x != 0 {
+			table_add(atlas.kerning, make_kerning_key(firstCodepoint, secondCodepoint), cast(s32) kerningVector.x);
+		    }
+		}
+	    }
 	}
     }
 
@@ -146,7 +171,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
     
     table_add(loam.fonts, copy_string(atlasName), atlas);
 
-    log(.SUCCESS, tprint("% successfully created", atlasName));
+    log(.DEV, tprint("% successfully created", atlasName));
 }
 
 check_ft :: (result : FT_Error, errMsg : string, errType := Log_Type.ERROR, callLoc := #caller_location) {

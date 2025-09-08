@@ -40,12 +40,13 @@ main :: () {
 	    fontSize : u32 = 64;
 	    build_font_atlas("internal", fontSize, .English, true);	    
 	} else {
-	    fontSize : u32 = 32;
+	    fontSize : u32 = 64;
 	    build_font_atlas("internal", fontSize, .English, true);
+	    build_font_atlas("internal_mono", fontSize, .English, true);
 	}
 
 	{
-	    transform := make_transform( .{}, scale = make_vector3(0.75), alignment = .Bottom);
+	    transform := make_transform( .{}, alignment = .Bottom);
 	    text := make_text("Player", "internal", fontSize, transform);
 	    testText = make_ui_element(text, false);
 	    array_add(*loam.uiElements, testText);
@@ -213,7 +214,7 @@ main :: () {
 		msToWait = targetMs - (seconds_since_init() - lastTime) * 1000.0;
 	    }
 	}
-
+	
         loam.deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
 

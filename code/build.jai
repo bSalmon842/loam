@@ -25,7 +25,7 @@ Build_Android_ARM64 :: true;
 
 #run build_main();
 #if OS == .WINDOWS && Build_Windows {
-    //#run build_asset_packer();
+    #run build_asset_packer();
 }
 
 build_main :: () {

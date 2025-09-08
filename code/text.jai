@@ -110,14 +110,23 @@ update_text :: (text : *Text, str : string) {
 	    continue;
 	}
 	
-	found, fontGlyph := table_find_new(text.font.glyphs, char);
-	if !found {
+	glyphFound, fontGlyph := table_find_new(text.font.glyphs, char);
+	if !glyphFound {
 	    log(.ERROR, tprint("Failed to get glyph for %", character_utf32_to_utf8(char)));
 	    continue;
 	}
+
+	kerningAdvance : s32 = 0;
+	if it_index != text.str.count - 1 {
+	    nextChar := character_utf8_to_utf32(*text.str[it_index], text.str.count-it_index);
+	    kerningFound, kerning := table_find_new(text.font.kerning, make_kerning_key(char, nextChar));
+	    if kerningFound {
+		kerningAdvance = kerning;
+	    }
+	}
 	
 	glyph := New(RenderGlyph);
-	glyph.transform  = make_transform( position = .{ cursorX, cursorY, text.transform.position.z }, scale = text.transform.scale, alignment = .Left | .Bottom);
+	glyph.transform  = make_transform( position = .{ cursorX, cursorY - fontGlyph.baselineAdjust, text.transform.position.z }, scale = text.transform.scale, alignment = .Left | .Bottom);
 	glyph.tint = text.tint;
 	glyph.texture = text.font.image;
 	glyph.dimensions = fontGlyph.dimensions;
@@ -126,7 +135,7 @@ update_text :: (text : *Text, str : string) {
 	
 	array_add(*text.glyphs, glyph);
 
-	cursorX += cast(float) fontGlyph.advance * text.transform.scale.x;
+	cursorX += (cast(float) fontGlyph.advance + cast(float) kerningAdvance) * text.transform.scale.x;
     }
 }
 

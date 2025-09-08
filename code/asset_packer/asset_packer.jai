@@ -12,7 +12,7 @@ deltaTime : float64;
 // TODO: Make sure that assets with the same name are impossible
 
 // NOTE: We set this for get_packaged_assets_path as we will always be packaging into the dev data folders
-IS_DEBUG :: true;
+IS_DEV :: true;
 
 State :: enum {
     View_Packet; // if opened with a specific packet file to view it
@@ -464,21 +464,24 @@ construct_core_pack :: () {
     packBuilder : String_Builder;
     init_string_builder(*packBuilder);
 
-    {
+    add_core_font :: (packBuilder : *String_Builder, name : string, path : string) {
 	header : AssetHeader;
-	memcpy(header.name.data, "internal".data, 8);
+	memcpy(header.name.data, name.data, name.count);
 	header.type = .Font;
 	header.version = 1;
 
-	assetFile, readSuccess := read_entire_file(tprint("%fonts/internal.ttf", get_raw_assets_path()));
-	assert(readSuccess, "Failed to load internal font file");
+	assetFile, readSuccess := read_entire_file(tprint(path, get_raw_assets_path()));
+	assert(readSuccess, "Failed to load core font file: %", name);
 
 	header.size = cast(u64) assetFile.count;
 	
-	simple_memcpy(*packBuilder, header);
-	append(*packBuilder, assetFile);
+	simple_memcpy(packBuilder, header);
+	append(packBuilder, assetFile);
     }
 
+    add_core_font(*packBuilder, "internal", "%fonts/internal.ttf");
+    add_core_font(*packBuilder, "internal_mono", "%fonts/internal_mono.ttf");
+    
     writeSuccess := write_entire_file(tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION), *packBuilder);
     assert(writeSuccess, "Failed to write core assets file");
 }

@@ -269,7 +269,7 @@ get_packaged_assets_path :: () -> string {
 }
 
 get_raw_assets_path :: () -> string {    
-    if IS_DEBUG {
+    if IS_DEV {
 	if OS == .WINDOWS {
 	    return "C:/work/loam/data/";
 	}

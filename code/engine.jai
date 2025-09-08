@@ -7,7 +7,6 @@ Created: 08JUN2025
 
 // TODO: Meshes
 // TODO: Audio
-// TODO: A struct for holding data all renderables will need (visibility, etc) (Currently this is Renderable2D in render.jai)
 // TODO: States for menus, loading, etc
 // TODO: Gamepad input
 
