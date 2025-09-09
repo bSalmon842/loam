@@ -219,11 +219,7 @@ AssetHeader :: struct {
 	} #no_padding
 	Image : _Image #align 1;
 
-	_Font :: struct {
-	    supportsUnicode : bool;
-	    
-	} #no_padding
-	Font : _Font #align 1;
+	// NOTE: We don't save any additional info to the font info as we just save the raw ttf
 	
 	_Lang :: struct {
 

@@ -14,6 +14,12 @@ deltaTime : float64;
 // NOTE: We set this for get_packaged_assets_path as we will always be packaging into the dev data folders
 IS_DEV :: true;
 
+// Font Info
+TEST_STRING :: "Sphinx of Black Quartz, judge my vow\0";
+FONT_SMALL  : *ImGui.ImFont;
+FONT_MEDIUM : *ImGui.ImFont;
+FONT_BIG    : *ImGui.ImFont;
+
 State :: enum {
     View_Packet; // if opened with a specific packet file to view it
     Make_Packets; // if opened with a dir file or without any file
@@ -32,6 +38,9 @@ PackerState :: struct {
     assets : [..] AssetBeingAdded;
     selectedAssetIndex : s64 = -1;
     glTexture : u32;
+
+    fontToAdd  : string;
+    loadedFont : string;
 }
 
 main :: () {
@@ -44,7 +53,7 @@ main :: () {
 
     Windows.DragAcceptFiles(window, cast(Windows.BOOL) true);
     Simp.set_render_target(window);
-
+    
     ImGui.CreateContext();
     ImGui.ImplJai_Init(window);
     ImGui.ImplOpenGL3_Init();
@@ -83,9 +92,29 @@ main :: () {
             }
         }
 
+	if packer.fontToAdd.count {
+	    ImGui.CreateContext();
+    	    io := ImGui.GetIO();
+	    ImGui.ImFontAtlas.Clear(io.Fonts);
+	    ImGui.ImFontAtlas.AddFontDefault(io.Fonts);
+	    
+	    FONT_SMALL  = ImGui.ImFontAtlas.AddFontFromFileTTF(io.Fonts, packer.fontToAdd.data, 16.0, null, ImGui.ImFontAtlas.GetGlyphRangesDefault(io.Fonts));
+	    FONT_MEDIUM = ImGui.ImFontAtlas.AddFontFromFileTTF(io.Fonts, packer.fontToAdd.data, 32.0, null, ImGui.ImFontAtlas.GetGlyphRangesDefault(io.Fonts));
+	    FONT_BIG    = ImGui.ImFontAtlas.AddFontFromFileTTF(io.Fonts, packer.fontToAdd.data, 64.0, null, ImGui.ImFontAtlas.GetGlyphRangesDefault(io.Fonts));
+	    packer.loadedFont = packer.fontToAdd;
+	    packer.fontToAdd = "";
+
+    	    ImGui.ImFontAtlas.Build(io.Fonts);
+
+	    ImGui.ImplOpenGL3_DestroyDeviceObjects();
+	    ImGui.ImplOpenGL3_CreateDeviceObjects();
+	}
+	
 	ImGui.ImplOpenGL3_NewFrame();
 	ImGui.ImplJai_NewFrame();
 	ImGui.NewFrame();
+
+	
 
 	Simp.clear_render_target(0.1, 0.1, 0.1, 1);
 	
@@ -121,18 +150,20 @@ main :: () {
 		    if ImGui.Selectable(tprint("##row%_selectable\0", it_index).data, flags = .SpanAllColumns | .AllowItemOverlap) {
 			packer.selectedAssetIndex = it_index;
 			asset := *packer.assets[packer.selectedAssetIndex];
-			if asset.asset.type == .Image {
-		            GL.glGenTextures(1, *packer.glTexture);
-			    GL.glBindTexture(GL.GL_TEXTURE_2D, packer.glTexture);
-			    GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
-			    GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
-			    GL.glPixelStorei(GL.GL_UNPACK_ROW_LENGTH, 0);
-			    
-			    pngFilepath := join(path_strip_extension(asset.filepath), ".png");
-			    imageWidth, imageHeight, channels : s32;
-			    imageData := stbi_load(to_c_string(pngFilepath), *imageWidth, *imageHeight, *channels, 4);
-			    GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, xx imageWidth, xx imageHeight, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, imageData);
-			    stbi_image_free(imageData);
+			if asset.asset.type == {
+			    case .Image; {
+				GL.glGenTextures(1, *packer.glTexture);
+				GL.glBindTexture(GL.GL_TEXTURE_2D, packer.glTexture);
+				GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR);
+				GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR);
+				GL.glPixelStorei(GL.GL_UNPACK_ROW_LENGTH, 0);
+				
+				pngFilepath := join(path_strip_extension(asset.filepath), ".png");
+				imageWidth, imageHeight, channels : s32;
+				imageData := stbi_load(to_c_string(pngFilepath), *imageWidth, *imageHeight, *channels, 4);
+				GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, xx imageWidth, xx imageHeight, 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, imageData);
+				stbi_image_free(imageData);
+			    }
 			}
 		    }
 		}
@@ -143,7 +174,7 @@ main :: () {
 		ImGui.SetNextWindowPos(.{ windowWidth * 0.5 + 5.0, 5 });
 		windowSize := ImGui.ImVec2.{ (windowWidth * 0.5) - 10.0, windowHeight - 50.0 };
 		ImGui.SetNextWindowSize(windowSize);
-		ImGui.Begin("Asset Inspector", flags = .NoTitleBar | .NoResize | .NoMove);
+		ImGui.Begin("Asset Inspector", flags = .NoTitleBar | .NoResize | .NoMove | .HorizontalScrollbar);
 		if packer.selectedAssetIndex != -1 {
 		    asset := *packer.assets[packer.selectedAssetIndex];
 		    if asset.asset.type == {
@@ -172,6 +203,14 @@ main :: () {
 			    ImGui.Text("\tHeight: %", image.height);
 			    ImGui.Text("Mip Levels: %", image.mipLevels);
 			}
+			
+			case .Font; {
+			    if packer.loadedFont.count {
+				draw_font_test_text();
+			    } else {
+				packer.fontToAdd = asset.filepath;
+			    }
+			}
 
 			case; assert(false, "Unimplemented Type for Display");
 		    }
@@ -197,7 +236,7 @@ main :: () {
 		ImGui.SetNextWindowSize(optionWindowSize);
 		ImGui.Begin("Asset Options", flags = .NoTitleBar | .NoResize | .NoMove | .NoScrollbar | .NoScrollWithMouse);
 		if ImGui.Button("Rename", ImGui.ImVec2.{ 120, 20 }) {
-		    
+		    // TODO: 
 		}
 		ImGui.SameLine();
 		if ImGui.Button("Delete", ImGui.ImVec2.{ 120, 20 }) {
@@ -218,7 +257,7 @@ main :: () {
 
 		ImGui.NewLine();
 
-		display_for_asset_type(*packer.pendingAdd);
+		display_for_asset_type(packer, *packer.pendingAdd);
 		
 		addButtonSize := ImGui.ImVec2.{ 90, 30 };
 		ImGui.SetCursorPos(ImGui.ImVec2.{ windowSize.x - (addButtonSize.x + 10), windowSize.y - (addButtonSize.y + 10) });
@@ -318,7 +357,24 @@ process_asset_from_file :: (packer : *PackerState) {
 	}
 
 	case .Font; {
-	    
+	    ttfFile, readSuccess := read_entire_file(packer.pendingAdd.filepath);
+	    if !readSuccess {
+		free(ttfFile);
+		print_color("\n\tFailed to read file \"%\"\n\n", packer.pendingAdd.filepath, color = .HI_RED);
+		packer.state = .Make_Packets;
+		packer.pendingAdd = .{};
+		return;
+	    }
+	    defer free(ttfFile);
+
+	    // Fill out header info, type is already filled out, offset will be filled out during packing
+	    filenameNoExt := path_strip_extension(path_filename(packer.pendingAdd.filepath));
+	    memcpy(packer.pendingAdd.asset.name.data, filenameNoExt.data, min(packer.pendingAdd.asset.name.count, filenameNoExt.count));
+	    packer.pendingAdd.asset.version = 1; // This will get updated later if this asset is overwriting an existing asset
+	    packer.pendingAdd.asset.size = cast(u64) ttfFile.count;
+	    assert((packer.pendingAdd.asset.size + size_of(Asset)) <= MAX_ASSET_FILE_SIZE, "Asset is too large for current maximum file size");
+
+	    packer.loadedFont = "";
 	}
 
 	case .Lang; {
@@ -335,7 +391,7 @@ process_asset_from_file :: (packer : *PackerState) {
     }
 }
 
-display_for_asset_type :: (loadedAsset : *AssetBeingAdded) {
+display_for_asset_type :: (packer : *PackerState, loadedAsset : *AssetBeingAdded) {
     if #complete loadedAsset.asset.type == {
 	case .Invalid;
 
@@ -356,7 +412,17 @@ display_for_asset_type :: (loadedAsset : *AssetBeingAdded) {
 	}
 
 	case .Font; {
-	    
+	    ImGui.Text("Font Name:       ");
+	    ImGui.SameLine();
+	    ImGui.PushItemWidth(250);
+	    ImGui.InputText("##fontname", loadedAsset.asset.name.data, loadedAsset.asset.name.count);
+	    ImGui.PopItemWidth();
+
+	    if packer.loadedFont.count {
+		draw_font_test_text();
+	    } else {
+		packer.fontToAdd = loadedAsset.filepath;
+	    }
 	}
 
 	case .Lang; {
@@ -484,6 +550,32 @@ construct_core_pack :: () {
     
     writeSuccess := write_entire_file(tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION), *packBuilder);
     assert(writeSuccess, "Failed to write core assets file");
+}
+
+draw_font_test_text :: () {
+    if FONT_SMALL {
+	ImGui.NewLine();
+	
+	ImGui.PushFont(FONT_SMALL);
+	ImGui.Text(TEST_STRING);
+	ImGui.PopFont();
+    }
+
+    if FONT_MEDIUM {
+	ImGui.NewLine();
+	
+	ImGui.PushFont(FONT_MEDIUM);
+	ImGui.Text(to_upper_copy(TEST_STRING));
+	ImGui.PopFont();
+    }
+
+    if FONT_BIG {
+	ImGui.NewLine();
+	
+	ImGui.PushFont(FONT_BIG);
+	ImGui.Text(to_lower_copy(TEST_STRING));
+	ImGui.PopFont();
+    }
 }
 
 // NOTE: This must match AssetType

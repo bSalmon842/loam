@@ -1,5 +1,6 @@
 // raddbg 0.9.20 project file
 
+recent_file: path: "asset_packer/asset_packer.jai"
 recent_file: path: "font.jai"
 recent_file: path: "text.jai"
 recent_file: path: "assets.jai"
@@ -31,15 +32,21 @@ target:
 {
   executable: "../build/windows/debug/debug_loam.exe"
   working_directory: "../build/windows/debug"
-  enabled: 1
+  enabled: 0
 }
 breakpoint:
 {
   source_location: "text.jai:124:1"
   hit_count: 0
 }
+target:
+{
+  executable: "../build/windows/debug/asset_packer/debug_loam_assetpacker.exe"
+  working_directory: "../build/windows/debug/asset_packer/"
+  enabled: 1
+}
 breakpoint:
 {
-  source_location: "font.jai:134:1"
-  hit_count: 95
+  source_location: "asset_packer/asset_packer.jai:419:1"
+  hit_count: 2
 }
