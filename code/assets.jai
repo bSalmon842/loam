@@ -50,6 +50,7 @@ pack_file_code :: (fileCode : [4] u8) -> u32 {
 
 ResourceType :: enum {
     Image;
+    Audio;
 }
 
 MAX_RESOURCE_POOL_COUNT : u32 : 256;
@@ -57,7 +58,7 @@ ResourcePool :: struct (T : Type) {
     sentinel : T;
     count    : u32;
     
-    array : [MAX_RESOURCE_POOL_COUNT] *ImageResource;
+    array : [MAX_RESOURCE_POOL_COUNT] *T;
 }
 
 ResourceBase :: struct (T : Type) {
@@ -74,10 +75,16 @@ ImageResource :: struct {
     image : *AllocatedImageInfo;
 }
 
+AudioResource :: struct {
+    using _res : ResourceBase(#this);
+    audio : *Sound_Data;
+}
+
 add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *$R
     #modify {
-	if T == AllocatedImageInfo { R = ImageResource; }
-	else { R = void; }
+	     if T == AllocatedImageInfo { R = ImageResource; }
+	else if T == Sound_Data         { R = AudioResource; }
+	else                            { return false; }
 	
 	return true;
     } {
@@ -113,6 +120,32 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 	    return resource;
 	}
 
+	case Sound_Data; {
+	    if loam.assets.audios.count == MAX_RESOURCE_POOL_COUNT {
+		log(.FATAL, "Failed to audio resource cache is full, failed to add resource");
+		return null;
+	    }
+	    resource := New(AudioResource);
+	    resource.name = copy_string(name);
+	    resource.core = core;
+	    resource.audio = resourceContent;
+	    
+	    resource.prev = loam.assets.audios.sentinel.prev;
+	    resource.next = *loam.assets.audios.sentinel;
+
+	    loam.assets.audios.count += 1;
+
+	    for * loam.assets.audios.array {
+		if !it.* {
+		    it.* = resource;
+		    resource.index = cast(u32) it_index;
+		    break;
+		}
+	    }
+	    
+	    return resource;
+	}
+
 	case; {
 	    log(.FATAL, "Failed to add resource to cache");
 	    return null;
@@ -120,6 +153,8 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
     }
 }
 
+// TODO: Reimplement when needed
+/*
 remove_resource :: ($T : Type, name : string, core : bool = false) {
     #if T == {
 	case ImageResource; {
@@ -150,6 +185,7 @@ remove_resource :: ($T : Type, name : string, core : bool = false) {
 
     log(.WARN, tprint("Failed to find resource to remove: { %, %, % }", T, name, core));
 }
+*/
 
 find_resource :: ($T : Type, name : string, core : bool = false) -> *T {
     sentinel, resource : *T;
@@ -157,6 +193,11 @@ find_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 	case ImageResource; {
 	    sentinel = *loam.assets.images.sentinel;
 	    resource = loam.assets.images.sentinel.next;
+	}
+
+	case AudioResource; {
+	    sentinel = *loam.assets.audios.sentinel;
+	    resource = loam.assets.audios.sentinel.next;
 	}
     }
 
@@ -187,6 +228,18 @@ get_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 	    if name == ERROR_TEXTURE_NAME then log(.FATAL, "Failed to find error texture in cache");
 	    return get_resource(T, ERROR_TEXTURE_NAME, true);
 	}
+
+	case AudioResource; {
+	    asset := get_asset(.Audio, name, core);
+	    if asset {
+		data := string.{ xx asset.header.size, cast(*u8) asset.data };
+		audio := load_audio_data(name, data);
+		resource := add_resource(name, audio, core);
+		return resource;
+	    }
+
+	    return null;
+	}
     }
 }
 
@@ -196,6 +249,7 @@ AssetState :: struct {
     directory : *AssetDirectory;
 
     images : ResourcePool(ImageResource);
+    audios : ResourcePool(AudioResource);
 }
 
 AssetHeader :: struct {
@@ -227,7 +281,9 @@ AssetHeader :: struct {
 	Lang : _Lang #align 1;
 
 	_Audio :: struct {
-
+	    duration   : float;
+	    channels   : u32;
+	    sampleRate : u32;
 	} #no_padding
 	Audio : _Audio #align 1;
 
@@ -387,7 +443,22 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
 	}
 	
 	case .Lang;  assert(false, "Not Implemented");
-	case .Audio; assert(false, "Not Implemented");
+	
+	case .Audio; {
+	    fileData := (cast(*u8) assetHeader) + size_of(AssetHeader);
+	    asset := New(Asset);
+	    asset.header = assetHeader.*;
+	    asset.data = get_audio_from_file_data(assetHeader, fileData);
+
+	    free(assetFile.data);
+	    if !asset.data {
+		free(asset);
+		return null;
+	    }
+	    
+	    return asset;
+	}
+	
 	case .Video; assert(false, "Not Implemented");
 	
 	case .Invalid; assert(false, "Invalid should be handled earlier in this function, how did you get here?");
@@ -515,4 +586,12 @@ get_font_from_file_data :: (header : *AssetHeader, fileData : *void) -> *FontDat
     }
 
     return fontData;
+}
+
+get_audio_from_file_data :: (header : *AssetHeader, fileData : *void) -> *Sound_Data {
+    soundData := New(Sound_Data);
+    data := string.{ xx header.size, cast(*u8) fileData };
+    soundData.* = load_audio_data(cast(string) header.name, data);
+
+    return soundData;
 }

@@ -20,6 +20,10 @@ FONT_SMALL  : *ImGui.ImFont;
 FONT_MEDIUM : *ImGui.ImFont;
 FONT_BIG    : *ImGui.ImFont;
 
+CURRENT_AUDIO : Sound_Data;
+CURRENT_STREAM : *Sound_Stream;
+playCursor : float;
+
 State :: enum {
     View_Packet; // if opened with a specific packet file to view it
     Make_Packets; // if opened with a dir file or without any file
@@ -41,6 +45,8 @@ PackerState :: struct {
 
     fontToAdd  : string;
     loadedFont : string;
+
+    audioIsPlaying : bool;
 }
 
 main :: () {
@@ -53,6 +59,9 @@ main :: () {
 
     Windows.DragAcceptFiles(window, cast(Windows.BOOL) true);
     Simp.set_render_target(window);
+
+    devices := get_devices();
+    sound_player_init(.{});
     
     ImGui.CreateContext();
     ImGui.ImplJai_Init(window);
@@ -212,6 +221,37 @@ main :: () {
 			    }
 			}
 
+			case .Audio; {
+			    audio := asset.asset.Audio;
+			    
+			    minutes := floor(audio.duration / 60.0);
+			    ImGui.Text("Audio Duration:    %:%", cast(u32) minutes, audio.duration - (minutes * 60.0));
+			    ImGui.Text("Audio Channels:    %", audio.channels);
+			    ImGui.Text("Audio Sample Rate: %", audio.sampleRate);
+			    
+			    ImGui.NewLine();
+
+			    playCursor = ifx CURRENT_STREAM then cast(float) CURRENT_STREAM.play_cursor else 0.0;
+			    playCursor = cast(float) playCursor / cast(float) audio.sampleRate;
+			    ImGui.SliderFloat("Volume", *CURRENT_AUDIO.volume_scale, 0.0, 1.0);
+			    ImGui.SliderFloat("Progress", *playCursor, 0.0, audio.duration, flags = .NoInput);
+
+			    if !packer.audioIsPlaying {
+				if ImGui.Button("Play") {
+				    CURRENT_AUDIO = load_audio_file(asset.filepath);
+				    CURRENT_STREAM = make_stream(*CURRENT_AUDIO, .GENERAL_SFX);
+				    start_playing(CURRENT_STREAM);
+				    packer.audioIsPlaying = true;
+				}
+			    } else {
+				if ImGui.Button("Stop") {
+				    stop_stream_abruptly(*CURRENT_AUDIO);
+				    CURRENT_AUDIO = .{};
+				    packer.audioIsPlaying = false;
+				}
+			    }
+			}
+
 			case; assert(false, "Unimplemented Type for Display");
 		    }
 		}
@@ -263,6 +303,10 @@ main :: () {
 		ImGui.SetCursorPos(ImGui.ImVec2.{ windowSize.x - (addButtonSize.x + 10), windowSize.y - (addButtonSize.y + 10) });
 		// TODO: Check for overwrite
 		if ImGui.Button("Add Asset", addButtonSize) {
+		    stop_stream_abruptly(*CURRENT_AUDIO);
+		    CURRENT_AUDIO = .{};
+		    packer.audioIsPlaying = false;
+		    
 		    array_add(*packer.assets, packer.pendingAdd);
 		    packer.state = .Make_Packets;
 		    packer.pendingAdd = .{};
@@ -278,6 +322,8 @@ main :: () {
 	
         deltaTime = seconds_since_init() - lastTime;
         lastTime = seconds_since_init();
+
+	update(cast(float) deltaTime);
         
         reset_temporary_storage();
     }
@@ -382,7 +428,27 @@ process_asset_from_file :: (packer : *PackerState) {
 	}
 
 	case .Audio; {
-	    
+	    wavFile, readSuccess := read_entire_file(packer.pendingAdd.filepath);
+	    if !readSuccess {
+		free(wavFile);
+		print_color("\n\tFailed to read file \"%\"\n\n", packer.pendingAdd.filepath, color = .HI_RED);
+		packer.state = .Make_Packets;
+		packer.pendingAdd = .{};
+		return;
+	    }
+	    defer free(wavFile);
+
+	    // Fill out header info, type is already filled out, offset will be filled out during packing
+	    filenameNoExt := path_strip_extension(path_filename(packer.pendingAdd.filepath));
+	    memcpy(packer.pendingAdd.asset.name.data, filenameNoExt.data, min(packer.pendingAdd.asset.name.count, filenameNoExt.count));
+	    packer.pendingAdd.asset.version = 1; // This will get updated later if this asset is overwriting an existing asset
+	    packer.pendingAdd.asset.size = cast(u64) wavFile.count;
+	    assert((packer.pendingAdd.asset.size + size_of(Asset)) <= MAX_ASSET_FILE_SIZE, "Asset is too large for current maximum file size");
+
+	    audio := load_audio_file(packer.pendingAdd.filepath);
+	    packer.pendingAdd.asset.Audio.duration = cast(float) (audio.buffer.count / size_of(u16)) / cast(float) audio.sampling_rate / cast(float) audio.nchannels;
+	    packer.pendingAdd.asset.Audio.channels = audio.nchannels;
+	    packer.pendingAdd.asset.Audio.sampleRate = audio.sampling_rate;
 	}
 
 	case .Video; {
@@ -396,7 +462,7 @@ display_for_asset_type :: (packer : *PackerState, loadedAsset : *AssetBeingAdded
 	case .Invalid;
 
 	case .Mesh; {
-	    
+	    // TODO: 
 	}
 
 	case .Image; {
@@ -426,11 +492,42 @@ display_for_asset_type :: (packer : *PackerState, loadedAsset : *AssetBeingAdded
 	}
 
 	case .Lang; {
-	    
+	    // TODO: 
 	}
 
 	case .Audio; {
-	    // TODO: Audio player
+	    ImGui.Text("Audio Name:      ");
+	    ImGui.SameLine();
+	    ImGui.PushItemWidth(250);
+	    ImGui.InputText("##audioname", loadedAsset.asset.name.data, loadedAsset.asset.name.count);
+	    ImGui.PopItemWidth();
+
+	    minutes := floor(loadedAsset.asset.Audio.duration / 60.0);
+	    ImGui.Text("Audio Duration:    %:%", cast(u32) minutes, loadedAsset.asset.Audio.duration - (minutes * 60.0));
+	    ImGui.Text("Audio Channels:    %", loadedAsset.asset.Audio.channels);
+	    ImGui.Text("Audio Sample Rate: %", loadedAsset.asset.Audio.sampleRate);
+	    
+	    ImGui.NewLine();
+
+	    playCursor = ifx CURRENT_STREAM then cast(float) CURRENT_STREAM.play_cursor else 0.0;
+	    playCursor = cast(float) playCursor / cast(float) loadedAsset.asset.Audio.sampleRate;
+	    ImGui.SliderFloat("Volume", *CURRENT_AUDIO.volume_scale, 0.0, 1.0);
+	    ImGui.SliderFloat("Progress", *playCursor, 0.0, loadedAsset.asset.Audio.duration, flags = .NoInput);
+
+	    if !packer.audioIsPlaying {
+		if ImGui.Button("Play") {
+		    CURRENT_AUDIO = load_audio_file(loadedAsset.filepath);
+		    CURRENT_STREAM = make_stream(*CURRENT_AUDIO, .GENERAL_SFX);
+		    start_playing(CURRENT_STREAM);
+		    packer.audioIsPlaying = true;
+		}
+	    } else {
+		if ImGui.Button("Stop") {
+		    stop_stream_abruptly(*CURRENT_AUDIO);
+		    CURRENT_AUDIO = .{};
+		    packer.audioIsPlaying = false;
+		}
+	    }
 	}
 
 	case .Video; {
@@ -601,6 +698,7 @@ GL :: #import "GL";
 #import "Input";
 #import "Print_Color";
 Simp :: #import "Simp";
+#import "Sound_Player";
 #import "stb_image";
 #import "String";
 #import "Window_Creation";
