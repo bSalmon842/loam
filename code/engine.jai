@@ -6,7 +6,6 @@ Created: 08JUN2025
 */
 
 // TODO: Meshes
-// TODO: Audio
 // TODO: States for menus, loading, etc
 // TODO: Gamepad input
 
@@ -53,6 +52,8 @@ LoamState :: struct {
 	debugUIElements : [..] *UI_Element;
     }
     uiElements : [..] *UI_Element;
+
+    activeAudio : [..] *Audio.Sound_Stream;
     
     updateActive : bool;
     renderActive : bool;
@@ -61,6 +62,18 @@ LoamState :: struct {
     windowHeight : s64;
     deltaTime    : float64;
     running      : bool = true;
+
+    // Config
+    config : Config;
+}
+
+Config :: struct {
+    audioDevice  : Audio.Output_Device;
+    masterVolume : float;
+    bgVolume     : float;
+    sfxVolume    : float;
+
+    vsync : bool;
 }
 
 init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) {
@@ -86,13 +99,17 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     #if IS_DEV then this_allocation_is_not_a_leak(loam.assets);
     init_assets(loam.assets);
     
+    init_config();
+    
+    if !Audio.sound_player_init(.{ output_device = *loam.config.audioDevice }) then log(.FATAL, "Failed to initialise Sound Player");
+    
     loam.sceneCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
     loam.sceneCamera.verticalFOV = 80.0;
     loam.sceneCamera.dimensions = .{ initialWidth, initialHeight };
     loam.sceneCamera.position.z = -2;
     loam.sceneCamera.isOrthographic = false;
-
+    
     loam.uiCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.uiCamera);
     loam.uiCamera.dimensions = .{ initialWidth, initialHeight };
@@ -125,6 +142,20 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     }
 }
 
+init_config :: () {
+    // TODO: Load config and get audio device
+    
+    devices := Audio.get_devices();
+    loam.config.audioDevice = devices[0];
+    
+    loam.config.masterVolume = 0.2;
+    Audio.set_master_volume(loam.config.masterVolume);
+    loam.config.bgVolume = 1.0;
+    loam.config.sfxVolume = 1.0;
+
+    loam.config.vsync = false;
+}
+
 loam_start_update :: () {
     // TODO: We probably don't need to do this once we have section guards
     for vk.updateCommands {
@@ -148,10 +179,11 @@ loam_finish_update :: () {
     }
 
     loam.updateActive = false;
+
+    update_audio();
 }
 
 loam_start_render :: () {
-    //dynamic_descriptor_pool_allocator_reset_pools(*vk.descriptorAllocator, vk.device);
     cleanup_single_frame_images();
     cleanup_single_frame_buffers();
 
@@ -190,6 +222,7 @@ render_debug_ui :: () {
 }
 
 #load "assets.jai";
+#load "audio.jai";
 #load "camera.jai";
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
@@ -216,7 +249,6 @@ render_debug_ui :: () {
 #import "Process";
 #import "Reflection";
 Simp :: #import "Simp";
-#import "Sound_Player";
 #import "String";
 #import "System";
 #import "Thread";
@@ -240,6 +272,7 @@ Simp :: #import "Simp";
 // BS_Modules
 #import "ktx";
 #import "Logger" (IS_DEV);
+Audio :: #import "Sound_Player_bs842";
 #import "VMA";
 #import "Vulkan_1_3";
 #if IS_DEV && OS == .WINDOWS then ImGui :: #import "ImGui_1_9";

@@ -77,13 +77,13 @@ ImageResource :: struct {
 
 AudioResource :: struct {
     using _res : ResourceBase(#this);
-    audio : *Sound_Data;
+    audio : *Audio.Sound_Data;
 }
 
 add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *$R
     #modify {
 	     if T == AllocatedImageInfo { R = ImageResource; }
-	else if T == Sound_Data         { R = AudioResource; }
+	else if T == Audio.Sound_Data   { R = AudioResource; }
 	else                            { return false; }
 	
 	return true;
@@ -120,7 +120,7 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 	    return resource;
 	}
 
-	case Sound_Data; {
+	case Audio.Sound_Data; {
 	    if loam.assets.audios.count == MAX_RESOURCE_POOL_COUNT {
 		log(.FATAL, "Failed to audio resource cache is full, failed to add resource");
 		return null;
@@ -221,8 +221,7 @@ get_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 	    asset := get_asset(.Image, name, core);
 	    if asset {
 		image := create_vk_image_from_ktx(cast(*ktxTexture2) asset.data);
-		resource := add_resource(name, image, core);
-		return resource;
+		return add_resource(name, image, core);
 	    }
 
 	    if name == ERROR_TEXTURE_NAME then log(.FATAL, "Failed to find error texture in cache");
@@ -233,9 +232,9 @@ get_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 	    asset := get_asset(.Audio, name, core);
 	    if asset {
 		data := string.{ xx asset.header.size, cast(*u8) asset.data };
-		audio := load_audio_data(name, data);
-		resource := add_resource(name, audio, core);
-		return resource;
+		audio := New(Audio.Sound_Data);
+		audio.* = Audio.load_audio_data(name, data);
+		return add_resource(name, audio, core);
 	    }
 
 	    return null;
@@ -337,8 +336,9 @@ init_assets :: (assets : *AssetState) {
 	sentinel.prev = sentinel;
 	sentinel.next = sentinel;
     }
-
+    
     setup_sentinel(*assets.images.sentinel);
+    setup_sentinel(*assets.audios.sentinel);
 }
 
 load_asset_directory :: () -> *AssetDirectory {
@@ -448,7 +448,8 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
 	    fileData := (cast(*u8) assetHeader) + size_of(AssetHeader);
 	    asset := New(Asset);
 	    asset.header = assetHeader.*;
-	    asset.data = get_audio_from_file_data(assetHeader, fileData);
+	    asset.data = alloc(xx assetHeader.size);
+	    memcpy(asset.data, fileData, xx assetHeader.size);
 
 	    free(assetFile.data);
 	    if !asset.data {
@@ -586,12 +587,4 @@ get_font_from_file_data :: (header : *AssetHeader, fileData : *void) -> *FontDat
     }
 
     return fontData;
-}
-
-get_audio_from_file_data :: (header : *AssetHeader, fileData : *void) -> *Sound_Data {
-    soundData := New(Sound_Data);
-    data := string.{ xx header.size, cast(*u8) fileData };
-    soundData.* = load_audio_data(cast(string) header.name, data);
-
-    return soundData;
 }

@@ -83,10 +83,6 @@ Vk :: struct {
 
     // Optional Stuff
     enableVkVideo : bool;
-
-    // Settings
-    vsync := false;
-    /////////////
 }
 
 FrameCommandInfo :: struct {
@@ -401,7 +397,7 @@ create_vk_swapchain :: () -> VkResult {
     selectedPresentMode := VkPresentModeKHR.FIFO_KHR;
 
     // TODO: Get this from a setting struct of some kind, we should probably also force vsync on android (I don't think there's any reason not to)
-    if vk.vsync {
+    if loam.config.vsync {
 	for presentModes {
 	    if it == .MAILBOX_KHR {
 		selectedPresentMode = it;

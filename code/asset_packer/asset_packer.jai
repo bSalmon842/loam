@@ -239,7 +239,7 @@ main :: () {
 			    if !packer.audioIsPlaying {
 				if ImGui.Button("Play") {
 				    CURRENT_AUDIO = load_audio_file(asset.filepath);
-				    CURRENT_STREAM = make_stream(*CURRENT_AUDIO, .GENERAL_SFX);
+				    CURRENT_STREAM = make_stream(*CURRENT_AUDIO, null, .GENERAL_SFX);
 				    start_playing(CURRENT_STREAM);
 				    packer.audioIsPlaying = true;
 				}
@@ -517,7 +517,7 @@ display_for_asset_type :: (packer : *PackerState, loadedAsset : *AssetBeingAdded
 	    if !packer.audioIsPlaying {
 		if ImGui.Button("Play") {
 		    CURRENT_AUDIO = load_audio_file(loadedAsset.filepath);
-		    CURRENT_STREAM = make_stream(*CURRENT_AUDIO, .GENERAL_SFX);
+		    CURRENT_STREAM = make_stream(*CURRENT_AUDIO, null, .GENERAL_SFX);
 		    start_playing(CURRENT_STREAM);
 		    packer.audioIsPlaying = true;
 		}
@@ -698,10 +698,10 @@ GL :: #import "GL";
 #import "Input";
 #import "Print_Color";
 Simp :: #import "Simp";
-#import "Sound_Player";
 #import "stb_image";
 #import "String";
 #import "Window_Creation";
 Windows :: #import "Windows";
 
 ImGui :: #import "ImGui_1_9";
+#import "Sound_Player_bs842";

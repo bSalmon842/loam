@@ -33,14 +33,14 @@ main :: () {
 
     loam.deltaTime = seconds_since_init();
     lastTime := seconds_since_init();
-
+    
     #if IS_DEV {
 	metrics : DebugMetrics;
         #if OS == .ANDROID {
 	    fontSize : u32 = 64;
-	    build_font_atlas("internal", fontSize, .English, true);	    
+	    build_font_atlas("internal", fontSize, .English, true);
 	} else {
-	    fontSize : u32 = 64;
+	    fontSize : u32 = 32;
 	    build_font_atlas("internal", fontSize, .English, true);
 	    build_font_atlas("internal_mono", fontSize, .English, true);
 	}
@@ -65,6 +65,8 @@ main :: () {
     move_sprite_up    :: (extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.y += cast(float) (100.0 * loam.deltaTime); }
     move_sprite_down  :: (extraData : *void) { sprite := cast(*Sprite) extraData; sprite.position.y -= cast(float) (100.0 * loam.deltaTime); }
 
+    play_audio("ease", .MUSIC, true);
+    
     dpadCenter := Vector2.{200, 200};
     {
 	uiSprite := make_sprite("arrow_left", make_transform(.{ dpadCenter.x - 100, dpadCenter.y, 0 }), .{ 1, 1, 1, 0.25 });
@@ -205,7 +207,7 @@ main :: () {
 	
 	TIMING_MARKER("Render Finish");
 	
-	if vk.vsync {
+	if loam.config.vsync {
 	    targetMs := (1.0 / cast(float) refreshRate) * 1000.0;
 	    msSoFar := (seconds_since_init() - lastTime) * 1000.0;
 	    msToWait := targetMs - msSoFar;

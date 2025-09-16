@@ -82,6 +82,22 @@ frame_imgui :: (metrics : *DebugMetrics) {
 
 	ImGui.NewLine();
     }
+
+    if ImGui.CollapsingHeader("Config") {
+	ImGui.Checkbox("vsync", *loam.config.vsync);
+
+	devices := Audio.get_devices();
+	if ImGui.BeginCombo("##audiodevices", loam.config.audioDevice.name.data) {
+	    for devices {
+		selected := loam.config.audioDevice.device_index == it.device_index;
+		if ImGui.Selectable(it.name.data, selected) then change_audio_device(it);
+		if selected then ImGui.SetItemDefaultFocus();
+	    }
+	    
+	    ImGui.EndCombo();
+	}
+	ImGui.NewLine();
+    }
     
     if ImGui.CollapsingHeader("Resource Counts") {
 	if ImGui.CollapsingHeader(tprint("Images: %\0", loam.assets.images.count).data) {
@@ -128,6 +144,56 @@ frame_imgui :: (metrics : *DebugMetrics) {
 		}
 	    }
 	}
+
+	if ImGui.CollapsingHeader(tprint("Audio: %\0", loam.assets.audios.count).data) {
+	    for loam.assets.audios.array {
+		if it {
+		    colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
+		    if it.core {
+			colour = .{ 0.71, 0.45, 1, 1 };
+		    }
+		    
+		    ImGui.TextColored(colour, tprint("\t%", it.name));
+		}
+	    }
+	}
+	
+	ImGui.NewLine();
+    }
+
+    if ImGui.CollapsingHeader("Playing Audio") {
+	ImGui.Text("Playing Audio:");
+	ImGui.BeginTable("##audiotable", 3, .Borders);
+	ImGui.TableSetupColumn("Name");
+	ImGui.TableSetupColumn("Time");
+	ImGui.TableSetupColumn("Loop", .WidthFixed, 50.0);
+	ImGui.TableHeadersRow();
+	
+	for loam.activeAudio {
+	    ImGui.TableNextRow();
+
+	    ImGui.TableSetColumnIndex(0);
+	    ImGui.Text(it.sound_data.resource.name);
+	    
+	    ImGui.TableSetColumnIndex(1);
+	    progress := it.play_cursor / cast(float64) it.sound_data.sampling_rate;
+	    duration := cast(float64) (it.sound_data.buffer.count / size_of(u16)) / cast(float64) it.sound_data.sampling_rate / cast(float64) it.sound_data.nchannels;
+	    ImGui.Text(tprint("% / %", convert_duration_to_minutes(progress), convert_duration_to_minutes(duration)));
+	    
+	    ImGui.TableSetColumnIndex(2);
+	    ImGui.Text(tprint("%", cast(bool) (it.user_flags & .REPEATING)));
+	}
+	
+	ImGui.EndTable();
+	
+	ImGui.NewLine();
+	ImGui.Text("Volumes");
+	ImGui.Text("\tMaster");
+	if ImGui.SliderFloat("##mastervolume", *loam.config.masterVolume, 0.0, 1.0, "%.2f") then Audio.set_master_volume(loam.config.masterVolume);
+	ImGui.Text("\tBackground");
+	ImGui.SliderFloat("##bgvolume", *loam.config.bgVolume, 0.0, 1.0, "%.2f");
+	ImGui.Text("\tSFX");
+	ImGui.SliderFloat("##sfxvolume", *loam.config.sfxVolume, 0.0, 1.0, "%.2f");
 	
 	ImGui.NewLine();
     }
