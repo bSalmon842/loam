@@ -87,15 +87,20 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	ImGui.Checkbox("vsync", *loam.config.vsync);
 
 	devices := Audio.get_devices();
-	if ImGui.BeginCombo("##audiodevices", loam.config.audioDevice.name.data) {
+	if ImGui.BeginCombo("##audiodevices", loam.audioDevice.name.data) {
 	    for devices {
-		selected := loam.config.audioDevice.device_index == it.device_index;
+		selected := loam.audioDevice.device_index == it.device_index;
 		if ImGui.Selectable(it.name.data, selected) then change_audio_device(it);
 		if selected then ImGui.SetItemDefaultFocus();
 	    }
 	    
 	    ImGui.EndCombo();
 	}
+	
+	if ImGui.Button("Save Config File") {
+	    save_config();
+	}
+	
 	ImGui.NewLine();
     }
     

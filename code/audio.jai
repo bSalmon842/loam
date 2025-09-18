@@ -27,10 +27,32 @@ remove_audio_callback :: (stream : *Audio.Sound_Stream) {
     }
 }
 
+get_audio_device_from_name :: (deviceName : string) -> Audio.Output_Device {
+    devices := Audio.get_devices();
+    for devices {
+	if it.name == deviceName then return it;
+    }
+
+    return .{};
+}
+
+change_audio_device :: (name : string) {
+    newDevice := get_audio_device_from_name(name);
+    if newDevice.name.count {
+	Audio.sound_player_shutdown();
+	loam.audioDevice = newDevice;
+	loam.config.audioDeviceName = name;
+	if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, tprint("Failed to change audio device to %", newDevice.name));
+    } else {
+	log(.ERROR, tprint("Failed to find an audio device with name \"%\"", name));
+    }
+}
+
 change_audio_device :: (newDevice : Audio.Output_Device) {
     Audio.sound_player_shutdown();
-    loam.config.audioDevice = newDevice;
-    if !Audio.sound_player_init(.{ output_device = *loam.config.audioDevice }) then log(.FATAL, tprint("Failed to change audio device to %", newDevice.name));
+    loam.audioDevice = newDevice;
+    loam.config.audioDeviceName = loam.audioDevice.name;
+    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, tprint("Failed to change audio device to %", newDevice.name));
 }
 
 convert_duration_to_minutes :: (duration : float64) -> string {

@@ -53,6 +53,7 @@ LoamState :: struct {
     }
     uiElements : [..] *UI_Element;
 
+    audioDevice : Audio.Output_Device;
     activeAudio : [..] *Audio.Sound_Stream;
     
     updateActive : bool;
@@ -65,15 +66,6 @@ LoamState :: struct {
 
     // Config
     config : Config;
-}
-
-Config :: struct {
-    audioDevice  : Audio.Output_Device;
-    masterVolume : float;
-    bgVolume     : float;
-    sfxVolume    : float;
-
-    vsync : bool;
 }
 
 init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) {
@@ -100,8 +92,9 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     init_assets(loam.assets);
     
     init_config();
-    
-    if !Audio.sound_player_init(.{ output_device = *loam.config.audioDevice }) then log(.FATAL, "Failed to initialise Sound Player");
+
+    loam.audioDevice = get_audio_device_from_name(loam.config.audioDeviceName);
+    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, "Failed to initialise Sound Player");
     
     loam.sceneCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
@@ -140,20 +133,6 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 	}
 	register_keycode_input(Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
     }
-}
-
-init_config :: () {
-    // TODO: Load config and get audio device
-    
-    devices := Audio.get_devices();
-    loam.config.audioDevice = devices[0];
-    
-    loam.config.masterVolume = 0.2;
-    Audio.set_master_volume(loam.config.masterVolume);
-    loam.config.bgVolume = 1.0;
-    loam.config.sfxVolume = 1.0;
-
-    loam.config.vsync = false;
 }
 
 loam_start_update :: () {
@@ -224,6 +203,7 @@ render_debug_ui :: () {
 #load "assets.jai";
 #load "audio.jai";
 #load "camera.jai";
+#load "config.jai";
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
