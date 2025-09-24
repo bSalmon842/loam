@@ -20,24 +20,27 @@ keyboard_to_u64 :: (code : Key_Code, modifiers : Event.Modifier_Flags) -> u64 {
 }
 
 // Function Types
-ButtonInputFunc :: #type (extraData : *void);
+ButtonInputFunc :: #type (args : .. Any);
 ButtonInputFuncInfo :: struct {
+    relevantStates : GameplayState;
     func : ButtonInputFunc;
-    extraData : *void;
+    args : [] Any;
 }
 
 // Registration and Calling Functions
-register_keycode_input :: (code : Key_Code, modifiers : Event.Modifier_Flags, func : ButtonInputFunc, extraData : *void) {
+register_keycode_input :: (code : Key_Code, modifiers : Event.Modifier_Flags, states : GameplayState, func : ButtonInputFunc, args : .. Any) {
     keyInput := keyboard_to_u64(code, modifiers);
     if !table_contains(*loam.binds.keycodeBinds, keyInput) {
-	table_add(*loam.binds.keycodeBinds, keyInput, .{ func, extraData });
+	table_add(*loam.binds.keycodeBinds, keyInput, .{ states, func, args });
     }
 }
 
 handle_keycode_input :: (keyCode : Key_Code, modifiers : Event.Modifier_Flags) {
     foundBind := table_find_pointer(*loam.binds.keycodeBinds, keyboard_to_u64(keyCode, modifiers));
     if foundBind {
-	foundBind.func(foundBind.extraData);
+	if loam.gameplayState & foundBind.relevantStates {
+	    foundBind.func(..foundBind.args);
+	}
     }
 }
 

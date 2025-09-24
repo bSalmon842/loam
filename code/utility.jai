@@ -5,8 +5,6 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
-APP_NAME :: "loam";
-
 Invalid_Codepath :: () {
     assert(false, "Invalid Codepath");
 }

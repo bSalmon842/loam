@@ -61,7 +61,14 @@ draw_frame :: () {
 
     transition_image(cmdBuffer, vk.drawImage.image, .UNDEFINED, .GENERAL);
 
-    render_clear(cmdBuffer, vk.drawImage.image, .{0.1, 0.1, 0.1, 1.0});
+    if loam.gameplayState == .Splash {
+	if loam.splashIndex < loam.splashScreens.count {
+	    splash := loam.splashScreens[loam.splashIndex];
+	    render_clear(cmdBuffer, vk.drawImage.image, splash.clearColour);
+	}
+    } else {
+	render_clear(cmdBuffer, vk.drawImage.image, .{0.1, 0.1, 0.1, 1.0});
+    }
     
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
     

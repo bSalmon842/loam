@@ -1,9 +1,12 @@
 /*
 Project: Loam
-File: engine.jai
+File: module.jai
 Author: Brock Salmon
 Created: 08JUN2025
 */
+
+#module_parameters(APP_NAME := "", IS_DEV := false);
+#run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
 // TODO: Meshes
 // TODO: States for menus, loading, etc
@@ -36,6 +39,8 @@ vk : *Vk;
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
+
+    gameplayState : GameplayState;
     
     threadCount : s32;
 
@@ -61,14 +66,33 @@ LoamState :: struct {
     
     windowWidth  : s64;
     windowHeight : s64;
+    refreshRate  : u32;
     deltaTime    : float64;
+    lastTime     : float64;
     running      : bool = true;
+
+    // Splash Screens
+    splashScreens : [..] SplashScreen;
+    splashIndex : u32 = 0;
+    splashTimer : float64 = 0;
 
     // Config
     config : Config;
 }
 
 init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) {
+    if APP_NAME.count == 0 {
+        #if OS == .WINDOWS {
+	    Windows.MessageBoxA(window, "No app name was set, remember to call #run set_app_name", "Initialisation Error", Windows.MB_OK | Windows.MB_ICONERROR);
+	} else #if OS == .ANDROID {
+	    
+	} else #if OS == .LINUX {
+	    X11.x_message_box(X11.None, text, "No app name was set, remember to call #run set_app_name", .ST_OK);
+	}
+
+	exit(0);
+    }
+    
     #if OS == .ANDROID {
 	MESH_VERTEX_SHADER   = load_spirv_for_android("mesh_vertex");
 	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
@@ -77,6 +101,8 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 	SPRITE_VERTEX_SHADER = load_spirv_for_android("sprite_vertex");
 	SPRITE_FRAGMENT_SHADER = load_spirv_for_android("sprite_fragment");
     }
+    
+    make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR);
     
     _loam := New(LoamState);
     #if IS_DEV then this_allocation_is_not_a_leak(_loam);
@@ -126,20 +152,34 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     loam.windowWidth = xx initialWidth;
     loam.windowHeight = xx initialHeight;
+    loam.refreshRate = get_refresh_rate(window);
+    loam.deltaTime = seconds_since_init();
+    loam.lastTime = seconds_since_init();
 
-    #if OS == .WINDOWS {
-	quit_game :: (extraData : *void) {
-	    loam.running = false;
-	}
-	register_keycode_input(Key_Code.F4, .{ alt_pressed = true }, quit_game, null);
+    loam.gameplayState = .Splash;
+
+    array_add(*loam.splashScreens, .{ get_resource(ImageResource, "loam_splash", true), null, .{0.05, 0.05, 0.05, 1.0} });
+    
+    // Setup core inputs
+    quit_game :: (args : .. Any) {
+	loam.running = false;
+    }
+    skip_splash :: (args : ..Any) {
+	transition_state(.Splash, .Playing);
+    }
+    register_keycode_input(Key_Code.MOUSE_BUTTON_LEFT, .{}, .Splash, skip_splash);
+    #if OS == .WINDOWS || OS == .LINUX {
+	register_keycode_input(Key_Code.F4, .{ alt_pressed = true }, .All, quit_game);
+	register_keycode_input(Key_Code.SPACEBAR, .{}, .Splash, skip_splash);
     }
 }
 
 loam_start_update :: () {
-    // TODO: We probably don't need to do this once we have section guards
     for vk.updateCommands {
 	if it then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
     }
+
+    vk.currentFrame = get_current_frame();
 
     loam.updateActive = true;
 }
@@ -163,9 +203,6 @@ loam_finish_update :: () {
 }
 
 loam_start_render :: () {
-    cleanup_single_frame_images();
-    cleanup_single_frame_buffers();
-
     loam.renderActive = true;
 }
 
@@ -194,38 +231,71 @@ loam_finish_render :: () {
     loam.renderActive = false;
 }
 
+loam_handle_timing :: () {
+    if loam.config.vsync {
+	targetMs := (1.0 / cast(float) loam.refreshRate) * 1000.0;
+	msSoFar := (seconds_since_init() - loam.lastTime) * 1000.0;
+	msToWait := targetMs - msSoFar;
+	while msToWait > 0 {
+	    if msToWait > 1 then sleep_milliseconds(1);
+	    msToWait = targetMs - (seconds_since_init() - loam.lastTime) * 1000.0;
+	}
+    }
+    
+    loam.deltaTime = seconds_since_init() - loam.lastTime;
+    loam.lastTime = seconds_since_init();
+}
+
+loam_handle_input :: (window : Window_Type) {
+    update_window_events();
+    
+    resizes := get_window_resizes();
+    for resizes {
+	if it_index == resizes.count - 1 {
+	    loam.windowWidth = it.width;
+	    loam.windowHeight = it.height;
+	    loam.refreshRate = get_refresh_rate(window);
+	}
+    }
+
+    if vk.resizeRequested then resize_swapchain();
+    
+    for events_this_frame {
+        if it.type == {
+            case .QUIT; loam.running = false;
+	    case .KEYBOARD; {
+		// NOTE: If we do have modifier flags then we probably don't want to repeat the input, so we can use the raw event
+		if it.key_pressed && it.modifier_flags.packed != 0 {
+		    handle_keycode_input(it.key_code, it.modifier_flags);
+		}
+	    }
+        }
+    }
+    
+    // NOTE: If we don't have any modifier flags then we might want to repeat the input (such as for movement, etc) so we use input_button_states
+    for input_button_states {
+	if it & .DOWN {
+	    handle_keycode_input(cast(Key_Code) it_index, .{});
+	}
+    }
+    
+    update_pointer_status(window, *loam.mainPointer);
+}
+
 render_debug_ui :: () {
     for loam.debugUIElements {
 	add_ui_render_command(it);
     }
 }
 
-#load "assets.jai";
-#load "audio.jai";
-#load "camera.jai";
-#load "config.jai";
-#load "font.jai";
-#if IS_DEV then #load "imgui.jai";
-#load "input.jai";
-#load "math.jai";
-#load "metrics.jai";
-#load "sprite.jai";
-#load "text.jai";
-#load "thread.jai";
-#load "transform.jai";
-#load "utility.jai";
-#load "ui.jai";
-#load "vk/vk.jai";
-
-#import "Atomics";
-#import "Basic"() (MEMORY_DEBUGGER = OS == .WINDOWS);
+EXTRA_IMPORTS :: #string DONE
+#import "Basic";
 #import "File";
 #import "File_Utilities";
-#import "freetype-2.12.1";
 #import "Hash_Table";
 #import "Input";
 #import "Math";
-#import "Print_Color"() (USE_ANSI_CODES_ON_WINDOWS=true);
+#import "Print_Color";
 #import "Process";
 #import "Reflection";
 Simp :: #import "Simp";
@@ -238,7 +308,6 @@ Simp :: #import "Simp";
 #if OS == .WINDOWS {
     Windows :: #import "Windows";
     WindowsUTF8 :: #import "Windows_Utf8";
-    
     WindowsE :: #import "WindowsExtras";
 } else #if OS == .LINUX {
     X11 :: #import "X11";
@@ -249,9 +318,66 @@ Simp :: #import "Simp";
     #import "POSIX";
 }
 
-// BS_Modules
 #import "ktx";
 #import "Logger" (IS_DEV);
+Audio :: #import "Sound_Player_bs842";
+#import "VMA";
+#import "Vulkan_1_3";
+#if IS_DEV && OS == .WINDOWS then ImGui :: #import "ImGui_1_9";
+DONE
+
+#load "assets.jai";
+#load "audio.jai";
+#load "camera.jai";
+#load "config.jai";
+#load "font.jai";
+#if IS_DEV then #load "imgui.jai";
+#load "input.jai";
+#load "math.jai";
+#load "metrics.jai";
+#load "sprite.jai";
+#load "state.jai";
+#load "text.jai";
+#load "thread.jai";
+#load "transform.jai";
+#load "utility.jai";
+#load "ui.jai";
+#load "vk/vk.jai";
+
+#scope_module
+#import "Basic";
+#import "File";
+#import "File_Utilities";
+#import "freetype-2.12.1";
+#import "Hash_Table";
+#import "Input";
+#import "Math";
+#import "Print_Color";
+#import "Process";
+#import "Reflection";
+Simp :: #import "Simp";
+#import "String";
+#import "System";
+#import "Thread";
+#import "Unicode";
+#import "Window_Creation";
+
+#if OS == .WINDOWS {
+    Windows :: #import "Windows";
+    WindowsUTF8 :: #import "Windows_Utf8";
+    WindowsE :: #import "WindowsExtras";
+} else #if OS == .LINUX {
+    X11 :: #import "X11";
+} else #if OS == .ANDROID {
+    #import "Android";
+    #import "Android/File";
+    #import "Android/Jni";
+    #import "POSIX";
+}
+
+// BS_Modules
+#import "ktx";
+#import "Logger"(IS_DEV);
 Audio :: #import "Sound_Player_bs842";
 #import "VMA";
 #import "Vulkan_1_3";

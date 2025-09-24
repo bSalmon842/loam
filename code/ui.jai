@@ -46,7 +46,7 @@ UI_ActivateMode :: enum {
     OnRelease;
 }
 
-UI_InteractFunc :: #type (extraData : *void);
+UI_InteractFunc :: #type (args : .. Any);
 UI_HoverFunc :: #type (elem : *UI_Element);
 MouseInteractionInfo :: struct {
     interactable : bool;
@@ -54,10 +54,11 @@ MouseInteractionInfo :: struct {
     hovered : bool;
     hoverTint : Vector4;
     hoverFunc : UI_HoverFunc;
-    
-    activateMode : UI_ActivateMode;
-    activateFunc : UI_InteractFunc;
-    activateData : *void;
+
+    activateMode  : UI_ActivateMode;
+    activateState : GameplayState;
+    activateFunc  : UI_InteractFunc;
+    activateArgs  : [] Any;
 }
 
 UI_Type :: enum {
@@ -76,7 +77,7 @@ UI_Element :: struct {
     }
 }
 
-make_ui_element :: (text : *Text, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateFunc : UI_InteractFunc = null, activateData : *void = null) -> *UI_Element {
+make_ui_element :: (text : *Text, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateState : GameplayState = .All, activateFunc : UI_InteractFunc = null, activateArgs : .. Any) -> *UI_Element {
     elem := New(UI_Element);
     elem.type = .Text;
     elem.text = text;
@@ -86,13 +87,14 @@ make_ui_element :: (text : *Text, interactable : bool, hoverTint : Vector4 = .{}
     elem.interact.hoverTint = hoverTint;
     elem.interact.hoverFunc = hoverFunc;
     elem.interact.activateMode = activateMode;
+    elem.interact.activateState = activateState;
     elem.interact.activateFunc = activateFunc;
-    elem.interact.activateData = activateData;
+    elem.interact.activateArgs = activateArgs;
     
     return elem;
 }
 
-make_ui_element :: (sprite : *Sprite, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateFunc : UI_InteractFunc = null, activateData : *void = null) -> *UI_Element {
+make_ui_element :: (sprite : *Sprite, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateState : GameplayState = .All, activateFunc : UI_InteractFunc = null, activateArgs : .. Any) -> *UI_Element {
     elem := New(UI_Element);
     elem.type = .Sprite;
     elem.sprite = sprite;
@@ -102,8 +104,9 @@ make_ui_element :: (sprite : *Sprite, interactable : bool, hoverTint : Vector4 =
     elem.interact.hoverTint = hoverTint;
     elem.interact.hoverFunc = hoverFunc;
     elem.interact.activateMode = activateMode;
+    elem.interact.activateState = activateState;
     elem.interact.activateFunc = activateFunc;
-    elem.interact.activateData = activateData;
+    elem.interact.activateArgs = activateArgs;
     
     return elem;
 }
@@ -115,15 +118,15 @@ update_ui_element :: (pointer : PointerStatus, elem : *UI_Element) {
 	    pointerWithinRegion &&= pointer.pressedThisFrame;
 	}
 	
-	if pointerWithinRegion {
+	if pointerWithinRegion && elem.interact.activateState & loam.gameplayState {
 	    elem.interact.hovered = true;
 	    if elem.interact.hoverFunc then elem.interact.hoverFunc(elem);
 
 	    // TODO: The way this is currently setup, we can press off the button, then move onto the button and release to activate, is that okay?
 	    if elem.interact.activateFunc {
-		if elem.interact.activateMode == .InitialPress && is_press_action(pointer) then elem.interact.activateFunc(elem.interact.activateData);
-		if elem.interact.activateMode == .WhileDown && is_down_action(pointer) then elem.interact.activateFunc(elem.interact.activateData);
-		if elem.interact.activateMode == .OnRelease && is_release_action(pointer) then elem.interact.activateFunc(elem.interact.activateData);
+		if elem.interact.activateMode == .InitialPress && is_press_action(pointer) then elem.interact.activateFunc(..elem.interact.activateArgs);
+		if elem.interact.activateMode == .WhileDown && is_down_action(pointer) then elem.interact.activateFunc(..elem.interact.activateArgs);
+		if elem.interact.activateMode == .OnRelease && is_release_action(pointer) then elem.interact.activateFunc(..elem.interact.activateArgs);
 	    }
 	} else {
 	    elem.interact.hovered = false;

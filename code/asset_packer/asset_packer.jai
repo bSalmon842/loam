@@ -9,7 +9,10 @@ windowWidth  := 1280;
 windowHeight := 720;
 deltaTime : float64;
 
+AppName : [16] u8;
+
 // TODO: Make sure that assets with the same name are impossible
+// TODO: Move getting core assets from engine
 
 // NOTE: We set this for get_packaged_assets_path as we will always be packaging into the dev data folders
 IS_DEV :: true;
@@ -50,6 +53,8 @@ PackerState :: struct {
 }
 
 main :: () {
+    memcpy(AppName.data, "loam\0".data, 5);
+    
     Windows.SetProcessDPIAware();
     Windows.timeBeginPeriod(1);
 
@@ -261,6 +266,8 @@ main :: () {
 		saveWindowSize := ImGui.ImVec2.{ (windowWidth * 0.5) - 10.0, 35.0 };
 		ImGui.SetNextWindowSize(saveWindowSize);
 		ImGui.Begin("Pack Explorer", flags = .NoTitleBar | .NoResize | .NoMove | .NoScrollbar | .NoScrollWithMouse);
+		ImGui.InputText("##appname", AppName.data, AppName.count);
+		ImGui.SameLine();
 		if ImGui.Button("Save Asset Packs", ImGui.ImVec2.{ 120, 20 }) {
 		    construct_packs(packer);
 		    construct_core_pack();
@@ -367,7 +374,8 @@ process_asset_from_file :: (packer : *PackerState) {
 	    texture := New(ktxTexture2);
 	    result := ktxTexture2_CreateFromMemory(ktxFile.data, cast(u64) ktxFile.count, .LOAD_IMAGE_DATA_BIT | .CHECK_GLTF_BASISU_BIT, *texture);
 	    if result != .SUCCESS {
-		print_color("\n\tFailed to create ktx texture from \"%\" with error: %\n\n", packer.pendingAdd.filepath, result, color = .HI_RED);
+		print_color("\n\tFailed to create ktx texture from \"%\" with error: %\n", packer.pendingAdd.filepath, result, color = .HI_RED);
+		print_color("\n\tTIP: Make sure the dimensions are multiples of 4 for BASISU\n\n", packer.pendingAdd.filepath, result, color = .HI_WHITE);
 		free(texture);
 		packer.state = .Make_Packets;
 		packer.pendingAdd = .{};
@@ -547,7 +555,7 @@ open_from_dir_file :: (packerState : *PackerState, dirFile : string) {
 	    
 	    filepath := to_string(dirItem.filepath.data);
 
-	    packName := tprint("%1%2_%.%", get_packaged_assets_path(), APP_NAME, dirItem.file, ASSET_PACK_FILE_EXTENSION);
+	    packName := tprint("%1%2_%.%", get_packaged_assets_path(), to_string(AppName.data), dirItem.file, ASSET_PACK_FILE_EXTENSION);
 	    packContents, packSuccess := read_entire_file(packName);
 	    if packSuccess {
 		header := cast(*AssetHeader) (packContents.data + dirItem.offset);
@@ -583,7 +591,7 @@ construct_packs :: (packer : *PackerState) {
 	if currentFile && (MAX_ASSET_FILE_SIZE - currentFileSize) < it.asset.size {
 	    file_write(currentFile, *packBuilder);
 	    file_close(currentFile);
-    	    print("\tWrote %\n", tprint("%_%.%", APP_NAME, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
+    	    print("\tWrote %\n", tprint("%_%.%", to_string(AppName.data), currentFileIndex, ASSET_PACK_FILE_EXTENSION));
 	    
 	    currentFile = null;
 	    currentFileSize = 0;
@@ -591,7 +599,7 @@ construct_packs :: (packer : *PackerState) {
 	}
 	
 	if !currentFile {
-	    currentFile = *file_open(tprint("%1%2_%.%", get_packaged_assets_path(), APP_NAME, currentFileIndex, ASSET_PACK_FILE_EXTENSION), true);
+	    currentFile = *file_open(tprint("%1%2_%.%", get_packaged_assets_path(), to_string(AppName.data), currentFileIndex, ASSET_PACK_FILE_EXTENSION), true);
 	    init_string_builder(*packBuilder, MAX_ASSET_FILE_SIZE);
 	}
 	
@@ -610,43 +618,47 @@ construct_packs :: (packer : *PackerState) {
 	append(*packBuilder, assetFile);
 	currentFileSize += cast(u64) (size_of(AssetHeader) + assetFile.count);
 
-	print("\tWrote % to %\n", cast(string) it.asset.name, tprint("%_%.%", APP_NAME, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
+	print("\tWrote % to %\n", cast(string) it.asset.name, tprint("%_%.%", to_string(AppName.data), currentFileIndex, ASSET_PACK_FILE_EXTENSION));
     }
 
     // Write last asset pack
     file_write(currentFile, *packBuilder);
     file_close(currentFile);
-    print("\tWrote %\n", tprint("%_%.%", APP_NAME, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
+    print("\tWrote %\n", tprint("%_%.%", to_string(AppName.data), currentFileIndex, ASSET_PACK_FILE_EXTENSION));
 
     // Write directory file
-    write_entire_file(tprint("%1%2.%", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION), *directoryBuilder);
-    print("\tWrote %\n", tprint("%.%", APP_NAME, ASSET_DIR_FILE_EXTENSION));
+    write_entire_file(tprint("%1%2.%", get_packaged_assets_path(), to_string(AppName.data), ASSET_DIR_FILE_EXTENSION), *directoryBuilder);
+    print("\tWrote %\n", tprint("%.%", to_string(AppName.data), ASSET_DIR_FILE_EXTENSION));
 }
 
 construct_core_pack :: () {
     packBuilder : String_Builder;
     init_string_builder(*packBuilder);
 
-    add_core_font :: (packBuilder : *String_Builder, name : string, path : string) {
+    add_core_asset :: (packBuilder : *String_Builder, type : AssetType, name : string, path : string) {
 	header : AssetHeader;
 	memcpy(header.name.data, name.data, name.count);
-	header.type = .Font;
+	header.type = type;
 	header.version = 1;
 
 	assetFile, readSuccess := read_entire_file(tprint(path, get_raw_assets_path()));
-	assert(readSuccess, "Failed to load core font file: %", name);
+	assert(readSuccess, "Failed to load core % file: %", enum_value_to_name(type), name);
 
 	header.size = cast(u64) assetFile.count;
 	
 	simple_memcpy(packBuilder, header);
 	append(packBuilder, assetFile);
+
+	print("\tWrote % to loam_core.%\n", name, ASSET_CORE_FILE_EXTENSION);
     }
 
-    add_core_font(*packBuilder, "internal", "%fonts/internal.ttf");
-    add_core_font(*packBuilder, "internal_mono", "%fonts/internal_mono.ttf");
+    add_core_asset(*packBuilder, .Font, "internal", "%fonts/internal.ttf");
+    add_core_asset(*packBuilder, .Font, "internal_mono", "%fonts/internal_mono.ttf");
+    add_core_asset(*packBuilder, .Image, "loam_splash", "%images/loam_splash.ktx2");
     
     writeSuccess := write_entire_file(tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION), *packBuilder);
     assert(writeSuccess, "Failed to write core assets file");
+    print("\tWrote loam_core.%\n", ASSET_CORE_FILE_EXTENSION);
 }
 
 draw_font_test_text :: () {
@@ -688,20 +700,9 @@ SupportedFormats :: string.[
 
 #scope_file
 
-#load "../engine.jai";
+#import "loam/code"("loam_assetpacker", IS_DEV);
+#insert EXTRA_IMPORTS;
 
-#import "Basic";
-#import "File";
-#import "File_Utilities";
 GL :: #import "GL";
-#import "Hash_Table";
-#import "Input";
-#import "Print_Color";
-Simp :: #import "Simp";
 #import "stb_image";
-#import "String";
-#import "Window_Creation";
-Windows :: #import "Windows";
-
-ImGui :: #import "ImGui_1_9";
 #import "Sound_Player_bs842";

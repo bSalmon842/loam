@@ -166,14 +166,14 @@ init_vk :: (window : Window_Type) {
 
     samplerCreateInfo.minFilter = .NEAREST;
     samplerCreateInfo.magFilter = .NEAREST;
-    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Nearest);
+    check_vk(vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Nearest), "Failed to create Nearest Sampler");
 
     samplerCreateInfo.minFilter = .LINEAR;
     samplerCreateInfo.magFilter = .LINEAR;
     samplerCreateInfo.mipmapMode = .LINEAR;
     samplerCreateInfo.anisotropyEnable = VK_TRUE;
     samplerCreateInfo.maxAnisotropy = maxSamplerAnisotropy;
-    vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear);
+    check_vk(vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear), "Failed to create Linear Sampler");
 
     // Bindless Descriptors
     vk.bindlessDescriptorPool = create_bindless_descriptor_pool();

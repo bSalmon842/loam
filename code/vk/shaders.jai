@@ -85,10 +85,10 @@ compile_glsl_to_spirv :: (glslName : string) -> CompiledShader {
 	spvContents, foundFile := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
 	return CompiledShader.{ hlslName, spvContents, foundFile };
     }
+    SHADER_FOLDER_PATH             :: "shaders/";
 } else {
-    COMPILED_SHADER_FOLDER_PATH    :: "shaders/compiled/";
-    LAST_COMPILED_GLSL_FOLDER_PATH :: "shaders/last_files/";
+    COMPILED_SHADER_FOLDER_PATH    :: "C:/work/bs_modules/loam/code/shaders/compiled/";
+    LAST_COMPILED_GLSL_FOLDER_PATH :: "C:/work/bs_modules/loam/code/shaders/last_files/";
     GLSLC_PATH                     :: "C:/work/spirv/glslc/bin/glslc.exe";
+    SHADER_FOLDER_PATH             :: "C:/work/bs_modules/loam/code/shaders/";
 }
-
-SHADER_FOLDER_PATH :: "shaders/";

@@ -308,7 +308,7 @@ get_packaged_assets_path :: () -> string {
 	} else if OS == .LINUX {
 	    return "";
 	} else {
-	    return "C:/work/loam/data/packaged/";
+	    return "C:/work/bs_modules/loam/data/packaged/";
 	}
     } else {
 	if OS == .ANDROID {
@@ -322,7 +322,7 @@ get_packaged_assets_path :: () -> string {
 get_raw_assets_path :: () -> string {    
     if IS_DEV {
 	if OS == .WINDOWS {
-	    return "C:/work/loam/data/";
+	    return "C:/work/bs_modules/loam/data/";
 	}
     }
 
@@ -545,7 +545,7 @@ get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkForm
     
     texture := New(ktxTexture2);
     createResult := ktxTexture2_CreateFromMemory(cast(*u8) fileData, header.size, .LOAD_IMAGE_DATA_BIT | .CHECK_GLTF_BASISU_BIT, *texture);
-    if createResult != .SUCCESS then cleanup_from_error("Failed to create ktx texture.");
+    if createResult != .SUCCESS then cleanup_from_error("Failed to create ktx texture. TIP: Make sure the dimensions are multiples of 4");
 
     if texture.supercompressionScheme != .BASIS_LZ then cleanup_from_error("Loaded ktx texture isn't Basis-U encoded.");
 

@@ -62,13 +62,13 @@ frame_imgui :: (metrics : *DebugMetrics) {
     if ImGui.CollapsingHeader("Metrics") {
 	ImGui.Text("General:");
 	colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
-	if metrics.framesPerSecond < refreshRate {
+	if metrics.framesPerSecond < loam.refreshRate {
 	    colour = .{ 1, 1, 0, 1 };
 	} else if metrics.framesPerSecond < 30 {
 	    colour = .{ 1, 0, 0, 1 };
 	}
 	
-	ImGui.TextColored(colour, tprint("\tFrame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, refreshRate));
+	ImGui.TextColored(colour, tprint("\tFrame Time: % / % (%Hz)", metrics.framesPerSecond, metrics.msPerFrame, loam.refreshRate));
 	ImGui.Text(tprint("\tRAM Usage:  %", to_size_string(metrics.ramUsage)));
 	
 	ImGui.NewLine();
@@ -199,6 +199,12 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	ImGui.SliderFloat("##bgvolume", *loam.config.bgVolume, 0.0, 1.0, "%.2f");
 	ImGui.Text("\tSFX");
 	ImGui.SliderFloat("##sfxvolume", *loam.config.sfxVolume, 0.0, 1.0, "%.2f");
+	
+	ImGui.NewLine();
+    }
+
+    if ImGui.CollapsingHeader("Game State") {
+	ImGui.Text(tprint("Gameplay State: %", loam.gameplayState));
 	
 	ImGui.NewLine();
     }
