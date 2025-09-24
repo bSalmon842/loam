@@ -178,6 +178,7 @@ init_vk :: (window : Window_Type) {
     // Bindless Descriptors
     vk.bindlessDescriptorPool = create_bindless_descriptor_pool();
     vk.bindlessDescriptorSet  = create_bindless_descriptor_set();
+    add_bindless_descriptor_samplers();
     
     // Pipelines
     init_pipelines();

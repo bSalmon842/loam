@@ -17,6 +17,6 @@ layout (location = 2) flat in uint inTextureID;
 layout (location = 0) out vec4 fragColour;
 
 void main() {   
-  fragColour = inColour * sampleTexture(inTextureID, inUV);
+  fragColour = inColour * sampleTexture(inTextureID, NEAREST_SAMPLER, inUV);
 }
 

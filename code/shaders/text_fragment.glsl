@@ -17,7 +17,7 @@ layout (location = 2) flat in uint inTextureID;
 layout (location = 0) out vec4 fragColour;
 
 void main() {
-  vec4 texColour = vec4(inColour.rgb, inColour.a * sampleTexture(inTextureID, inUV).r);
+  vec4 texColour = vec4(inColour.rgb, inColour.a * sampleTexture(inTextureID, NEAREST_SAMPLER, inUV).r);
   if (texColour.a < 0.05) { discard; }
   fragColour = texColour;
 }

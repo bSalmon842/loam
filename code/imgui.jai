@@ -128,7 +128,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 
 			    scaledImageWidth := cast(float) it.image.extent.width;
 			    scaledImageHeight := cast(float) it.image.extent.height;
-			    imageMaxDim := 300.0;
+			    imageMaxDim := 500.0;
 			    if scaledImageWidth > imageMaxDim || scaledImageHeight > imageMaxDim {
 				fitScaleX := imageMaxDim / it.image.extent.width;
 				fitScaleY := imageMaxDim / it.image.extent.height;
