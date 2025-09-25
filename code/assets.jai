@@ -544,24 +544,8 @@ get_ktx_texture_from_file_data :: (header : *AssetHeader, textureFormat : VkForm
     }
     
     texture := New(ktxTexture2);
-    createResult := ktxTexture2_CreateFromMemory(cast(*u8) fileData, header.size, .LOAD_IMAGE_DATA_BIT | .CHECK_GLTF_BASISU_BIT, *texture);
-    if createResult != .SUCCESS then cleanup_from_error("Failed to create ktx texture. TIP: Make sure the dimensions are multiples of 4");
-
-    if texture.supercompressionScheme != .BASIS_LZ then cleanup_from_error("Loaded ktx texture isn't Basis-U encoded.");
-
-    // Transcode texture to correct format
-    transcodeFormat := ktx_transcode_fmt_e.TTF_RGBA32;
-    if textureFormat == {
-	case .BC7_SRGB_BLOCK;           transcodeFormat = .TTF_BC7_RGBA;
-	case .BC3_SRGB_BLOCK;           transcodeFormat = .TTF_BC3_RGBA;
-	case .ASTC_4x4_SRGB_BLOCK;      transcodeFormat = .TTF_ASTC_4x4_RGBA;
-	case .ETC2_R8G8B8A8_SRGB_BLOCK; transcodeFormat = .TTF_ETC2_RGBA;
-
-	case; log(.WARN, tprint("Suboptimal VkFormat selected: %, transcoding will continue with uncompressed RGBA32", textureFormat));
-    }
-
-    error := ktxTexture2_TranscodeBasis(texture, transcodeFormat, 0);
-    if error != .SUCCESS || texture.vkFormat == 0 then cleanup_from_error(tprint("Failed to transcode texture: %", error));
+    createResult := ktxTexture2_CreateFromMemory(cast(*u8) fileData, header.size, .LOAD_IMAGE_DATA_BIT, *texture);
+    if createResult != .SUCCESS then cleanup_from_error("Failed to create ktx texture.");
     
     return texture;
 }

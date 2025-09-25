@@ -1,4 +1,5 @@
 /code/.build/
+/code/asset_packer/.build/
 /build/
 /data/
 /code/shaders/last_files/

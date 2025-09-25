@@ -372,10 +372,9 @@ process_asset_from_file :: (packer : *PackerState) {
 	    defer free(ktxFile);
 	    
 	    texture := New(ktxTexture2);
-	    result := ktxTexture2_CreateFromMemory(ktxFile.data, cast(u64) ktxFile.count, .LOAD_IMAGE_DATA_BIT | .CHECK_GLTF_BASISU_BIT, *texture);
+	    result := ktxTexture2_CreateFromMemory(ktxFile.data, cast(u64) ktxFile.count, .LOAD_IMAGE_DATA_BIT, *texture);
 	    if result != .SUCCESS {
 		print_color("\n\tFailed to create ktx texture from \"%\" with error: %\n", packer.pendingAdd.filepath, result, color = .HI_RED);
-		print_color("\n\tTIP: Make sure the dimensions are multiples of 4 for BASISU\n\n", packer.pendingAdd.filepath, result, color = .HI_WHITE);
 		free(texture);
 		packer.state = .Make_Packets;
 		packer.pendingAdd = .{};
@@ -400,14 +399,6 @@ process_asset_from_file :: (packer : *PackerState) {
 		return;
 	    }
 	    packer.pendingAdd.asset.Image.mipLevels = texture.numLevels;
-
-	    if !ktxTexture2_NeedsTranscoding(texture) {
-		print_color("\n\tTexture \"%\" is not Basis encoded.\n\n", packer.pendingAdd.filepath, color = .HI_RED);
-		free(texture);
-		packer.state = .Make_Packets;
-		packer.pendingAdd = .{};
-		return;
-	    }
 	}
 
 	case .Font; {
