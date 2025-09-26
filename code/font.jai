@@ -147,7 +147,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 	    
 	    table_add(atlas.glyphs, it, glyph);
 
-	    cursorX += glyphBitmap.width;
+	    cursorX += glyphBitmap.width + 1;
 	    if glyphBitmap.rows > heightForAtlasRow {
 		heightForAtlasRow = glyphBitmap.rows;
 	    }

@@ -75,7 +75,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	
 	ImGui.Text("Pipelines:");
 	for metrics.pipelineDrawCalls {
-	    if ImGui.CollapsingHeader(tprint("%\0", enum_value_to_name(cast(PipelineType) it_index)).data) {
+	    if ImGui.CollapsingHeader(tprint("\t%\0", enum_value_to_name(cast(PipelineType) it_index)).data) {
 		ImGui.Text(tprint("\tDraw Calls: % %", it, ifx vk.pipelines[it_index].isSpritePipeline then tprint("Rendered as Sprite Batch") else ""));
 	    }
 	}
@@ -105,7 +105,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
     }
     
     if ImGui.CollapsingHeader("Resource Counts") {
-	if ImGui.CollapsingHeader(tprint("Images: %\0", loam.assets.images.count).data) {
+	if ImGui.CollapsingHeader(tprint("\tImages: %\0", loam.assets.images.count).data) {
 	    for loam.assets.images.array {
 		if it {
 		    colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
@@ -150,7 +150,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	    }
 	}
 
-	if ImGui.CollapsingHeader(tprint("Audio: %\0", loam.assets.audios.count).data) {
+	if ImGui.CollapsingHeader(tprint("\tAudio: %\0", loam.assets.audios.count).data) {
 	    for loam.assets.audios.array {
 		if it {
 		    colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
