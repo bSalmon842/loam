@@ -9,7 +9,6 @@ Created: 08JUN2025
 #run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
 // TODO: Meshes
-// TODO: States for menus, loading, etc
 // TODO: Gamepad input
 
 // Compiled Shaders
@@ -158,7 +157,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 
     loam.gameplayState = .Splash;
 
-    array_add(*loam.splashScreens, .{ get_resource(ImageResource, "loam_splash", true), null, .{0.05, 0.05, 0.05, 1.0} });
+    array_add(*loam.splashScreens, .{ get_resource(ImageResource, "loam_splash", true), get_resource(AudioResource, "loam_splash", true), .{0.05, 0.05, 0.05, 1.0} });
     
     // Setup core inputs
     quit_game :: (args : .. Any) {

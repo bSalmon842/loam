@@ -22,6 +22,9 @@ GameplayState :: enum_flags u8 {
 transition_state :: (current : GameplayState, new : GameplayState) {
     if loam.gameplayState == current && current != .Invalid && new != .Invalid {
 	loam.gameplayState = new;
+	if current == .Splash && new != .Splash {
+	    Audio.stop_all_sounds_abruptly(0);
+	}
     } else {
 	stateNames := enum_names(GameplayState);
 	log(.ERROR, tprint("Failed to transition from % to %", stateNames[current], stateNames[new]));
@@ -49,6 +52,10 @@ handle_splash_screen :: () {
 	renderable.dimensions = extent_to_vector(splash.image.image.extent);
 	transform := make_transform(.{ cast(float) loam.windowWidth, cast(float) loam.windowHeight, 0 } / 2.0);
 	add_sprite_render_command(.Sprite, renderable, transform);
+
+	if splash.audio {
+	    play_audio_if_not_playing(splash.audio, .MUSIC, false);
+	}
 	
 	loam.splashTimer += loam.deltaTime;
 	if loam.splashTimer >= SECONDS_PER_SPLASH_SCREEN {

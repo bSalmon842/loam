@@ -14,6 +14,67 @@ play_audio :: (resourceName : string, category : Audio.Sound_Category, repeat :=
     array_add(*loam.activeAudio, stream);
 }
 
+play_audio :: (resource : *AudioResource, category : Audio.Sound_Category, repeat := false) {
+    stream := Audio.make_stream(resource.audio, remove_audio_callback, category);
+    Audio.set_repeating(stream, repeat);
+    Audio.start_playing(stream);
+    
+    array_add(*loam.activeAudio, stream);
+}
+
+stop_audio :: (resourceName : string) {
+    for loam.activeAudio {
+	if compare(it.sound_data.resource.name, resourceName) == 0 {
+	    Audio.stop_stream_abruptly(it);
+	}
+    }
+}
+
+stop_audio :: (stream : *Audio.Sound_Stream) {
+    Audio.stop_stream_abruptly(stream);
+}
+
+restart_audio :: (resourceName : string) {
+    for loam.activeAudio {
+	if compare(it.sound_data.resource.name, resourceName) == 0 {
+	    it.play_cursor = 0;
+	}
+    }
+}
+
+restart_audio :: (stream : *Audio.Sound_Stream) {
+    stream.play_cursor = 0;
+}
+
+play_audio_if_not_playing :: (resourceName : string, category : Audio.Sound_Category, repeat := false) {
+    for loam.activeAudio {
+	if compare(it.sound_data.resource.name, resourceName) == 0 {
+	    return;
+	}
+    }
+    
+    audio := get_resource(AudioResource, resourceName);
+    stream := Audio.make_stream(audio.audio, remove_audio_callback, category);
+    Audio.set_repeating(stream, repeat);
+    Audio.start_playing(stream);
+    
+    array_add(*loam.activeAudio, stream);
+}
+
+play_audio_if_not_playing :: (resource : *AudioResource, category : Audio.Sound_Category, repeat := false) {
+    for loam.activeAudio {
+	if compare(it.sound_data.resource.name, resource.name) == 0 {
+	    return;
+	}
+    }
+    
+    stream := Audio.make_stream(resource.audio, remove_audio_callback, category);
+    Audio.set_repeating(stream, repeat);
+    Audio.start_playing(stream);
+    
+    array_add(*loam.activeAudio, stream);
+}
+
 update_audio :: () {
     Audio.update(cast(float) loam.deltaTime);
 }

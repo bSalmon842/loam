@@ -640,12 +640,13 @@ construct_core_pack :: () {
 	simple_memcpy(packBuilder, header);
 	append(packBuilder, assetFile);
 
-	print("\tWrote % to loam_core.%\n", name, ASSET_CORE_FILE_EXTENSION);
+	print("\tWrote (%) % to loam_core.%\n", type, name, ASSET_CORE_FILE_EXTENSION);
     }
 
-    add_core_asset(*packBuilder, .Font, "internal", "%fonts/internal.ttf");
-    add_core_asset(*packBuilder, .Font, "internal_mono", "%fonts/internal_mono.ttf");
-    add_core_asset(*packBuilder, .Image, "loam_splash", "%images/loam_splash.ktx2");
+    add_core_asset(*packBuilder, .Font,  "internal",      "%fonts/internal.ttf");
+    add_core_asset(*packBuilder, .Font,  "internal_mono", "%fonts/internal_mono.ttf");
+    add_core_asset(*packBuilder, .Image, "loam_splash",   "%images/loam_splash.ktx2");
+    add_core_asset(*packBuilder, .Audio, "loam_splash",   "%audio/loam_splash.wav");
     
     writeSuccess := write_entire_file(tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION), *packBuilder);
     assert(writeSuccess, "Failed to write core assets file");

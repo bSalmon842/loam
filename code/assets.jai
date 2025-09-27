@@ -329,6 +329,10 @@ get_raw_assets_path :: () -> string {
     return "";
 }
 
+make_asset_directory_name :: (name : string, type : AssetType) -> string {
+    return tprint("%_%", name, type);
+}
+
 init_assets :: (assets : *AssetState) {
     assets.directory = load_asset_directory();
 
@@ -375,7 +379,8 @@ load_asset_directory :: () -> *AssetDirectory {
     while index < directoryContents.count {
 	item := cast(*DirectoryItem) (directoryContents.data + index);
 	key := trim(cast(string) item.name, "\0");
-	table_add(directory, copy_string(key), item.*);
+	dirName := make_asset_directory_name(key, item.type);
+	table_add(directory, copy_string(dirName), item.*);
 	log(.INFO, tprint("Added item to asset table: \"%\"", key));
 	index += size_of(DirectoryItem);
     }
@@ -395,9 +400,9 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
     assetFile : string;
     assetHeader : *AssetHeader;
     if core {
-	assetFile, assetHeader = get_raw_core_asset_data(assetName);
+	assetFile, assetHeader = get_raw_core_asset_data(assetName, type);
     } else {
-	assetFile, assetHeader = get_raw_asset_data(loam.assets.directory, assetName);
+	assetFile, assetHeader = get_raw_asset_data(loam.assets.directory, assetName, type);
     }
     if !assetHeader {
 	return null;
@@ -469,10 +474,11 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
     return null;
 }
 
-get_raw_asset_data :: (directory : *AssetDirectory, assetName : string) -> fileContents : string, assetInfo : *AssetHeader {
-    found, item := table_find_new(directory, assetName);
+get_raw_asset_data :: (directory : *AssetDirectory, assetName : string, type : AssetType) -> fileContents : string, assetInfo : *AssetHeader {
+    dirName := make_asset_directory_name(assetName, type);
+    found, item := table_find_new(directory, dirName);
     if !found {
-	log(.ERROR, tprint("Failed to find asset \"%\" in the asset directory file", assetName));
+	log(.ERROR, tprint("Failed to find asset \"%\" (%) in the asset directory file", assetName, type));
 	return "", null;
     }
     
@@ -509,7 +515,7 @@ get_raw_asset_data :: (directory : *AssetDirectory, assetName : string) -> fileC
     return packContents, header;
 }
 
-get_raw_core_asset_data :: (assetName : string) -> fileContents : string, assetInfo : *AssetHeader {
+get_raw_core_asset_data :: (assetName : string, type : AssetType) -> fileContents : string, assetInfo : *AssetHeader {
     packName := tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION);
 
     #if OS == .ANDROID {
@@ -528,7 +534,7 @@ get_raw_core_asset_data :: (assetName : string) -> fileContents : string, assetI
     header : *AssetHeader = null;
     while fileIndex < packContents.count {
 	header = cast(*AssetHeader) (packContents.data + fileIndex);
-	if to_string(header.name.data) == assetName then return packContents, header;
+	if to_string(header.name.data) == assetName && header.type == type then return packContents, header;
 
 	fileIndex += cast(s64) (size_of(AssetHeader) + header.size);
     }
