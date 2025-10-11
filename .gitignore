@@ -1,5 +1,6 @@
 /code/.build/
 /code/asset_packer/.build/
+/code/json_unit_test/.build/
 /build/
 /data/
 /code/shaders/last_files/

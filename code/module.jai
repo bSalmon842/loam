@@ -332,6 +332,7 @@ DONE
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
+#load "json.jai";
 #load "math.jai";
 #load "metrics.jai";
 #load "sprite.jai";
