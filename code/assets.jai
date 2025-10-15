@@ -16,6 +16,7 @@ AssetType :: enum u8 {
     
     Mesh;
     Image;
+    JSON;
     Font;
     Lang;
     Audio;
@@ -51,6 +52,7 @@ pack_file_code :: (fileCode : [4] u8) -> u32 {
 ResourceType :: enum {
     Image;
     Audio;
+    JSON;
 }
 
 MAX_RESOURCE_POOL_COUNT : u32 : 256;
@@ -80,10 +82,16 @@ AudioResource :: struct {
     audio : *Audio.Sound_Data;
 }
 
+JSONResource :: struct {
+    using _res : ResourceBase(#this);
+    json : *JSON_Value;
+}
+
 add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *$R
     #modify {
 	     if T == AllocatedImageInfo { R = ImageResource; }
 	else if T == Audio.Sound_Data   { R = AudioResource; }
+	else if T == JSON_Value         { R = JSONResource; }
 	else                            { return false; }
 	
 	return true;
@@ -91,7 +99,7 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
     #if T == {
 	case AllocatedImageInfo; {
 	    if loam.assets.images.count == MAX_RESOURCE_POOL_COUNT {
-		log(.FATAL, "Failed to image resource cache is full, failed to add resource");
+		log(.FATAL, "Failed to add resource, image resource cache is full");
 		return null;
 	    }
 	    resource := New(ImageResource);
@@ -104,7 +112,6 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 	    
 	    loam.assets.images.sentinel.prev.next = resource;
 	    loam.assets.images.sentinel.prev = resource;
-
 	    loam.assets.images.count += 1;
 
 	    for * loam.assets.images.array {
@@ -122,7 +129,7 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 
 	case Audio.Sound_Data; {
 	    if loam.assets.audios.count == MAX_RESOURCE_POOL_COUNT {
-		log(.FATAL, "Failed to audio resource cache is full, failed to add resource");
+		log(.FATAL, "Failed to add resource, audio resource cache is full");
 		return null;
 	    }
 	    resource := New(AudioResource);
@@ -132,7 +139,6 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 	    
 	    resource.prev = loam.assets.audios.sentinel.prev;
 	    resource.next = *loam.assets.audios.sentinel;
-
 	    loam.assets.audios.count += 1;
 
 	    for * loam.assets.audios.array {
@@ -143,6 +149,31 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 		}
 	    }
 	    
+	    return resource;
+	}
+
+	case JSON_Value; {
+	    if loam.assets.json.count == MAX_RESOURCE_POOL_COUNT {
+		log(.FATAL, "Failed to add resource, json resource cache is full");
+		return null;
+	    }
+	    resource := New(JSONResource);
+	    resource.name = copy_string(name);
+	    resource.core = core;
+	    resource.json = resourceContent;
+
+	    resource.prev = loam.assets.json.sentinel.prev;
+	    resource.next = *loam.assets.json.sentinel;
+	    loam.assets.json.count += 1;
+
+	    for * loam.assets.json.array {
+		if !it.* {
+		    it.* = resource;
+		    resource.index = cast(u32) it_index;
+		    break;
+		}
+	    }
+
 	    return resource;
 	}
 
@@ -199,6 +230,11 @@ find_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 	    sentinel = *loam.assets.audios.sentinel;
 	    resource = loam.assets.audios.sentinel.next;
 	}
+
+	case JSONResource; {
+	    sentinel = *loam.assets.json.sentinel;
+	    resource = loam.assets.json.sentinel.next;
+	}
     }
 
     while resource != sentinel {
@@ -239,6 +275,17 @@ get_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 
 	    return null;
 	}
+
+	case JSONResource; {
+	    asset := get_asset(.JSON, name, core);
+	    if asset {
+		data := string.{ xx asset.header.size, cast(*u8) asset.data };
+		json := json_build_tree(data, name);
+		return add_resource(name, json, core);
+	    }
+
+	    return null;
+	}
     }
 }
 
@@ -249,6 +296,7 @@ AssetState :: struct {
 
     images : ResourcePool(ImageResource);
     audios : ResourcePool(AudioResource);
+    json   : ResourcePool(JSONResource);
 }
 
 AssetHeader :: struct {
@@ -343,6 +391,7 @@ init_assets :: (assets : *AssetState) {
     
     setup_sentinel(*assets.images.sentinel);
     setup_sentinel(*assets.audios.sentinel);
+    setup_sentinel(*assets.json.sentinel);
 }
 
 load_asset_directory :: () -> *AssetDirectory {
@@ -422,6 +471,22 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
 	    asset := New(Asset);
 	    asset.header = assetHeader.*;
 	    asset.data = get_ktx_texture_from_file_data(assetHeader, vk.textureFormat, fileData);
+
+	    free(assetFile.data);
+	    if !asset.data {
+		free(asset);
+		return null;
+	    }
+	    
+	    return asset;
+	}
+
+	case .JSON; {
+	    fileData := (cast(*u8) assetHeader) + size_of(AssetHeader);
+	    asset := New(Asset);
+	    asset.header = assetHeader.*;
+	    asset.data = alloc(xx assetHeader.size);
+	    memcpy(asset.data, fileData, xx assetHeader.size);
 
 	    free(assetFile.data);
 	    if !asset.data {

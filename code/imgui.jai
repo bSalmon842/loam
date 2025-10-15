@@ -162,6 +162,14 @@ frame_imgui :: (metrics : *DebugMetrics) {
 		}
 	    }
 	}
+
+	if ImGui.CollapsingHeader(tprint("\tJSON: %\0", loam.assets.json.count).data) {
+	    for loam.assets.json.array {
+		if it {
+		    render_json_object(it.json);
+		}
+	    }
+	}
 	
 	ImGui.NewLine();
     }
@@ -211,5 +219,36 @@ frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.End();
     
     ImGui.Render();
+}
+
+render_json_object :: (value : *JSON_Value) {
+    if #complete value.type == {
+	case .Invalid;
+	
+	case .Array; #through;
+	case .Object; {
+	    if ImGui.CollapsingHeader(tprint("%\0", value.name).data) {
+		for value.values {
+		    render_json_object(it);
+		}
+	    }
+	}
+
+	case .Number; {
+	    ImGui.Text(tprint("\"%\" : %", value.name, value.value_float));
+	}
+
+	case .String; {
+	    ImGui.Text(tprint("\"%\" : %", value.name, value.value_string));
+	}
+
+	case .Boolean; {
+	    ImGui.Text(tprint("\"%\" : %", value.name, value.value_bool));
+	}
+
+	case .Null; {
+	    ImGui.Text(tprint("\"%\" : null", value.name));
+	}
+    }
 }
 

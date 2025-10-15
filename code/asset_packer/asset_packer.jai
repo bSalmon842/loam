@@ -49,6 +49,9 @@ PackerState :: struct {
     fontToAdd  : string;
     loadedFont : string;
 
+    jsonToAdd  : string;
+    loadedJSON : string;
+
     audioIsPlaying : bool;
 }
 
@@ -97,10 +100,14 @@ main :: () {
 
 		case .DRAG_AND_DROP_FILES; {
 		    if packer.state == .Make_Packets && it.files.count == 1 {
-			packer.state = .Add_Asset;
-			packer.pendingAdd.filepath = copy_string(it.files[0]);
-			detect_asset_type(packer);
-			process_asset_from_file(packer);
+			if path_extension(it.files[0]) == ASSET_DIR_FILE_EXTENSION {
+			    open_from_dir_file(packer, it.files[0]);
+			} else {
+			    packer.state = .Add_Asset;
+			    packer.pendingAdd.filepath = copy_string(it.files[0]);
+			    detect_asset_type(packer);
+			    process_asset_from_file(packer);
+			}
 		    }
 		}
             }
@@ -123,12 +130,20 @@ main :: () {
 	    ImGui.ImplOpenGL3_DestroyDeviceObjects();
 	    ImGui.ImplOpenGL3_CreateDeviceObjects();
 	}
+
+	if packer.jsonToAdd.count {
+	    if packer.loadedJSON.count {
+		free(packer.loadedJSON.data);
+	    }
+	    fileContents, success := read_entire_file(packer.jsonToAdd);
+	    packer.loadedJSON = fileContents;
+	    assert(success, "Failed to load JSON file");
+	    packer.jsonToAdd = "";
+	}
 	
 	ImGui.ImplOpenGL3_NewFrame();
 	ImGui.ImplJai_NewFrame();
 	ImGui.NewFrame();
-
-	
 
 	Simp.clear_render_target(0.1, 0.1, 0.1, 1);
 	
@@ -216,6 +231,14 @@ main :: () {
 			    ImGui.SameLine();
 			    ImGui.Text("\tHeight: %", image.height);
 			    ImGui.Text("Mip Levels: %", image.mipLevels);
+			}
+
+			case .JSON; {
+			    if packer.loadedJSON.count {
+				ImGui.Text(packer.loadedJSON);
+			    } else {
+				packer.jsonToAdd = asset.filepath;
+			    }
 			}
 			
 			case .Font; {
@@ -401,6 +424,25 @@ process_asset_from_file :: (packer : *PackerState) {
 	    packer.pendingAdd.asset.Image.mipLevels = texture.numLevels;
 	}
 
+	case .JSON; {
+	    jsonFile, readSuccess := read_entire_file(packer.pendingAdd.filepath);
+	    if !readSuccess {
+		free(jsonFile);
+		print_color("\n\tFailed to read file \"%\"\n\n", packer.pendingAdd.filepath, color = .HI_RED);
+		packer.state = .Make_Packets;
+		packer.pendingAdd = .{};
+		return;
+	    }
+	    defer free(jsonFile);
+
+	    // Fill out header info, type is already filled out, offset will be filled out during packing
+	    filenameNoExt := path_strip_extension(path_filename(packer.pendingAdd.filepath));
+	    memcpy(packer.pendingAdd.asset.name.data, filenameNoExt.data, min(packer.pendingAdd.asset.name.count, filenameNoExt.count));
+	    packer.pendingAdd.asset.version = 1; // This will get updated later if this asset is overwriting an existing asset
+	    packer.pendingAdd.asset.size = cast(u64) jsonFile.count;
+	    assert((packer.pendingAdd.asset.size + size_of(Asset)) <= MAX_ASSET_FILE_SIZE, "Asset is too large for current maximum file size");
+	}
+
 	case .Font; {
 	    ttfFile, readSuccess := read_entire_file(packer.pendingAdd.filepath);
 	    if !readSuccess {
@@ -474,6 +516,14 @@ display_for_asset_type :: (packer : *PackerState, loadedAsset : *AssetBeingAdded
 	    ImGui.Text("Image Width:      %", loadedAsset.asset.Image.width);
 	    ImGui.Text("Image Height:     %", loadedAsset.asset.Image.height);
 	    ImGui.Text("Image Mip Levels: %", loadedAsset.asset.Image.mipLevels);
+	}
+
+	case .JSON; {
+	    ImGui.Text("JSON Name:      ");
+	    ImGui.SameLine();
+	    ImGui.PushItemWidth(250);
+	    ImGui.InputText("##jsonname", loadedAsset.asset.name.data, loadedAsset.asset.name.count);
+	    ImGui.PopItemWidth();
 	}
 
 	case .Font; {
@@ -684,6 +734,7 @@ SupportedFormats :: string.[
     "",
     "glb",  // Mesh
     "ktx2", // Image
+    "json", // JSON
     "ttf",  // Font
     "lang", // Lang
     "wav",  // Audio

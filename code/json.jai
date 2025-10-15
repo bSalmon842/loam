@@ -6,7 +6,6 @@ Created: 03OCT2025
 */
 
 // Loam JSON parser
-// TODO: Free value names
 
 JSON_ValueType :: enum {
     Invalid;
@@ -93,8 +92,66 @@ json_get :: (value : *JSON_Value, $returnType : Type) -> returnType, bool #modif
     return err, false;
 }
 
-json_eat_whitespace :: (s : string) -> string #expand {
-    return trim_left(s, JSON_WHITESPACE);
+json_get_from_object :: (object : *JSON_Value, key : string, $returnType : Type) -> returnType, bool #modify {
+    return returnType == float64 || returnType == string || returnType == bool || returnType == *void;
+}{
+    if !object {
+	err : returnType;
+	return err, false;
+    }
+    
+    for object.values {
+	if it.name == key {
+	    ret, err := json_get(it, returnType);
+	    return ret, err;
+	}
+    }
+
+    err : returnType;
+    return err, false;
+}
+
+json_get_from_object :: (object : *JSON_Value, key : string, $type : JSON_ValueType) -> *JSON_Value, bool #modify {
+    return type == .Array || type == .Object;
+}{
+    if !object {
+	return null, false;
+    }
+    
+    for object.values {
+	if it.name == key && it.type == type {
+	    return it, true;
+	}
+    }
+    
+    return null, false;
+}
+
+json_get_from_array :: (object : *JSON_Value, index : s64, $returnType : Type) -> returnType, bool #modify {
+    return returnType == float64 || returnType == string || returnType == bool || returnType == *void;
+}{
+    if !object || index >= object.values.count {
+	err : returnType;
+	return err, false;
+    }
+
+    ret, err := json_get(object.values[index], returnType);
+    return ret, err;
+}
+
+json_get_from_array :: (object : *JSON_Value, index : s64, $type : JSON_ValueType) -> *JSON_Value, bool #modify {
+    return type == .Array || type == .Object;
+}{
+    if !object || index >= object.values.count {
+	return null, false;
+    }
+
+    value := object.values[index];
+    if value.type != type {
+	return null, false;
+    }
+    
+    return value, true;
 }
 
 // NOTE: We do not free inside json_build_tree, free should be done on error where json_build_tree is used
@@ -120,7 +177,6 @@ json_build_tree :: (jsonData : string, debugName : string) -> *JSON_Value, JSON_
 	json_log_error(.DataAfterClose, debugName, "");
 	return root, .DataAfterClose;
     }
-    // TODO: If there is another object (we don't need to error for that, just log a warning and ignore it)
 
     return root, .Success;
 }
@@ -137,6 +193,12 @@ json_free_value :: (value : *JSON_Value) {
 
     value.* = .{};
     free(value);
+}
+
+#scope_file
+
+json_eat_whitespace :: (s : string) -> string #expand {
+    return trim_left(s, JSON_WHITESPACE);
 }
 
 json_parse_this :: (value : *JSON_Value, json : string, debugName : string) -> string, JSON_ErrorType {
@@ -442,7 +504,6 @@ json_log_error :: (error : JSON_ErrorType, debugName : string, errorInfo : strin
     print_color("%\n", fullError, color = .HI_WHITE);
 }
 
-#scope_file
 JSON_NUMBER_CHARS :: "0123456789.-+eE";
 JSON_VALID_ESCAPES :: "\\/\"bfnrtu";
 JSON_WHITESPACE :: " \t\n\r";
