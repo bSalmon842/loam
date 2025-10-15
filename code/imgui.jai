@@ -166,7 +166,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	if ImGui.CollapsingHeader(tprint("\tJSON: %\0", loam.assets.json.count).data) {
 	    for loam.assets.json.array {
 		if it {
-		    render_json_object(it.json);
+		    render_json_object(it.json, 0);
 		}
 	    }
 	}
@@ -221,34 +221,48 @@ frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.Render();
 }
 
-render_json_object :: (value : *JSON_Value) {
+render_json_object :: (value : *JSON_Value, tabLevel : u32) {
+    tabString := get_tab_level_string(tabLevel);
+    internalTabString := get_tab_level_string(tabLevel + 1);
+    
     if #complete value.type == {
 	case .Invalid;
 	
 	case .Array; #through;
 	case .Object; {
-	    if ImGui.CollapsingHeader(tprint("%\0", value.name).data) {
+	    if ImGui.CollapsingHeader(tprint("%1%2\0", tabString, value.name).data) {
 		for value.values {
-		    render_json_object(it);
+		    render_json_object(it, tabLevel + 1);
 		}
 	    }
 	}
 
 	case .Number; {
-	    ImGui.Text(tprint("\"%\" : %", value.name, value.value_float));
+	    ImGui.Text(tprint("%\"%\" : %", internalTabString, value.name, value.value_float));
 	}
 
 	case .String; {
-	    ImGui.Text(tprint("\"%\" : %", value.name, value.value_string));
+	    ImGui.Text(tprint("%\"%\" : %", internalTabString, value.name, value.value_string));
 	}
 
 	case .Boolean; {
-	    ImGui.Text(tprint("\"%\" : %", value.name, value.value_bool));
+	    ImGui.Text(tprint("%\"%\" : %", internalTabString, value.name, value.value_bool));
 	}
 
 	case .Null; {
-	    ImGui.Text(tprint("\"%\" : null", value.name));
+	    ImGui.Text(tprint("%\"%\" : null", internalTabString, value.name));
 	}
     }
+}
+
+get_tab_level_string :: (tabLevel : u32) -> string {
+    if tabLevel == 0 then return "";
+    builder : String_Builder;
+    builder.allocator = temp;
+    for 0 .. tabLevel-1 {
+	print_to_builder(*builder, "\t");
+    }
+
+    return builder_to_string(*builder);
 }
 

@@ -160,6 +160,8 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 	    resource := New(JSONResource);
 	    resource.name = copy_string(name);
 	    resource.core = core;
+
+	    if resourceContent.name == "root" then resourceContent.name = copy_string(name);
 	    resource.json = resourceContent;
 
 	    resource.prev = loam.assets.json.sentinel.prev;
