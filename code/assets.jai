@@ -11,26 +11,25 @@ ASSET_DIR_FILE_EXTENSION :: "ld";
 ASSET_PACK_FILE_EXTENSION :: "lp";
 ASSET_CORE_FILE_EXTENSION :: "lc";
 
-AssetType :: enum u8 {
+AssetType :: enum u32 {
     Invalid;
     
     Mesh;
     Image;
     JSON;
     Font;
-    Lang;
     Audio;
     Video;
 }
 
 DirectoryItem :: struct {
-    name     : [30] u8   #align 1;
+    name     : AssetName #align 1;
     type     : AssetType #align 1;
     file     : u8        #align 1;
     offset   : u64       #align 1;
     filepath : [128] u8  #align 1;
 } #no_padding
-#assert(size_of(DirectoryItem) == 168);
+#assert(size_of(DirectoryItem) == 193);
 
 DirectoryFile :: struct {
     fileCode : u32 #align 1;
@@ -301,48 +300,15 @@ AssetState :: struct {
     json   : ResourcePool(JSONResource);
 }
 
+ASSET_NAME_COUNT :: 52;
+AssetName :: [ASSET_NAME_COUNT] u8;
+
 AssetHeader :: struct {
-    name : [30] u8 #align 1;
-    
+    name : AssetName #align 1;
     type : AssetType #align 1;
-    version : u8 #align 1;
-
     size : u64 #align 1;
-
-    union {
-	_Mesh :: struct {
-	    
-	} #no_padding
-	Mesh : _Mesh #align 1;
-	
-	_Image :: struct {
-	    width : u32 #align 1;
-	    height : u32 #align 1;
-	    mipLevels : u32 #align 1;
-	} #no_padding
-	Image : _Image #align 1;
-
-	// NOTE: We don't save any additional info to the font info as we just save the raw ttf
-	
-	_Lang :: struct {
-
-	} #no_padding
-	Lang : _Lang #align 1;
-
-	_Audio :: struct {
-	    duration   : float;
-	    channels   : u32;
-	    sampleRate : u32;
-	} #no_padding
-	Audio : _Audio #align 1;
-
-	_Video :: struct {
-	    
-	} #no_padding
-	Video : _Video;
-    } #no_padding
 } #no_padding
-#assert(size_of(AssetHeader) == 52);
+#assert(size_of(AssetHeader) == 64);
 
 Asset :: struct {
     header : AssetHeader;
@@ -358,7 +324,7 @@ get_packaged_assets_path :: () -> string {
 	} else if OS == .LINUX {
 	    return "";
 	} else {
-	    return "C:/work/bs_modules/loam/data/packaged/";
+	    return "../../../data/packaged/";
 	}
     } else {
 	if OS == .ANDROID {
@@ -514,8 +480,6 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
 	    return asset;
 	}
 	
-	case .Lang;  assert(false, "Not Implemented");
-	
 	case .Audio; {
 	    fileData := (cast(*u8) assetHeader) + size_of(AssetHeader);
 	    asset := New(Asset);
@@ -543,7 +507,7 @@ get_asset :: (type : AssetType, assetName : string, core : bool = false) -> *Ass
 
 get_raw_asset_data :: (directory : *AssetDirectory, assetName : string, type : AssetType) -> fileContents : string, assetInfo : *AssetHeader {
     dirName := make_asset_directory_name(assetName, type);
-    found, item := table_find_new(directory, dirName);
+    found, item := table_find(directory, dirName);
     if !found {
 	log(.ERROR, tprint("Failed to find asset \"%\" (%) in the asset directory file", assetName, type));
 	return "", null;

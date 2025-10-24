@@ -41,7 +41,9 @@ abs_to_u64 :: (value : s64) -> u64 {
     else return cast(u64) (value * -1);
 }
 
-round_to :: (value : $T, $type : Type) -> s64 {
+round_to :: (value : $T, $type : Type) -> type #modify {
+    return T == float64 || T == float32;
+}{
     return cast(type) (value + 0.5);
 }
 

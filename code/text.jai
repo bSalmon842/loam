@@ -29,7 +29,7 @@ get_string_original_dimensions :: (str : string, text : *Text) -> Vector2 {
 	if char == #char " " {
 	    dimensions.x += text.font.spaceWidth;
 	} else {
-	    found, glyph := table_find_new(text.font.glyphs, char);
+	    found, glyph := table_find(text.font.glyphs, char);
 	    if found {
 		dimensions.x += glyph.advance;
 	    }
@@ -47,7 +47,7 @@ make_text :: (str : string, font : string, size : u32, transform : Transform, co
     text := New(Text);
     
     atlasName := get_font_atlas_name(font, size);
-    exists, font := table_find_new(loam.fonts, atlasName);
+    exists, font := table_find(loam.fonts, atlasName);
     if !exists {
 	log(.ERROR, tprint("Font atlas \"%\" does not exist", atlasName));
     }
@@ -110,7 +110,7 @@ update_text :: (text : *Text, str : string) {
 	    continue;
 	}
 	
-	glyphFound, fontGlyph := table_find_new(text.font.glyphs, char);
+	glyphFound, fontGlyph := table_find(text.font.glyphs, char);
 	if !glyphFound {
 	    log(.ERROR, tprint("Failed to get glyph for %", character_utf32_to_utf8(char)));
 	    continue;
@@ -119,7 +119,7 @@ update_text :: (text : *Text, str : string) {
 	kerningAdvance : s32 = 0;
 	if it_index != text.str.count - 1 {
 	    nextChar := character_utf8_to_utf32(*text.str[it_index], text.str.count-it_index);
-	    kerningFound, kerning := table_find_new(text.font.kerning, make_kerning_key(char, nextChar));
+	    kerningFound, kerning := table_find(text.font.kerning, make_kerning_key(char, nextChar));
 	    if kerningFound {
 		kerningAdvance = kerning;
 	    }

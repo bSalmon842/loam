@@ -182,11 +182,11 @@ json_build_tree :: (jsonData : string, debugName : string) -> *JSON_Value, JSON_
 }
 
 json_free_value :: (value : *JSON_Value) {
-    if value.name.data then free(value.name.data);
     if value.type == .Object || value.type == .Array {
 	for value.values {
 	    json_free_value(it);
 	}
+	array_reset(*value.values);
     } else if value.type == .String {
 	if value.value_string.data then free(value.value_string.data);
     }
@@ -195,7 +195,75 @@ json_free_value :: (value : *JSON_Value) {
     free(value);
 }
 
+json_write_file :: (path : string, value : *JSON_Value) -> bool {
+    builder : String_Builder;
+    if !json_write_value(*builder, value, .Invalid, 0) {
+	return false;
+    }
+
+    return write_entire_file(path, *builder);
+}
+
 #scope_file
+
+json_write_value :: (builder : *String_Builder, value : *JSON_Value, outerType : JSON_ValueType, tabLevel : u32, isLastValueInContainer : bool = false) -> bool {
+    tabLevelString := get_tab_level_string(tabLevel);
+    
+    if outerType == {
+	case .Array;
+	case .Invalid;
+	
+	case .Object; {
+	    print_to_builder(builder, tprint("%\"%\" : ", tabLevelString, value.name));
+	}
+
+	case; {
+	    log(.ERROR, tprint("Failed to write value \"%\" to JSON file: Invalid Outer Value type", value.name));
+	    return false;
+	}
+    }
+    
+    if value.type == {
+	case .Object; {
+	    print_to_builder(builder, tprint("%{\n", ifx outerType == .Object then "" else tabLevelString));
+	    for value.values {
+		json_write_value(builder, it, value.type, tabLevel + 1, it_index == value.values.count-1);
+	    }
+	    print_to_builder(builder, tprint("%}", tabLevelString));
+	}
+	
+	case .Array; {
+	    print_to_builder(builder, tprint("%[\n", ifx outerType == .Object then "" else tabLevelString));
+	    for value.values {
+		json_write_value(builder, it, value.type, tabLevel + 1, it_index == value.values.count-1);
+	    }
+	    print_to_builder(builder, tprint("%]", tabLevelString));
+	}
+	
+	case .Number; {
+	    // TODO:
+	    print_to_builder(builder, tprint("%", formatFloat(value.value_float)));
+	}
+	
+	case .String; {
+	    print_to_builder(builder, tprint("\"%\"", value.value_string));
+	}
+	
+	case .Boolean; {
+	    print_to_builder(builder, ifx value.value_bool then "true" else "false");
+	}
+	
+	case .Null; {
+	    print_to_builder(builder, "null");
+	}
+    }
+
+    endChar := "";
+    if (outerType == .Object || outerType == .Array) && !isLastValueInContainer then endChar = ",";
+    print_to_builder(builder, tprint("%\n", endChar));
+
+    return true;
+}
 
 json_eat_whitespace :: (s : string) -> string #expand {
     return trim_left(s, JSON_WHITESPACE);

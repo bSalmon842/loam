@@ -80,7 +80,7 @@ make_kerning_key :: (first : u32, second : u32) -> u64 {
 
 build_font_atlas :: (fontName : string, size : u32, language : Language, core : bool = false) {
     atlasName := get_font_atlas_name(fontName, size);
-    exists := table_find_new(loam.fonts, atlasName);
+    exists := table_find(loam.fonts, atlasName);
     if exists {
 	log(.WARN, tprint("% already exists", atlasName));
     }
@@ -128,8 +128,8 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
 
 	    for row : 0 .. glyphBitmap.rows-1 {
 		for col : 0 .. glyphBitmap.width-1 {
-		    x := round_to(cursorX, s32) + col;
-		    y := round_to(cursorY, s32) + row;
+		    x := round_to(cursorX, u32) + col;
+		    y := round_to(cursorY, u32) + row;
 		    value := glyphBitmap.buffer[cast(s32) row * glyphBitmap.pitch + cast(s32) col];
 		    atlasBitmap[y * ATLAS_MAX_SIZE + x] = value;
 		}

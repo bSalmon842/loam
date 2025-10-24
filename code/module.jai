@@ -291,6 +291,7 @@ EXTRA_IMPORTS :: #string DONE
 #import "Basic";
 #import "File";
 #import "File_Utilities";
+#import "freetype";
 #import "Hash_Table";
 #import "Input";
 #import "Math";
@@ -348,7 +349,7 @@ DONE
 #import "Basic";
 #import "File";
 #import "File_Utilities";
-#import "freetype-2.12.1";
+#import "freetype";
 #import "Hash_Table";
 #import "Input";
 #import "Math";
