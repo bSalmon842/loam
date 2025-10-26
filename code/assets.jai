@@ -7,9 +7,13 @@ Created: 22MAY2025
 
 MAX_ASSET_FILE_SIZE :: #run MB(256);
 ASSET_FILE_CODE :: u8.[#char "L", #char "G", #char "A", #char "F"];
+DIR_FILE_CODE :: u8.[#char "L", #char "D", #char "I", #char "R"];
+CORE_FILE_CODE :: u8.[#char "L", #char "C", #char "A", #char " "];
 ASSET_DIR_FILE_EXTENSION :: "ld";
 ASSET_PACK_FILE_EXTENSION :: "lp";
 ASSET_CORE_FILE_EXTENSION :: "lc";
+
+USE_ENCRYPTION :: true;
 
 AssetType :: enum u32 {
     Invalid;
@@ -32,9 +36,9 @@ DirectoryItem :: struct {
 #assert(size_of(DirectoryItem) == 193);
 
 DirectoryFile :: struct {
-    fileCode : u32 #align 1;
-    encryptSeed : u32 #align 1;
-    itemCount : s64 #align 1;
+    fileCode   : u32 #align 1;
+    encryptKey : EncryptionKey #align 1;
+    itemCount  : s64 #align 1;
 } #no_padding
 #assert(size_of(DirectoryFile) == 16);
 
@@ -298,6 +302,8 @@ AssetState :: struct {
     images : ResourcePool(ImageResource);
     audios : ResourcePool(AudioResource);
     json   : ResourcePool(JSONResource);
+
+    encryptionKey : u32;
 }
 
 ASSET_NAME_COUNT :: 52;
@@ -365,28 +371,42 @@ init_assets :: (assets : *AssetState) {
 load_asset_directory :: () -> *AssetDirectory {
     #if OS == .ANDROID {
 	directoryContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
-	if !readSuccess then log(.FATAL, "Failed to read asset directory file!");
+	if !readSuccess {
+	    log(.FATAL, "Failed to read asset directory file!");
+	    return null;
+	}
     } else {
 	directoryContents, readSuccess := read_entire_file(tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
-	if !readSuccess then log(.FATAL, "Failed to read asset directory file!");
+	if !readSuccess {
+	    log(.FATAL, "Failed to read asset directory file!");
+	    return null;
+	}
     }
-    
+
     // Check that the loaded file is big enough to have the file header and at least one item
     if directoryContents.count < size_of(DirectoryFile) + size_of(DirectoryItem) {
 	log(.FATAL, "Loaded asset directory file isn't large enough to be a valid directory");
+	return null;
     }
+    
 
     header := cast(*DirectoryFile) directoryContents.data;
     // Check that the loaded file is a valid directory file
-    if header.fileCode != pack_file_code(ASSET_FILE_CODE) then log(.FATAL, "File codes do not match, directory file is invalid");
-
-    if header.encryptSeed != 0 {
-	// TODO: Unencrypt file (fileCode should never be encrypted)
+    if header.fileCode != pack_file_code(DIR_FILE_CODE) {
+	log(.FATAL, "Found asset directory file is not a valid Loam directory file!");
+	return null;
     }
-
+    
+    loam.assets.encryptionKey = header.encryptKey;
+    if USE_ENCRYPTION {
+	encrypted := advance(directoryContents, size_of(u32) + size_of(EncryptionKey));
+	unencrypt_data(*encrypted, loam.assets.encryptionKey);
+    }
+    
     // Check now that the size matches the amount of items in the file
     if directoryContents.count < size_of(DirectoryFile) + header.itemCount * size_of(DirectoryItem) {
 	log(.FATAL, "Loaded asset directory file item count doesn't match the file size");
+	return null;
     }
 
     directory := New(AssetDirectory);
@@ -520,10 +540,20 @@ get_raw_asset_data :: (directory : *AssetDirectory, assetName : string, type : A
     } else {
 	packContents, readSuccess := read_entire_file(packName);
     }
-
+    
     if !readSuccess {
 	log(.FATAL, tprint("Failed to read asset pack file \"%\"!", packName));
 	free(packContents.data);   
+	return "", null;
+    }
+
+    if USE_ENCRYPTION {
+	unencrypt_data(*packContents, loam.assets.encryptionKey);
+    }
+    
+    if !begins_with(packContents, cast(string) ASSET_FILE_CODE) {
+	log(.FATAL, "Found asset pack file is not a valid Loam asset pack file!");
+	free(packContents.data);
 	return "", null;
     }
 
@@ -554,9 +584,19 @@ get_raw_core_asset_data :: (assetName : string, type : AssetType) -> fileContent
     } else {
 	packContents, readSuccess := read_entire_file(packName);
     }
-
+    
     if !readSuccess {
 	log(.FATAL, "Failed to read core asset pack file!");
+	free(packContents.data);
+	return "", null;
+    }
+    
+    if USE_ENCRYPTION {
+	unencrypt_data(*packContents, CORE_ENCRYPT_KEY);
+    }
+
+    if !begins_with(packContents, cast(string) CORE_FILE_CODE) {
+	log(.FATAL, "Found core asset pack file is not a valid Loam core file!");
 	free(packContents.data);
 	return "", null;
     }
@@ -564,7 +604,7 @@ get_raw_core_asset_data :: (assetName : string, type : AssetType) -> fileContent
     fileIndex := 0;
     header : *AssetHeader = null;
     while fileIndex < packContents.count {
-	header = cast(*AssetHeader) (packContents.data + fileIndex);
+	header = cast(*AssetHeader) (packContents.data + fileIndex + size_of(u32)); // Add 4 bytes because of the file code
 	if to_string(header.name.data) == assetName && header.type == type then return packContents, header;
 
 	fileIndex += cast(s64) (size_of(AssetHeader) + header.size);
@@ -609,3 +649,4 @@ get_font_from_file_data :: (header : *AssetHeader, fileData : *void) -> *FontDat
 
     return fontData;
 }
+

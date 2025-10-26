@@ -108,6 +108,9 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     context.loam = _loam;
     loam = context.loam;
+
+    time := current_time_consensus();
+    context.random_state = .{ time.low | 1, cast,no_check(u64) time.high };
     
     // NOTE: Set update to true so we can setup everything for initialisation
     loam.updateActive = true;
@@ -297,6 +300,7 @@ EXTRA_IMPORTS :: #string DONE
 #import "Math";
 #import "Print_Color";
 #import "Process";
+#import "Random";
 #import "Reflection";
 Simp :: #import "Simp";
 #import "String";
@@ -330,6 +334,7 @@ DONE
 #load "audio.jai";
 #load "camera.jai";
 #load "config.jai";
+#load "encryption.jai";
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
@@ -355,6 +360,7 @@ DONE
 #import "Math";
 #import "Print_Color";
 #import "Process";
+#import "Random";
 #import "Reflection";
 Simp :: #import "Simp";
 #import "String";

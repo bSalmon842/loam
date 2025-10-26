@@ -785,13 +785,13 @@ construct_packs :: (packer : *PackerState) {
     if path.count == 0 || !is_directory(path) {
 	path = get_packaged_assets_path();
     }
-
+    
     path_overwrite_separators(path, #char "/");
     if !ends_with(path, "/") then path = tprint("%/", path);
     
     directory : DirectoryFile;
-    directory.fileCode = pack_file_code(ASSET_FILE_CODE);
-    directory.encryptSeed = 0; // 0 is not a valid encryption seed so the files won't be encrypted
+    directory.fileCode = pack_file_code(DIR_FILE_CODE);
+    directory.encryptKey = ifx USE_ENCRYPTION then generate_encryption_key() else 0;
     directory.itemCount = packer.project.entries.count;
     directoryBuilder : String_Builder;
     init_string_builder(*directoryBuilder, size_of(DirectoryFile) + (directory.itemCount * size_of(DirectoryItem)));
@@ -803,7 +803,12 @@ construct_packs :: (packer : *PackerState) {
     packBuilder : String_Builder;
     for packer.project.entries {
 	if currentFile && (MAX_ASSET_FILE_SIZE - currentFileSize) < it.size {
-	    file_write(currentFile, *packBuilder);
+	    contents := builder_to_string(*packBuilder);
+	    if USE_ENCRYPTION {
+		encrypt_data(*contents, directory.encryptKey);
+	    }
+	    
+	    file_write(currentFile, contents);
 	    file_close(currentFile);
     	    print("\tWrote %\n", tprint("%_%.%", packer.project.name, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
 	    
@@ -815,6 +820,9 @@ construct_packs :: (packer : *PackerState) {
 	if !currentFile {
 	    currentFile = *file_open(tprint("%1%2_%.%", path, packer.project.name, currentFileIndex, ASSET_PACK_FILE_EXTENSION), true);
 	    init_string_builder(*packBuilder, MAX_ASSET_FILE_SIZE);
+
+	    append(*packBuilder, cast(string) ASSET_FILE_CODE);
+	    currentFileSize += size_of(u32);
 	}
 	
 	item : DirectoryItem;
@@ -836,17 +844,26 @@ construct_packs :: (packer : *PackerState) {
 	assert(readSuccess, tprint("Failed to load \"%\" during construction", it.filepath));
 	append(*packBuilder, assetFile);
 	currentFileSize += cast(u64) (size_of(AssetHeader) + assetFile.count);
-
+	
 	print("\tWrote % to %\n", cast(string) it.name, tprint("%_%.%", packer.project.name, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
     }
 
     // Write last asset pack
-    file_write(currentFile, *packBuilder);
+    contents := builder_to_string(*packBuilder);
+    if USE_ENCRYPTION {
+	encrypt_data(*contents, directory.encryptKey);
+    }
+    file_write(currentFile, contents);
     file_close(currentFile);
     print("\tWrote %\n", tprint("%_%.%", packer.project.name, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
 
     // Write directory file
-    write_entire_file(tprint("%1%2.%", path, packer.project.name, ASSET_DIR_FILE_EXTENSION), *directoryBuilder);
+    dirContents := builder_to_string(*directoryBuilder);
+    if USE_ENCRYPTION {
+	dirToEncrypt := advance(dirContents, size_of(type_of(directory.fileCode)) + size_of(type_of(directory.encryptKey)));
+	encrypt_data(*dirToEncrypt, directory.encryptKey);
+    }
+    write_entire_file(tprint("%1%2.%", path, packer.project.name, ASSET_DIR_FILE_EXTENSION), dirContents);
     print("\tWrote %\n", tprint("%.%", packer.project.name, ASSET_DIR_FILE_EXTENSION));
 }
 
@@ -861,6 +878,8 @@ construct_core_pack :: (packer : *PackerState) {
     
     packBuilder : String_Builder;
     init_string_builder(*packBuilder);
+    
+    append(*packBuilder, cast(string) CORE_FILE_CODE);
 
     add_core_asset :: (packBuilder : *String_Builder, type : AssetType, name : string, path : string) {
 	header : AssetHeader;
@@ -882,8 +901,13 @@ construct_core_pack :: (packer : *PackerState) {
     add_core_asset(*packBuilder, .Font,  "internal_mono", "%fonts/internal_mono.ttf");
     add_core_asset(*packBuilder, .Image, "loam_splash",   "%images/loam_splash.ktx2");
     add_core_asset(*packBuilder, .Audio, "loam_splash",   "%audio/loam_splash.wav");
+
+    coreContents := builder_to_string(*packBuilder);
+    if USE_ENCRYPTION {
+	encrypt_data(*coreContents, CORE_ENCRYPT_KEY);
+    }
     
-    writeSuccess := write_entire_file(tprint("%loam_core.%", packer.project.exportDirectory, ASSET_CORE_FILE_EXTENSION), *packBuilder);
+    writeSuccess := write_entire_file(tprint("%loam_core.%", packer.project.exportDirectory, ASSET_CORE_FILE_EXTENSION), coreContents);
     assert(writeSuccess, "Failed to write core assets file");
     print("\tWrote loam_core.%\n", ASSET_CORE_FILE_EXTENSION);
 }
