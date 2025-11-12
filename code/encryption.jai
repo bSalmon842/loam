@@ -24,6 +24,7 @@ CORE_ENCRYPT_KEY : EncryptionKey : 3_466_981_129;
 CORE_IS_ENCRYPTED :: true;
 
 encrypt_data :: (data : *string, key : EncryptionKey) {
+    start := seconds_since_init();
     for * data.* {
 	byteIndex := it_index % size_of(EncryptionKey);
 	shift := 8 * byteIndex;
@@ -33,9 +34,12 @@ encrypt_data :: (data : *string, key : EncryptionKey) {
 	it.* = (it.* << 4) | (it.* >> 4);
 	it.* -= (keyByte * 2);
     }
+    taken := seconds_since_init() - start;
+    print_color("encrypt_data: %ms\n", taken * 1000.0, color=.HI_YELLOW);
 }
 
 unencrypt_data :: (data : *string, key : EncryptionKey) {
+    start := seconds_since_init();
     for * data.* {
 	byteIndex := it_index % size_of(EncryptionKey);
 	shift := 8 * byteIndex;
@@ -45,6 +49,8 @@ unencrypt_data :: (data : *string, key : EncryptionKey) {
 	it.* = (it.* << 4) | (it.* >> 4);
 	it.* -= keyByte;
     }
+    taken := seconds_since_init() - start;
+    print_color("decrypt_data: %ms\n", taken * 1000.0, color=.HI_MAGENTA);
 }
 
 generate_encryption_key :: () -> EncryptionKey {

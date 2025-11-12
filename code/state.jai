@@ -21,6 +21,7 @@ GameplayState :: enum_flags u8 {
 
 transition_state :: (current : GameplayState, new : GameplayState) {
     if loam.gameplayState == current && current != .Invalid && new != .Invalid {
+	log(.INFO, tprint("State transitioning from % to %", current, new));
 	loam.gameplayState = new;
 	if current == .Splash && new != .Splash {
 	    Audio.stop_all_sounds_abruptly(0);
@@ -31,6 +32,7 @@ transition_state :: (current : GameplayState, new : GameplayState) {
     }
 }
 
+// TODO: Make this a parameter per splash screen
 SECONDS_PER_SPLASH_SCREEN : float64 : 5.0;
 SplashScreen :: struct {
     image : *ImageResource;
@@ -45,7 +47,7 @@ handle_splash_screen :: () {
 	    transition_state(.Splash, .Playing);
 	    return;
 	}
-
+	
 	splash := loam.splashScreens[loam.splashIndex];
 	renderable := Renderable2D.{};
 	renderable.texture = splash.image;

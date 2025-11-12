@@ -7,14 +7,14 @@ Created: 16SEP2025
 
 play_audio :: (resourceName : string, category : Audio.Sound_Category, repeat := false) {
     audio := get_resource(AudioResource, resourceName);
-    stream := Audio.make_stream(audio.audio, remove_audio_callback, category);
-    Audio.set_repeating(stream, repeat);
-    Audio.start_playing(stream);
-    
-    array_add(*loam.activeAudio, stream);
+    play_audio(audio, category, repeat);
 }
 
 play_audio :: (resource : *AudioResource, category : Audio.Sound_Category, repeat := false) {
+    if OS == .ANDROID && IS_DEV {
+	return;
+    }
+    
     stream := Audio.make_stream(resource.audio, remove_audio_callback, category);
     Audio.set_repeating(stream, repeat);
     Audio.start_playing(stream);
@@ -25,16 +25,24 @@ play_audio :: (resource : *AudioResource, category : Audio.Sound_Category, repea
 stop_audio :: (resourceName : string) {
     for loam.activeAudio {
 	if compare(it.sound_data.resource.name, resourceName) == 0 {
-	    Audio.stop_stream_abruptly(it);
+	    stop_audio(it);
 	}
     }
 }
 
 stop_audio :: (stream : *Audio.Sound_Stream) {
+    if OS == .ANDROID && IS_DEV {
+	return;
+    }
+    
     Audio.stop_stream_abruptly(stream);
 }
 
 restart_audio :: (resourceName : string) {
+    if OS == .ANDROID && IS_DEV {
+	return;
+    }
+    
     for loam.activeAudio {
 	if compare(it.sound_data.resource.name, resourceName) == 0 {
 	    it.play_cursor = 0;
@@ -52,13 +60,8 @@ play_audio_if_not_playing :: (resourceName : string, category : Audio.Sound_Cate
 	    return;
 	}
     }
-    
-    audio := get_resource(AudioResource, resourceName);
-    stream := Audio.make_stream(audio.audio, remove_audio_callback, category);
-    Audio.set_repeating(stream, repeat);
-    Audio.start_playing(stream);
-    
-    array_add(*loam.activeAudio, stream);
+
+    play_audio(resourceName, category, repeat);
 }
 
 play_audio_if_not_playing :: (resource : *AudioResource, category : Audio.Sound_Category, repeat := false) {
@@ -67,15 +70,15 @@ play_audio_if_not_playing :: (resource : *AudioResource, category : Audio.Sound_
 	    return;
 	}
     }
-    
-    stream := Audio.make_stream(resource.audio, remove_audio_callback, category);
-    Audio.set_repeating(stream, repeat);
-    Audio.start_playing(stream);
-    
-    array_add(*loam.activeAudio, stream);
+
+    play_audio(resource, category, repeat);
 }
 
 update_audio :: () {
+    if OS == .ANDROID && IS_DEV {
+	return;
+    }
+    
     Audio.update(cast(float) loam.deltaTime);
 }
 
@@ -89,6 +92,9 @@ remove_audio_callback :: (stream : *Audio.Sound_Stream) {
 }
 
 get_audio_device_from_name :: (deviceName : string) -> Audio.Output_Device {
+    if OS == .ANDROID {
+	return .{};
+    }
     devices := Audio.get_devices();
     for devices {
 	if it.name == deviceName then return it;
@@ -100,16 +106,17 @@ get_audio_device_from_name :: (deviceName : string) -> Audio.Output_Device {
 change_audio_device :: (name : string) {
     newDevice := get_audio_device_from_name(name);
     if newDevice.name.count {
-	Audio.sound_player_shutdown();
-	loam.audioDevice = newDevice;
-	loam.config.audioDeviceName = name;
-	if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, tprint("Failed to change audio device to %", newDevice.name));
+	change_audio_device(newDevice);
     } else {
 	log(.ERROR, tprint("Failed to find an audio device with name \"%\"", name));
     }
 }
 
 change_audio_device :: (newDevice : Audio.Output_Device) {
+    if OS == .ANDROID {
+	return;
+    }
+    
     Audio.sound_player_shutdown();
     loam.audioDevice = newDevice;
     loam.config.audioDeviceName = loam.audioDevice.name;

@@ -10,6 +10,7 @@ Created: 08JUN2025
 
 // TODO: Meshes
 // TODO: Gamepad input
+// TODO: Currently on Android, the splash screen time is taken up on app startup by the black screen (likely decryption time)
 
 // Compiled Shaders
 #if OS == .WINDOWS {
@@ -120,9 +121,9 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     init_assets(loam.assets);
     
     init_config();
-
+    
     loam.audioDevice = get_audio_device_from_name(loam.config.audioDeviceName);
-    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, "Failed to initialise Sound Player");
+    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice, update_from_a_thread = (OS != .ANDROID) }) then log(.FATAL, "Failed to initialise Sound Player");
     
     loam.sceneCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
@@ -177,6 +178,8 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 }
 
 loam_start_update :: () {
+    update_audio();
+    
     for vk.updateCommands {
 	if it then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
     }
@@ -200,8 +203,6 @@ loam_finish_update :: () {
     }
 
     loam.updateActive = false;
-
-    update_audio();
 }
 
 loam_start_render :: () {
