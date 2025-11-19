@@ -6,6 +6,10 @@ Created: 16SEP2025
 */
 
 play_audio :: (resourceName : string, category : Audio.Sound_Category, repeat := false) {
+    if OS == .ANDROID && IS_DEV {
+	return;
+    }
+    
     audio := get_resource(AudioResource, resourceName);
     play_audio(audio, category, repeat);
 }

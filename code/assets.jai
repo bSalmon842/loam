@@ -13,8 +13,6 @@ ASSET_DIR_FILE_EXTENSION :: "ld";
 ASSET_PACK_FILE_EXTENSION :: "lp";
 ASSET_CORE_FILE_EXTENSION :: "lc";
 
-USE_ENCRYPTION :: true;
-
 AssetType :: enum u32 {
     Invalid;
     
@@ -37,10 +35,9 @@ DirectoryItem :: struct {
 
 DirectoryFile :: struct {
     fileCode   : u32 #align 1;
-    encryptKey : EncryptionKey #align 1;
     itemCount  : s64 #align 1;
 } #no_padding
-#assert(size_of(DirectoryFile) == 16);
+#assert(size_of(DirectoryFile) == 12);
 
 AssetDirectory :: Table(string, DirectoryItem);
 
@@ -302,8 +299,6 @@ AssetState :: struct {
     images : ResourcePool(ImageResource);
     audios : ResourcePool(AudioResource);
     json   : ResourcePool(JSONResource);
-
-    encryptionKey : u32;
 }
 
 ASSET_NAME_COUNT :: 52;
@@ -370,18 +365,24 @@ init_assets :: (assets : *AssetState) {
 
 load_asset_directory :: () -> *AssetDirectory {
     #if OS == .ANDROID {
-	directoryContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
+	rawDirectoryContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
 	if !readSuccess {
 	    log(.FATAL, "Failed to read asset directory file!");
 	    return null;
 	}
     } else {
-	directoryContents, readSuccess := read_entire_file(tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
+	rawDirectoryContents, readSuccess := read_entire_file(tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
 	if !readSuccess {
 	    log(.FATAL, "Failed to read asset directory file!");
 	    return null;
 	}
     }
+
+    dirDecompSuccess, directoryContents := decompress_data(rawDirectoryContents);
+    if !dirDecompSuccess {
+	log(.FATAL, "Failed to decompress directory file");
+    }
+    free(rawDirectoryContents);
 
     // Check that the loaded file is big enough to have the file header and at least one item
     if directoryContents.count < size_of(DirectoryFile) + size_of(DirectoryItem) {
@@ -397,15 +398,10 @@ load_asset_directory :: () -> *AssetDirectory {
 	return null;
     }
     
-    loam.assets.encryptionKey = header.encryptKey;
-    if USE_ENCRYPTION {
-	encrypted := advance(directoryContents, size_of(u32) + size_of(EncryptionKey));
-	unencrypt_data(*encrypted, loam.assets.encryptionKey);
-    }
-    
     // Check now that the size matches the amount of items in the file
-    if directoryContents.count < size_of(DirectoryFile) + header.itemCount * size_of(DirectoryItem) {
-	log(.FATAL, "Loaded asset directory file item count doesn't match the file size");
+    expectedDirectorySize := size_of(DirectoryFile) + header.itemCount * size_of(DirectoryItem);
+    if directoryContents.count < expectedDirectorySize {
+	log(.FATAL, tprint("Loaded asset directory expected size (%) doesn't match the file size (%)", expectedDirectorySize, directoryContents.count));
 	return null;
     }
 
@@ -536,20 +532,22 @@ get_raw_asset_data :: (directory : *AssetDirectory, assetName : string, type : A
     packName := tprint("%1%2_%.%", get_packaged_assets_path(), APP_NAME, item.file, ASSET_PACK_FILE_EXTENSION);
 
     #if OS == .ANDROID {
-	packContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
+	rawPackContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
     } else {
-	packContents, readSuccess := read_entire_file(packName);
+	rawPackContents, readSuccess := read_entire_file(packName);
     }
     
     if !readSuccess {
 	log(.FATAL, tprint("Failed to read asset pack file \"%\"!", packName));
-	free(packContents.data);   
+	free(rawPackContents.data);
 	return "", null;
     }
-
-    if USE_ENCRYPTION {
-	unencrypt_data(*packContents, loam.assets.encryptionKey);
+    
+    packDecompSuccess, packContents := decompress_data(rawPackContents);
+    if !packDecompSuccess {
+	log(.FATAL, tprint("Failed to decompress asset pack \"%\"", packName));
     }
+    free(rawPackContents.data);
     
     if !begins_with(packContents, cast(string) ASSET_FILE_CODE) {
 	log(.FATAL, "Found asset pack file is not a valid Loam asset pack file!");
@@ -580,21 +578,23 @@ get_raw_core_asset_data :: (assetName : string, type : AssetType) -> fileContent
     packName := tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION);
 
     #if OS == .ANDROID {
-	packContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
+	rawPackContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
     } else {
-	packContents, readSuccess := read_entire_file(packName);
+	rawPackContents, readSuccess := read_entire_file(packName);
     }
     
     if !readSuccess {
 	log(.FATAL, "Failed to read core asset pack file!");
-	free(packContents.data);
+	free(rawPackContents.data);
 	return "", null;
     }
-    
-    if USE_ENCRYPTION {
-	unencrypt_data(*packContents, CORE_ENCRYPT_KEY);
-    }
 
+    packDecompSuccess, packContents := decompress_data(rawPackContents);
+    if !packDecompSuccess {
+	log(.FATAL, "Failed to decompress core asset pack");
+    }
+    free(rawPackContents.data);
+    
     if !begins_with(packContents, cast(string) CORE_FILE_CODE) {
 	log(.FATAL, "Found core asset pack file is not a valid Loam core file!");
 	free(packContents.data);
@@ -649,4 +649,41 @@ get_font_from_file_data :: (header : *AssetHeader, fileData : *void) -> *FontDat
 
     return fontData;
 }
+
+compress_data :: (data : string) -> bool, string {
+    maxCompressedSize := LZ4_compressBound(cast(s32) data.count);
+    compressedRawData := alloc(maxCompressedSize);
+    bytesWritten := LZ4_compress_default(data.data, compressedRawData, cast(s32) data.count, maxCompressedSize);
+    if bytesWritten == 0 {
+	log(.ERROR, "compress_data failed!");
+	return false, .{};
+    }
+    
+    log(.DEV, tprint("Compressed data from % to %", to_size_string(cast(u64) data.count), to_size_string(cast(u64) bytesWritten)));
+    
+    compData := alloc_string(bytesWritten);
+    memcpy(compData.data, compressedRawData, bytesWritten);
+    free(compressedRawData);
+    
+    return true, compData;
+}
+
+decompress_data :: (data : string) -> bool, string {
+    maxDecompressedSize : s64 = MAX_ASSET_FILE_SIZE;
+    decompressedRawData := alloc(maxDecompressedSize);
+    bytesWritten := LZ4_decompress_safe(data.data, decompressedRawData, cast(s32) data.count, cast(s32) maxDecompressedSize);
+    if bytesWritten <= 0 {
+	log(.ERROR, tprint("decompress_data failed with: %", bytesWritten));
+	return false, .{};
+    }
+    
+    log(.DEV, tprint("Decompressed data from % to %", to_size_string(cast(u64) data.count), to_size_string(cast(u64) bytesWritten)));
+    
+    decompData := alloc_string(bytesWritten);
+    memcpy(decompData.data, decompressedRawData, bytesWritten);
+    free(decompressedRawData);
+    
+    return true, decompData;
+}
+
 

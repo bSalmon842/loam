@@ -325,6 +325,7 @@ Simp :: #import "Simp";
 
 #import "ktx";
 #import "Logger" (IS_DEV);
+#import "lz4_bs842";
 Audio :: #import "Sound_Player_bs842";
 #import "VMA";
 #import "Vulkan_1_3";
@@ -335,7 +336,6 @@ DONE
 #load "audio.jai";
 #load "camera.jai";
 #load "config.jai";
-#load "encryption.jai";
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
@@ -386,6 +386,7 @@ Simp :: #import "Simp";
 // BS_Modules
 #import "ktx";
 #import "Logger"(IS_DEV);
+#import "lz4_bs842";
 Audio :: #import "Sound_Player_bs842";
 #import "VMA";
 #import "Vulkan_1_3";

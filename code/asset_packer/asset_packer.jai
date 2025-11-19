@@ -791,7 +791,6 @@ construct_packs :: (packer : *PackerState) {
     
     directory : DirectoryFile;
     directory.fileCode = pack_file_code(DIR_FILE_CODE);
-    directory.encryptKey = ifx USE_ENCRYPTION then generate_encryption_key() else 0;
     directory.itemCount = packer.project.entries.count;
     directoryBuilder : String_Builder;
     init_string_builder(*directoryBuilder, size_of(DirectoryFile) + (directory.itemCount * size_of(DirectoryItem)));
@@ -804,11 +803,12 @@ construct_packs :: (packer : *PackerState) {
     for packer.project.entries {
 	if currentFile && (MAX_ASSET_FILE_SIZE - currentFileSize) < it.size {
 	    contents := builder_to_string(*packBuilder);
-	    if USE_ENCRYPTION {
-		encrypt_data(*contents, directory.encryptKey);
+	    assetCompSuccess, compAssetContents := compress_data(contents);
+	    if !assetCompSuccess {
+		print("\tFAILED TO COMPRESS ASSET PACK %\n", currentFileIndex);
+		return;
 	    }
-	    
-	    file_write(currentFile, contents);
+	    file_write(currentFile, compAssetContents);
 	    file_close(currentFile);
     	    print("\tWrote %\n", tprint("%_%.%", packer.project.name, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
 	    
@@ -850,20 +850,23 @@ construct_packs :: (packer : *PackerState) {
 
     // Write last asset pack
     contents := builder_to_string(*packBuilder);
-    if USE_ENCRYPTION {
-	encrypt_data(*contents, directory.encryptKey);
+    assetCompSuccess, compAssetContents := compress_data(contents);
+    if !assetCompSuccess {
+	print("\tFAILED TO COMPRESS ASSET PACK %\n", currentFileIndex);
+	return;
     }
-    file_write(currentFile, contents);
+    file_write(currentFile, compAssetContents);
     file_close(currentFile);
     print("\tWrote %\n", tprint("%_%.%", packer.project.name, currentFileIndex, ASSET_PACK_FILE_EXTENSION));
 
     // Write directory file
     dirContents := builder_to_string(*directoryBuilder);
-    if USE_ENCRYPTION {
-	dirToEncrypt := advance(dirContents, size_of(type_of(directory.fileCode)) + size_of(type_of(directory.encryptKey)));
-	encrypt_data(*dirToEncrypt, directory.encryptKey);
+    dirCompSuccess, compDirContents := compress_data(dirContents);
+    if !dirCompSuccess {
+	print("\tFAILED TO COMPRESS DIRECTORY FILE.\n");
+	return;
     }
-    write_entire_file(tprint("%1%2.%", path, packer.project.name, ASSET_DIR_FILE_EXTENSION), dirContents);
+    write_entire_file(tprint("%1%2.%", path, packer.project.name, ASSET_DIR_FILE_EXTENSION), compDirContents);
     print("\tWrote %\n", tprint("%.%", packer.project.name, ASSET_DIR_FILE_EXTENSION));
 }
 
@@ -903,11 +906,12 @@ construct_core_pack :: (packer : *PackerState) {
     add_core_asset(*packBuilder, .Audio, "loam_splash",   "%audio/loam_splash.wav");
 
     coreContents := builder_to_string(*packBuilder);
-    if USE_ENCRYPTION {
-	encrypt_data(*coreContents, CORE_ENCRYPT_KEY);
+    coreCompSuccess, compCoreContents := compress_data(coreContents);
+    if !coreCompSuccess {
+	print("\tFAILED TO COMPRESS CORE ASSETS\n");
+	return;
     }
-    
-    writeSuccess := write_entire_file(tprint("%loam_core.%", packer.project.exportDirectory, ASSET_CORE_FILE_EXTENSION), coreContents);
+    writeSuccess := write_entire_file(tprint("%loam_core.%", packer.project.exportDirectory, ASSET_CORE_FILE_EXTENSION), compCoreContents);
     assert(writeSuccess, "Failed to write core assets file");
     print("\tWrote loam_core.%\n", ASSET_CORE_FILE_EXTENSION);
 }
