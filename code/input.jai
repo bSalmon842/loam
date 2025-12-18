@@ -59,7 +59,7 @@ update_pointer_status :: (window : Window_Type, status : *PointerStatus) {
     status.pressedThisFrame = cast(bool) (input_button_states[Key_Code.MOUSE_BUTTON_LEFT] & .DOWN);
 
     #if OS == .ANDROID {
-	androidPointer := android_pointers[0];
+	androidPointer := touch_pointers[0];
 	status.position = .{ androidPointer.window_position_x, loam.windowHeight - androidPointer.window_position_y };
     } else {
 	x, y := get_mouse_pointer_position(window, false);

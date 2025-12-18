@@ -126,11 +126,11 @@ get_refresh_rate :: (window : Window_Type) -> u32 {
 	}
     } else #if OS == .ANDROID {
 	env : *JNIEnv;
-	context.android_app.activity.vm.*.GetEnv(context.android_app.activity.vm, cast(**void) *env, JNI_VERSION_1_6);
-	if context.android_app.activity.vm.*.AttachCurrentThread(context.android_app.activity.vm, *env, null) == 0 {
-	    activityClass := env.*.GetObjectClass(env, context.android_app.activity.clazz);
+	android_app.activity.vm.*.GetEnv(android_app.activity.vm, cast(**void) *env, JNI_VERSION_1_6);
+	if android_app.activity.vm.*.AttachCurrentThread(android_app.activity.vm, *env, null) == 0 {
+	    activityClass := env.*.GetObjectClass(env, android_app.activity.clazz);
 	    getWindowManager := env.*.GetMethodID(env, activityClass, "getWindowManager".data, "()Landroid/view/WindowManager;".data);
-	    windowManager := env.*.CallObjectMethod(env, context.android_app.activity.clazz, getWindowManager);
+	    windowManager := env.*.CallObjectMethod(env, android_app.activity.clazz, getWindowManager);
 	    
 	    wmClass := env.*.GetObjectClass(env, windowManager);
 	    getDefaultDisplay := env.*.GetMethodID(env, wmClass, "getDefaultDisplay".data, "()Landroid/view/Display;".data);
@@ -140,7 +140,7 @@ get_refresh_rate :: (window : Window_Type) -> u32 {
 	    getRefreshRate := env.*.GetMethodID(env, displayClass, "getRefreshRate".data, "()F".data);
 	    refreshRate := env.*.CallFloatMethod(env, display, getRefreshRate);
 
-            context.android_app.activity.vm.*.DetachCurrentThread(context.android_app.activity.vm);
+            android_app.activity.vm.*.DetachCurrentThread(android_app.activity.vm);
 	    if refreshRate > 0 then return cast(u32) (refreshRate + 0.5);
 	}
     }

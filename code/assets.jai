@@ -365,7 +365,11 @@ init_assets :: (assets : *AssetState) {
 
 load_asset_directory :: () -> *AssetDirectory {
     #if OS == .ANDROID {
-	rawDirectoryContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
+	file, opened := file_open(tprint("%1%2.%3", get_packaged_assets_path(), APP_NAME, ASSET_DIR_FILE_EXTENSION));
+	if !opened {
+	    log(.FATAL, "Failed to open asset directory file!");
+	}
+	rawDirectoryContents, readSuccess := read_entire_file(file);
 	if !readSuccess {
 	    log(.FATAL, "Failed to read asset directory file!");
 	    return null;
@@ -532,7 +536,11 @@ get_raw_asset_data :: (directory : *AssetDirectory, assetName : string, type : A
     packName := tprint("%1%2_%.%", get_packaged_assets_path(), APP_NAME, item.file, ASSET_PACK_FILE_EXTENSION);
 
     #if OS == .ANDROID {
-	rawPackContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
+	file, opened := file_open(packName);
+	if !opened {
+	    log(.FATAL, "Failed to open asset pack file!");
+	}
+	rawPackContents, readSuccess := read_entire_file(file);
     } else {
 	rawPackContents, readSuccess := read_entire_file(packName);
     }
@@ -578,7 +586,11 @@ get_raw_core_asset_data :: (assetName : string, type : AssetType) -> fileContent
     packName := tprint("%loam_core.%", get_packaged_assets_path(), ASSET_CORE_FILE_EXTENSION);
 
     #if OS == .ANDROID {
-	rawPackContents, readSuccess := read_entire_file(context.android_app.activity.assetManager, packName);
+	file, opened := file_open(packName);
+	if !opened {
+	    log(.FATAL, "Failed to open core asset pack file!");
+	}
+	rawPackContents, readSuccess := read_entire_file(file);
     } else {
 	rawPackContents, readSuccess := read_entire_file(packName);
     }

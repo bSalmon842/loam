@@ -10,23 +10,24 @@ Created: 08JUN2025
 
 // TODO: Meshes
 // TODO: Gamepad input
-// TODO: Currently on Android, the splash screen time is taken up on app startup by the black screen (likely decryption time)
 
 // Compiled Shaders
 #if OS == .WINDOWS {
-    MESH_VERTEX_SHADER     :: #run compile_glsl_to_spirv("mesh_vertex");
-    MESH_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("mesh_fragment");
-    UI_FRAGMENT_SHADER     :: #run compile_glsl_to_spirv("ui_fragment");
-    TEXT_FRAGMENT_SHADER   :: #run compile_glsl_to_spirv("text_fragment");
-    SPRITE_VERTEX_SHADER   :: #run compile_glsl_to_spirv("sprite_vertex");
-    SPRITE_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("sprite_fragment");
+    MESH_VERTEX_SHADER          :: #run compile_glsl_to_spirv("mesh_vertex");
+    MESH_FRAGMENT_SHADER        :: #run compile_glsl_to_spirv("mesh_fragment");
+    UI_FRAGMENT_SHADER          :: #run compile_glsl_to_spirv("ui_fragment");
+    TEXT_FRAGMENT_SHADER        :: #run compile_glsl_to_spirv("text_fragment");
+    SPRITE_VERTEX_SHADER        :: #run compile_glsl_to_spirv("sprite_vertex");
+    SPRITE_FRAGMENT_SHADER      :: #run compile_glsl_to_spirv("sprite_fragment");
+    SPRITE_RECT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("sprite_rect_fragment");
 } else #if OS == .ANDROID {
-    MESH_VERTEX_SHADER     : CompiledShader;
-    MESH_FRAGMENT_SHADER   : CompiledShader;
-    UI_FRAGMENT_SHADER     : CompiledShader;
-    TEXT_FRAGMENT_SHADER   : CompiledShader;
-    SPRITE_VERTEX_SHADER   : CompiledShader;
-    SPRITE_FRAGMENT_SHADER : CompiledShader;
+    MESH_VERTEX_SHADER          : CompiledShader;
+    MESH_FRAGMENT_SHADER        : CompiledShader;
+    UI_FRAGMENT_SHADER          : CompiledShader;
+    TEXT_FRAGMENT_SHADER        : CompiledShader;
+    SPRITE_VERTEX_SHADER        : CompiledShader;
+    SPRITE_FRAGMENT_SHADER      : CompiledShader;
+    SPRITE_RECT_FRAGMENT_SHADER : CompiledShader;
 }
 
 // Add the engine to the context so we don't have to pass it everywhere, then add global alias' for some main structures
@@ -94,12 +95,13 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     }
     
     #if OS == .ANDROID {
-	MESH_VERTEX_SHADER   = load_spirv_for_android("mesh_vertex");
-	MESH_FRAGMENT_SHADER = load_spirv_for_android("mesh_fragment");
-	UI_FRAGMENT_SHADER   = load_spirv_for_android("ui_fragment");
-	TEXT_FRAGMENT_SHADER = load_spirv_for_android("text_fragment");
-	SPRITE_VERTEX_SHADER = load_spirv_for_android("sprite_vertex");
-	SPRITE_FRAGMENT_SHADER = load_spirv_for_android("sprite_fragment");
+	MESH_VERTEX_SHADER          = load_spirv_for_android("mesh_vertex");
+	MESH_FRAGMENT_SHADER        = load_spirv_for_android("mesh_fragment");
+	UI_FRAGMENT_SHADER          = load_spirv_for_android("ui_fragment");
+	TEXT_FRAGMENT_SHADER        = load_spirv_for_android("text_fragment");
+	SPRITE_VERTEX_SHADER        = load_spirv_for_android("sprite_vertex");
+	SPRITE_FRAGMENT_SHADER      = load_spirv_for_android("sprite_fragment");
+	SPRITE_RECT_FRAGMENT_SHADER = load_spirv_for_android("sprite_rect_fragment");
     }
     
     make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR);
@@ -378,7 +380,7 @@ Simp :: #import "Simp";
     X11 :: #import "X11";
 } else #if OS == .ANDROID {
     #import "Android";
-    #import "Android/File";
+    //#import "Android/File";
     #import "Android/Jni";
     #import "POSIX";
 }

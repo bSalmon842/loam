@@ -8,6 +8,7 @@ Created: 19MAY2025
 PipelineType :: enum {
     Mesh;
     Sprite;
+    Sprite_Rect;
     UI_Sprite;
     UI_Text;
 }
@@ -259,6 +260,26 @@ init_pipelines :: () {
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 
+		init_sprite_buffer(pipeline);
+	    }
+
+	    case .Sprite_Rect; {
+		pipeline.orthographic = true;
+		pipeline.isSpritePipeline = true;
+		
+		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, SPRITE_RECT_FRAGMENT_SHADER);
+		
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, true, .Alpha);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+		
 		init_sprite_buffer(pipeline);
 	    }
 	    

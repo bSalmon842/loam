@@ -82,7 +82,11 @@ compile_glsl_to_spirv :: (glslName : string) -> CompiledShader {
 
 #if OS == .ANDROID {
     load_spirv_for_android :: (hlslName : string) -> CompiledShader {
-	spvContents, foundFile := read_entire_file(context.android_app.activity.assetManager, tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
+	file, opened := file_open(tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
+	if !opened {
+	    log(.FATAL, tprint("Failed to open %!", hlslName));
+	}
+	spvContents, foundFile := read_entire_file(file);
 	return CompiledShader.{ hlslName, spvContents, foundFile };
     }
     SHADER_FOLDER_PATH             :: "shaders/";

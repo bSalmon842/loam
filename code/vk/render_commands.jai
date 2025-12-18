@@ -14,7 +14,7 @@ add_ui_render_command :: (elem : *UI_Element) {
     if #complete elem.type == {
 	case .Empty; return;
 	
-	case .Text;   for elem.text.glyphs { add_sprite_render_command(.UI_Text, *it.renderable, it.transform, elem.interact.hovered, elem.interact.hoverTint); }
+	case .Text;   for elem.text.glyphs { add_sprite_render_command(.UI_Text, it.renderable, it.transform, elem.interact.hovered, elem.interact.hoverTint); }
 	case .Sprite; add_sprite_render_command(.UI_Sprite, elem.sprite.renderable, elem.sprite.transform, elem.interact.hovered, elem.interact.hoverTint);
     }
 }
@@ -65,6 +65,22 @@ add_sprite_render_command :: (pipelineType : PipelineType, renderable : Renderab
 	renderable.uv0, renderable.uv1,
 	renderable.dimensions,
 	renderable.texture.index, 0
+    };
+
+    pipeline.sprites.array[pipeline.sprites.count] = spriteInfo;
+    pipeline.sprites.count += 1;
+}
+
+add_rect_render_command :: (dimensions : Vector2, transform : Transform, colour : Vector4) {
+    assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
+    
+    pipeline := *vk.pipelines[PipelineType.Sprite_Rect];
+    if pipeline.sprites.count == MAX_SPRITES then return;
+
+    spriteInfo := GPUSpriteInfo.{
+	get_transform_matrix(transform, dimensions),
+	colour, .{}, .{},
+	dimensions, 0, 0
     };
 
     pipeline.sprites.array[pipeline.sprites.count] = spriteInfo;
