@@ -6,9 +6,9 @@ Created: 19MAY2025
 */
 
 PipelineType :: enum {
+    Sprite_Rect;
     Mesh;
     Sprite;
-    Sprite_Rect;
     UI_Sprite;
     UI_Text;
 }
