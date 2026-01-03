@@ -24,7 +24,7 @@ transition_state :: (current : GameplayState, new : GameplayState) {
 	log(.INFO, tprint("State transitioning from % to %", current, new));
 	loam.gameplayState = new;
 	if current == .Splash && new != .Splash {
-	    Audio.stop_all_sounds_abruptly(0);
+	    stop_all_sounds();
 	}
     } else {
 	stateNames := enum_names(GameplayState);

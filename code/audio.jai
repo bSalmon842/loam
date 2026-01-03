@@ -30,6 +30,7 @@ stop_audio :: (resourceName : string) {
     for loam.activeAudio {
 	if compare(it.sound_data.resource.name, resourceName) == 0 {
 	    stop_audio(it);
+	    remove it;
 	}
     }
 }
@@ -40,6 +41,11 @@ stop_audio :: (stream : *Audio.Sound_Stream) {
     }
     
     Audio.stop_stream_abruptly(stream);
+}
+
+stop_all_sounds :: () {
+    Audio.stop_all_sounds_abruptly(0);
+    array_reset(*loam.activeAudio);
 }
 
 restart_audio :: (resourceName : string) {
