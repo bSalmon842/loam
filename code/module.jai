@@ -5,7 +5,7 @@ Author: Brock Salmon
 Created: 08JUN2025
 */
 
-#module_parameters(APP_NAME := "", IS_DEV := false);
+#module_parameters(APP_NAME := "", ASSET_CODE := "", IS_DEV := false);
 #run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
 // TODO: Meshes
@@ -84,11 +84,23 @@ LoamState :: struct {
 init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) {
     if APP_NAME.count == 0 {
         #if OS == .WINDOWS {
-	    Windows.MessageBoxA(window, "No app name was set, remember to call #run set_app_name", "Initialisation Error", Windows.MB_OK | Windows.MB_ICONERROR);
+	    Windows.MessageBoxA(window, "No app name was set", "Initialisation Error", Windows.MB_OK | Windows.MB_ICONERROR);
 	} else #if OS == .ANDROID {
 	    
 	} else #if OS == .LINUX {
-	    X11.x_message_box(X11.None, text, "No app name was set, remember to call #run set_app_name", .ST_OK);
+	    X11.x_message_box(X11.None, text, "No app name was set", .ST_OK);
+	}
+
+	exit(0);
+    }
+
+    if ASSET_CODE.count == 0 || ASSET_CODE.count > 4 || ASSET_CODE == "LOAM" {
+	#if OS == .WINDOWS {
+	    Windows.MessageBoxA(window, "Invalid asset code, code cannot be \"LOAM\", nor be more than 4 characters", "Initialisation Error", Windows.MB_OK | Windows.MB_ICONERROR);
+	} else #if OS == .ANDROID {
+	    
+	} else #if OS == .LINUX {
+	    X11.x_message_box(X11.None, text, "Invalid asset code, code cannot be \"LOAM\", nor be more than 4 characters", .ST_OK);
 	}
 
 	exit(0);
@@ -120,7 +132,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     loam.assets = New(AssetState);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.assets);
-    init_assets(loam.assets);
+    init_assets(loam.assets, ASSET_CODE);
     
     init_config();
     
@@ -163,7 +175,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
 
     loam.gameplayState = .Splash;
 
-    array_add(*loam.splashScreens, .{ get_resource(ImageResource, "loam_splash", true), get_resource(AudioResource, "loam_splash", true), .{0.05, 0.05, 0.05, 1.0} });
+    array_add(*loam.splashScreens, .{ get_resource(ImageResource, "__loam_splash"), get_resource(AudioResource, "__loam_splash_audio"), .{0.05, 0.05, 0.05, 1.0} });
     
     // Setup core inputs
     quit_game :: (args : .. Any) {
@@ -344,6 +356,8 @@ DONE
 #load "json.jai";
 #load "math.jai";
 #load "metrics.jai";
+#load "resources.jai";
+#load "shared_asset_info.jai";
 #load "sprite.jai";
 #load "state.jai";
 #load "text.jai";

@@ -1,0 +1,1 @@
+ktx create --format R8G8B8A8_SRGB --assign-tf KHR_DF_TRANSFER_SRGB --generate-mipmap --encode basis-lz arrow_right.png arrow_right.ktx2

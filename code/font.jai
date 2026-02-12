@@ -78,14 +78,14 @@ make_kerning_key :: (first : u32, second : u32) -> u64 {
     return (cast(u64) first << 32) | cast(u64) second;
 }
 
-build_font_atlas :: (fontName : string, size : u32, language : Language, core : bool = false) {
+build_font_atlas :: (fontName : string, size : u32, language : Language) {
     atlasName := get_font_atlas_name(fontName, size);
     exists := table_find(loam.fonts, atlasName);
     if exists {
 	log(.WARN, tprint("% already exists", atlasName));
     }
     
-    fontData := cast(*FontData) get_asset(.Font, fontName, core).data;
+    fontData := cast(*FontData) get_asset(.Font, fontName).data;
     check_ft(FT_Set_Pixel_Sizes(fontData.face, 0, size), "Failed to set Pixel Sizes");
     
     atlas := New(FontAtlas);
@@ -167,7 +167,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language, core : 
     }
 
     atlasImage := create_vk_image_from_data(atlasBitmap.data, .{ ATLAS_MAX_SIZE, ATLAS_MAX_SIZE }, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1);
-    atlas.image = add_resource(atlasName, atlasImage, core);
+    atlas.image = add_resource(atlasName, atlasImage);
     
     table_add(loam.fonts, copy_string(atlasName), atlas);
 

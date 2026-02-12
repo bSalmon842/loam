@@ -1,0 +1,30 @@
+
+{
+	"pack_type": "engine",
+	"game_code": "LOAM",
+	"assets": {
+		"__loam_internal": {
+			"type": "font",
+			"filename": "internal.ttf",
+			"tags": [ "core" ]
+		},
+		
+		"__loam_internal_mono": {
+			"type": "font",
+			"filename": "internal_mono.ttf",
+			"tags": [ "core", "monospace" ]
+		},
+		
+		"__loam_splash": {
+			"type": "image",
+			"filename": "loam_splash.ktx2",
+			"tags": [ "core", "splash" ]
+		},
+		
+		"__loam_splash_audio": {
+			"type": "audio",
+			"filename": "loam_splash.wav",
+			"tags": [ "core", "splash" ]
+		}
+	}
+}
