@@ -50,6 +50,7 @@ JSON_Value :: struct {
 	    value_string  : string;
 	    value_bool    : bool;
 	    value_float   : float64;
+	    value_int     : s64;
 	    value_null    : *void;
 	}
     }
@@ -508,13 +509,23 @@ json_parse_this :: (value : *JSON_Value, json : string, debugName : string) -> s
 		}
 	    }
 
-	    number, converted := string_to_float64(originalNumberString);
-	    if !converted {
-		json_log_error(.InvalidValue, debugName, originalNumberString);
-		return thisString, .InvalidValue;
-	    }
+	    if contains(originalNumberString, #char ".") {
+		number, converted := string_to_float64(originalNumberString);
+		if !converted {
+		    json_log_error(.InvalidValue, debugName, originalNumberString);
+		    return thisString, .InvalidValue;
+		}
 
-	    value.value_float = number;
+		value.value_float = number;
+	    } else {
+		number, converted := string_to_int(originalNumberString);
+		if !converted {
+		    json_log_error(.InvalidValue, debugName, originalNumberString);
+		    return thisString, .InvalidValue;
+		}
+
+		value.value_int = number;
+	    }
 	    advance(*thisString, originalNumberString.count);
 	}
 	
