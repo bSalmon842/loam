@@ -75,13 +75,27 @@ update_input :: (event : SDL.Event) {
 //////////////////////////////////////////////////
 KeybindMap :: Table(string, *Keybind);
 Keybind :: struct {
-    keyboard       : SDL.Scancode;
-    keyboardMod    : SDL.Keymod;
-    mouseButton   : s64; // Match BUTTON_xx globals at the top of SDL_mouse
-    mouseAxis     : MouseAxis;
-    gamepadButton : SDL.Gamepad_Button = .INVALID;
-    gamepadAxis   : SDL.Gamepad_Axis = .INVALID;
+    keyboard      : [] SDL.Scancode;
+    keyboardMod   : [] SDL.Keymod; // NOTE: The count of this array should match keyboard
+    mouseButton   : [] s32; // Match BUTTON_xx globals at the top of SDL_mouse
+    mouseAxis     : [] MouseAxis;
+    gamepadButton : [] SDL.Gamepad_Button;
+    gamepadAxis   : [] SDL.Gamepad_Axis;
     // TODO: SDL_joystick support
+}
+
+get_bindings_from_json :: (name : string, bindings : [..] *JSON_Value, $T : Type) -> [] T {
+    if bindings.count == 0 {
+	log(.WARN, tprint("No bindings found for %", name));
+	return .[];
+    }
+    
+    binds : [..] T;
+    for bindings {
+	array_add(*binds, cast(T) it.value_int);	
+    }
+    
+    return binds;
 }
 
 init_keybinds :: () -> *KeybindMap {
@@ -113,18 +127,27 @@ init_keybinds :: () -> *KeybindMap {
 
 	bind := New(Keybind);
 	for binding : bindingSet.values {
+	    nameForLog := tprint("%: %", bindingSet.name, binding.name);
+	    if binding.type != .Array {
+		log(.ERROR, tprint("% bindings should be an array", nameForLog));
+	    }
 	    if binding.name == {
-		case "keyboard";       bind.keyboard      = cast(SDL.Scancode)       binding.value_int;
-		case "keyboard_mod";   bind.keyboardMod   = cast(SDL.Keymod)         binding.value_int;
-		case "mouse_button";   bind.mouseButton   =                          binding.value_int;
-		case "mouse_axis";     bind.mouseAxis     = cast(MouseAxis)          binding.value_int;
-		case "gamepad_button"; bind.gamepadButton = cast(SDL.Gamepad_Button) binding.value_int;
-		case "gamepad_axis";   bind.gamepadAxis   = cast(SDL.Gamepad_Axis)   binding.value_int;
+		case "keyboard";       bind.keyboard      = get_bindings_from_json(nameForLog, binding.values, SDL.Scancode);
+		case "keyboard_mod";   bind.keyboardMod   = get_bindings_from_json(nameForLog, binding.values, SDL.Keymod);
+		case "mouse_button";   bind.mouseButton   = get_bindings_from_json(nameForLog, binding.values, s32);
+		case "mouse_axis";     bind.mouseAxis     = get_bindings_from_json(nameForLog, binding.values, MouseAxis);
+		case "gamepad_button"; bind.gamepadButton = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Button);
+		case "gamepad_axis";   bind.gamepadAxis   = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Axis);
 		
 		case; log(.ERROR, tprint("% is not a valid binding field", binding.name));
 	    }
 	}
-
+	
+	if bind.keyboard.count != bind.keyboardMod.count {
+	    log(.ERROR, tprint("keyboard and keyboard_mod arrays were not the same length for: %", bindingSet.name));
+	    continue;
+	}
+	
 	table_add(map, bindingSet.name, bind);
     }
     
@@ -143,40 +166,55 @@ get_input :: (name : string) -> float32 {
 
     // Check keyboard binding
     if SDL.has_keyboard() {
-	if binding.keyboard != 0 {
-	    keyCount : s32;
-	    keys := SDL.get_keyboard_state(*keyCount);
-	    modState := SDL.get_mod_state();
-	    if keys {
-		if keys[binding.keyboard] && binding.keyboardMod == modState then return 1.0;
+	keyCount : s32;
+	keys := SDL.get_keyboard_state(*keyCount);
+	modState := SDL.get_mod_state();
+	if keys {
+	    for binding.keyboard {
+		if keys[it] && binding.keyboardMod[it_index] == modState then return 1.0;
 	    }
 	}
     }
 
     // Check mouse bindings
     if SDL.has_mouse() {
-	if binding.mouseButton != 0 || binding.mouseAxis != .Invalid {
+	if binding.mouseButton.count > 0 || binding.mouseAxis.count > 0 {
 	    relX, relY : float32;
 	    mouseButtons := SDL.get_relative_mouse_state(*relX, *relY);
-	    if binding.mouseButton != 0 && cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(cast(s32) binding.mouseButton) == mouseButtons then return 1.0;
-	    if binding.mouseAxis == .X then return relX;
-	    if binding.mouseAxis == .Y then return relY;
-	    if binding.mouseAxis == .Wheel_X then return loam.input.mouseWheel.x;
-	    if binding.mouseAxis == .Wheel_Y then return loam.input.mouseWheel.y;
+
+	    for binding.mouseButton {
+		if cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(it) == mouseButtons then return 1.0;
+	    }
+
+	    for binding.mouseAxis {
+		if it == {
+		    case .X;       return relX;
+		    case .Y;       return relY;
+		    case .Wheel_X; return loam.input.mouseWheel.x;
+		    case .Wheel_Y; return loam.input.mouseWheel.y;
+		}
+	    }
 	}
     }
     
     // Check gamepad bindings
     if loam.input.gamepad {
-	if binding.gamepadButton != .INVALID && SDL.gamepad_has_button(loam.input.gamepad, binding.gamepadButton) {
-	    if SDL.get_gamepad_button(loam.input.gamepad, binding.gamepadButton) then return 1.0;
+	for binding.gamepadButton {
+	    if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) then return 1.0;
 	}
 
-	if binding.gamepadAxis != .INVALID && SDL.gamepad_has_axis(loam.input.gamepad, binding.gamepadAxis) {
-	    return cast(float32) SDL.get_gamepad_axis(loam.input.gamepad, binding.gamepadAxis);
+	for binding.gamepadAxis {
+	    if SDL.gamepad_has_axis(loam.input.gamepad, it) {
+		axis := cast(float32) SDL.get_gamepad_axis(loam.input.gamepad, it);
+		if axis < 0.0 {
+		    axis /= cast(float32) S16_MIN;
+		} else {
+		    axis /= cast(float32) S16_MAX;
+		}
+	    }
 	}
     }
-
+    
     return 0.0;
 }
 
