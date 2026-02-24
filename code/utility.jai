@@ -112,7 +112,30 @@ get_ram_usage :: () -> u64 {
     return 0;
 }
 
-get_refresh_rate :: (window : Window_Type) -> u32 {
+get_window_handle_from_sdl :: () -> $T #modify {
+    #if OS == .WINDOWS then T = Windows.HWND;
+    else #if OS == .LINUX then T = X11.Window;
+    else #if OS == .ANDROID then T = *Android.ANativeWindow;
+    else return false;
+
+    return true;
+} {
+    windowProps := SDL.get_window_properties(loam.window);
+    
+    #if OS == .WINDOWS {
+	windowPointer := SDL.get_pointer_property(windowProps, SDL.PROP_WINDOW_WIN32_HWND_POINTER, null);
+    } else #if OS == .LINUX {
+	windowPointer := SDL.get_pointer_property(windowProps, SDL.PROP_WINDOW_X11_DISPLAY_POINTER, null);
+    } else #if OS == .ANDROID {
+	windowPointer := SDL.get_pointer_property(windowProps, SDL.PROP_WINDOW_ANDROID_WINDOW_POINTER, null);
+    }
+
+    return cast(T) windowPointer;
+}
+
+// TODO: Make sure SDL gets the refresh rate on Android before deleting this code
+/*
+get_refresh_rate :: () -> u32 {
     #if OS == .WINDOWS {
 	monitor := Windows.MonitorFromWindow(window, Windows.MONITOR_DEFAULTTONEAREST);
 	info : WindowsE.MONITORINFOEXA;
@@ -147,3 +170,4 @@ get_refresh_rate :: (window : Window_Type) -> u32 {
 
     return 60; // Fallback value
 }
+*/

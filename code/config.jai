@@ -17,7 +17,7 @@ Config :: struct {
 }
 
 init_config :: () {
-    CONFIG_FILENAME = sprint("%1%2.cfg", get_packaged_assets_path(), APP_NAME);
+    CONFIG_FILENAME = sprint("%.cfg", APP_NAME);
     
     devices := Audio.get_devices();
     loam.config.audioDeviceName = devices[0].name;
@@ -90,7 +90,7 @@ read_from_config :: (lines : [] string, name : string, tag : Type_Info_Tag, ptr 
 		    } else if compare(fieldValue, "false") == 0 {
 			(cast(*bool) ptr).* = false;
 		    } else {
-			assert(false, tprint("Invalid config value \"%\" for bool type", fieldValue));
+			assert(false, tprint("Invalid config value \"%\" for bool type\n", fieldValue));
 		    }
 		    return true;
 		}

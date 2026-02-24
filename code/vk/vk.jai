@@ -121,12 +121,12 @@ MeshPushConstants :: struct {
     vertexBuffer : VkDeviceAddress;
 }
 
-init_vk :: (window : Window_Type) {
+init_vk :: () {
     context.vk = loam.vk;
     vk = context.vk;
     
-    check_vk(create_vk_instance("Test App"), "create_vk_instance failed: ");
-    check_vk(create_vk_surface(window), "create_vk_surface failed: ");
+    check_vk(create_vk_instance(APP_NAME), "create_vk_instance failed: ");
+    check_vk(create_vk_surface(), "create_vk_surface failed: ");
     check_vk(get_vk_physical_device(), "get_vk_physical_device failed: ");
     check_vk(create_vk_device(), "create_vk_devices failed: ");
 
@@ -280,7 +280,8 @@ create_vk_instance :: (appName : string) -> VkResult {
     return result;
 }
 
-create_vk_surface :: (window : Window_Type) -> VkResult {
+create_vk_surface :: () -> VkResult {
+    window := get_window_handle_from_sdl();
     #if OS == .WINDOWS {
 	surfaceCreateInfo := VkWin32SurfaceCreateInfoKHR.{ hinstance = Windows.GetModuleHandleW(null), hwnd = window };
 	return vkCreateWin32SurfaceKHR(vk.instance, *surfaceCreateInfo, null, *vk.surface);
@@ -380,8 +381,8 @@ create_vk_swapchain :: () -> VkResult {
     // Set swapchain extent
     vk.swapchainExtent = surfaceCaps.currentExtent;
     if vk.swapchainExtent.width == U32_MAX || vk.swapchainExtent.height == U32_MAX {
-	vk.swapchainExtent.width  = cast(u32) clamp(loam.windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
-	vk.swapchainExtent.height = cast(u32) clamp(loam.windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
+	vk.swapchainExtent.width  = cast(u32) clamp(cast(u32) loam.windowWidth, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
+	vk.swapchainExtent.height = cast(u32) clamp(cast(u32) loam.windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
     }
 
     loam.sceneCamera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };

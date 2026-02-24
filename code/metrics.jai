@@ -12,7 +12,7 @@ DebugMetrics :: struct {
     timeSinceLastMetricUpdate : float64;
     updateMetrics : bool;
     
-    framesPerSecond : u32;
+    framesPerSecond : float32;
     msPerFrame : float64;
     ramUsage : u64;
     
@@ -23,7 +23,7 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
     metrics.updateMetrics = false;
     metrics.timeSinceLastMetricUpdate += loam.deltaTime;
     if metrics.timeSinceLastMetricUpdate >= METRIC_UPDATE_RATE {
-	metrics.framesPerSecond = cast(u32) (1.0 / loam.deltaTime + 0.5);
+	metrics.framesPerSecond = cast(float32) (1.0 / loam.deltaTime + 0.5);
 	metrics.msPerFrame = loam.deltaTime * 1000.0;
 	metrics.ramUsage = get_ram_usage();
 	

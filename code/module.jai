@@ -9,7 +9,6 @@ Created: 08JUN2025
 #run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
 // TODO: Meshes
-// TODO: Gamepad input
 
 // Compiled Shaders
 #if OS == .WINDOWS {
@@ -51,8 +50,8 @@ LoamState :: struct {
     
     fonts : *Table(string, *FontAtlas);
     
-    binds : *InputBinds;
-    mainPointer : PointerStatus;
+    keybinds : *KeybindMap;
+    input : *InputState;
     
     #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
@@ -64,10 +63,11 @@ LoamState :: struct {
     
     updateActive : bool;
     renderActive : bool;
-    
-    windowWidth  : s64;
-    windowHeight : s64;
-    refreshRate  : u32;
+
+    window       : *SDL.Window;
+    windowWidth  : s32;
+    windowHeight : s32;
+    refreshRate  : float32;
     deltaTime    : float64;
     lastTime     : float64;
     running      : bool = true;
@@ -81,29 +81,13 @@ LoamState :: struct {
     config : Config;
 }
 
-init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float) {
+init_loam :: (initialWidth : s32, initialHeight : s32) {
     if APP_NAME.count == 0 {
-        #if OS == .WINDOWS {
-	    Windows.MessageBoxA(window, "No app name was set", "Initialisation Error", Windows.MB_OK | Windows.MB_ICONERROR);
-	} else #if OS == .ANDROID {
-	    
-	} else #if OS == .LINUX {
-	    X11.x_message_box(X11.None, text, "No app name was set", .ST_OK);
-	}
-
-	exit(0);
+	log(.FATAL, "No app name was set");
     }
 
     if ASSET_CODE.count == 0 || ASSET_CODE.count > 4 || ASSET_CODE == "LOAM" {
-	#if OS == .WINDOWS {
-	    Windows.MessageBoxA(window, "Invalid asset code, code cannot be \"LOAM\", nor be more than 4 characters", "Initialisation Error", Windows.MB_OK | Windows.MB_ICONERROR);
-	} else #if OS == .ANDROID {
-	    
-	} else #if OS == .LINUX {
-	    X11.x_message_box(X11.None, text, "Invalid asset code, code cannot be \"LOAM\", nor be more than 4 characters", .ST_OK);
-	}
-
-	exit(0);
+	log(.FATAL, "Invalid asset code, code cannot be \"LOAM\", nor be more than 4 characters");
     }
     
     #if OS == .ANDROID {
@@ -123,7 +107,7 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     context.loam = _loam;
     loam = context.loam;
-
+    
     time := current_time_consensus();
     context.random_state = .{ time.low | 1, cast,no_check(u64) time.high };
     
@@ -139,16 +123,22 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     loam.audioDevice = get_audio_device_from_name(loam.config.audioDeviceName);
     if !Audio.sound_player_init(.{ output_device = *loam.audioDevice, update_from_a_thread = (OS != .ANDROID) }) then log(.FATAL, "Failed to initialise Sound Player");
     
+    SDL.init(.VIDEO | .JOYSTICK | .HAPTIC | .GAMEPAD);
+    loam.window = SDL.create_window(APP_NAME, initialWidth, initialHeight, .VULKAN);
+    if !loam.window {
+	log(.FATAL, tprint("Failed to create window with SDL error: %", to_string(SDL.get_error())));
+    }
+    
     loam.sceneCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
     loam.sceneCamera.verticalFOV = 80.0;
-    loam.sceneCamera.dimensions = .{ initialWidth, initialHeight };
+    loam.sceneCamera.dimensions = .{ xx initialWidth, xx initialHeight };
     loam.sceneCamera.position.z = -2;
     loam.sceneCamera.isOrthographic = false;
     
     loam.uiCamera = New(Camera);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.uiCamera);
-    loam.uiCamera.dimensions = .{ initialWidth, initialHeight };
+    loam.uiCamera.dimensions = .{ xx initialWidth, xx initialHeight };
     loam.uiCamera.isOrthographic = true;
     
     loam.threadCount = get_number_of_threads_for_device();
@@ -156,39 +146,29 @@ init_loam :: (window : Window_Type, initialWidth : float, initialHeight : float)
     
     loam.vk = New(Vk);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.vk);
-    init_vk(window);
+    init_vk();
 
     #if IS_DEV && OS == .WINDOWS {
-	init_imgui(window);
+	init_imgui();
     }
     
     loam.fonts = New(Table(string, *FontAtlas));
     init(loam.fonts);
+
+    loam.keybinds = init_keybinds();
+    loam.input = New(InputState);
+    loam.input.activeType = .Keyboard_Mouse;
     
-    loam.binds = New(InputBinds);
-    
-    loam.windowWidth = xx initialWidth;
-    loam.windowHeight = xx initialHeight;
-    loam.refreshRate = get_refresh_rate(window);
+    loam.windowWidth = initialWidth;
+    loam.windowHeight = initialHeight;
+    loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
+    print("%\n", loam.refreshRate);
     loam.deltaTime = seconds_since_init();
     loam.lastTime = seconds_since_init();
 
     loam.gameplayState = .Splash;
 
     array_add(*loam.splashScreens, .{ get_resource(ImageResource, "__loam_splash"), get_resource(AudioResource, "__loam_splash_audio"), .{0.05, 0.05, 0.05, 1.0} });
-    
-    // Setup core inputs
-    quit_game :: (args : .. Any) {
-	loam.running = false;
-    }
-    skip_splash :: (args : ..Any) {
-	transition_state(.Splash, .Playing);
-    }
-    register_keycode_input(Key_Code.MOUSE_BUTTON_LEFT, .{}, .Splash, skip_splash);
-    #if OS == .WINDOWS || OS == .LINUX {
-	register_keycode_input(Key_Code.F4, .{ alt_pressed = true }, .All, quit_game);
-	register_keycode_input(Key_Code.SPACEBAR, .{}, .Splash, skip_splash);
-    }
 }
 
 loam_start_update :: () {
@@ -263,40 +243,33 @@ loam_handle_timing :: () {
     loam.lastTime = seconds_since_init();
 }
 
-loam_handle_input :: (window : Window_Type) {
-    update_window_events();
+loam_handle_input :: () {
+    loam.input.mouseWheel = .{};
     
-    resizes := get_window_resizes();
-    for resizes {
-	if it_index == resizes.count - 1 {
-	    loam.windowWidth = it.width;
-	    loam.windowHeight = it.height;
-	    loam.refreshRate = get_refresh_rate(window);
+    event : SDL.Event;
+    while SDL.poll_event(*event) {
+	if event.type == {
+	    case .QUIT; loam.running = false;
+
+	    case .WINDOW_RESIZED; {
+		loam.windowWidth  = event.window.data1;
+		loam.windowHeight = event.window.data2;
+	    } #through;
+	    case .WINDOW_MOVED; {
+		loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
+		print("%\n", loam.refreshRate);
+	    }
+
+	    case .MOUSE_WHEEL; {
+		loam.input.mouseWheel = .{ event.wheel.x, event.wheel.y };
+		if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
+	    }
 	}
+	
+	update_input(event);
     }
 
     if vk.resizeRequested then resize_swapchain();
-    
-    for events_this_frame {
-        if it.type == {
-            case .QUIT; loam.running = false;
-	    case .KEYBOARD; {
-		// NOTE: If we do have modifier flags then we probably don't want to repeat the input, so we can use the raw event
-		if it.key_pressed && it.modifier_flags.packed != 0 {
-		    handle_keycode_input(it.key_code, it.modifier_flags);
-		}
-	    }
-        }
-    }
-    
-    // NOTE: If we don't have any modifier flags then we might want to repeat the input (such as for movement, etc) so we use input_button_states
-    for input_button_states {
-	if it & .DOWN {
-	    handle_keycode_input(cast(Key_Code) it_index, .{});
-	}
-    }
-    
-    update_pointer_status(window, *loam.mainPointer);
 }
 
 render_debug_ui :: () {
@@ -322,7 +295,6 @@ Simp :: #import "Simp";
 #import "System";
 #import "Thread";
 #import "Unicode";
-#import "Window_Creation";
 
 #if OS == .WINDOWS {
     Windows :: #import "Windows";
@@ -340,6 +312,7 @@ Simp :: #import "Simp";
 #import "ktx";
 #import "Logger" (IS_DEV);
 #import "lz4_bs842";
+SDL :: #import "SDL3";
 Audio :: #import "Sound_Player_bs842";
 #import "VMA";
 #import "Vulkan_1_3";
@@ -384,7 +357,6 @@ Simp :: #import "Simp";
 #import "System";
 #import "Thread";
 #import "Unicode";
-#import "Window_Creation";
 
 #if OS == .WINDOWS {
     Windows :: #import "Windows";
@@ -403,6 +375,7 @@ Simp :: #import "Simp";
 #import "ktx";
 #import "Logger"(IS_DEV);
 #import "lz4_bs842";
+SDL :: #import "SDL3";
 Audio :: #import "Sound_Player_bs842";
 #import "VMA";
 #import "Vulkan_1_3";

@@ -57,7 +57,7 @@ JSON_Value :: struct {
 }
 
 json_get :: (value : *JSON_Value, $returnType : Type) -> returnType, bool #modify {
-    return returnType == float64 || returnType == string || returnType == bool || returnType == *void;
+    return returnType == float64 || returnType == s64 || returnType == string || returnType == bool || returnType == *void;
 }{
     if !value {
 	if #compile_time {
@@ -83,6 +83,8 @@ json_get :: (value : *JSON_Value, $returnType : Type) -> returnType, bool #modif
 	return value.value_string, true;
     } else #if returnType == float64 {
 	return value.value_float, true;
+    } else #if returnType == s64 {
+	return value.value_int, true;
     } else #if returnType == bool {
 	return value.value_bool, true;
     } else #if returnType == *void {
@@ -94,7 +96,7 @@ json_get :: (value : *JSON_Value, $returnType : Type) -> returnType, bool #modif
 }
 
 json_get_from_object :: (object : *JSON_Value, key : string, $returnType : Type) -> returnType, bool #modify {
-    return returnType == float64 || returnType == string || returnType == bool || returnType == *void;
+    return returnType == float64 || returnType == s64 || returnType == string || returnType == bool || returnType == *void;
 }{
     if !object {
 	err : returnType;
@@ -129,7 +131,7 @@ json_get_from_object :: (object : *JSON_Value, key : string, $type : JSON_ValueT
 }
 
 json_get_from_array :: (object : *JSON_Value, index : s64, $returnType : Type) -> returnType, bool #modify {
-    return returnType == float64 || returnType == string || returnType == bool || returnType == *void;
+    return returnType == float64 || returnType == s64 || returnType == string || returnType == bool || returnType == *void;
 }{
     if !object || index >= object.values.count {
 	err : returnType;

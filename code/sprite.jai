@@ -59,10 +59,10 @@ make_sprite :: (textureName : string, transform : Transform, spriteSheetJSON : s
 	
 	// Get Frame Dimensions
 	{
-	    w, wFound := json_get_from_object(frameObject, "w", float64);
+	    w, wFound := json_get_from_object(frameObject, "w", s64);
 	    if !wFound then return null;
 	    
-	    h, hFound := json_get_from_object(frameObject, "h", float64);
+	    h, hFound := json_get_from_object(frameObject, "h", s64);
 	    if !hFound then return null;
 	    
 	    frame.dimensions = .{ cast(float) w, cast(float) h };
@@ -70,17 +70,17 @@ make_sprite :: (textureName : string, transform : Transform, spriteSheetJSON : s
 	
 	// Get Frame Duration
 	{
-	    frameDuration, found := json_get_from_object(it, "duration", float64);
+	    frameDuration, found := json_get_from_object(it, "duration", s64);
 	    if !found then return null;
 
-	    frame.duration = frameDuration / 1000.0;
+	    frame.duration = cast(float64)frameDuration / 1000.0;
 	}
 	
 	{
-	    x, xFound := json_get_from_object(frameObject, "x", float64);
+	    x, xFound := json_get_from_object(frameObject, "x", s64);
 	    if !xFound then return null;
 	    
-	    y, yFound := json_get_from_object(frameObject, "y", float64);
+	    y, yFound := json_get_from_object(frameObject, "y", s64);
 	    if !yFound then return null;
 
 	    framePosition := Vector2.{ cast(float) x, cast(float) y };

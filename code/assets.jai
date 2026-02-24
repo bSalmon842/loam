@@ -24,7 +24,7 @@ load_and_merge_asset_maps :: (gameCode : string, paths : [] string) -> string {
     append(*fusedJSON, "{");
     for paths {
 	filename := path_strip_extension(path_filename(it));
-
+	
 	// Verify the filenames are correct with the game loading it
 	filenameParts := split(filename, "_");
 	assert(filenameParts[0] == "a", "First part of pack filename is expected to be 'a' for asset files");
@@ -84,7 +84,7 @@ load_asset_map :: (gameCode : string) -> *AssetMap {
     
     mapRoot, mapReadSuccess := json_build_tree(fusedMap, "Asset Map Tree");
     if mapReadSuccess != .Success {
-	log(.FATAL, tprint("Failed to read the complete asset map with error: ", mapReadSuccess));
+	log(.FATAL, tprint("Failed to read the complete asset map with error: %", mapReadSuccess));
     }
     
     for fileValue : mapRoot.values {
@@ -94,8 +94,7 @@ load_asset_map :: (gameCode : string) -> *AssetMap {
 	    if table_contains(map, assetValue.name) {
 		existingItem := table_find_pointer(map, assetValue.name);
 		assert(existingItem && existingItem.*);
-		log(.ERROR, tprint("Failed to map asset \"%\" from file: \"%\" because there's already an asset with that name from file: \"%\"",
-				   assetValue.name, fileValue.name, existingItem.*.file));
+		log(.ERROR, tprint("Failed to map asset \"%\" from file: \"%\" because there's already an asset with that name from file: \"%\"", assetValue.name, fileValue.name, existingItem.*.file));
 	    } else {
 		filenameParts := split(fileValue.name, "_");
 		type : AssetPackType;
@@ -105,11 +104,9 @@ load_asset_map :: (gameCode : string) -> *AssetMap {
 			break;
 		    }
 		}
-
-		//loam_splash isn't being added to map it seems, check this loop
 		
 		item := New(AssetMapItem);
-		item.* = .{ copy_string(fileValue.name), type, cast(s64) assetValue.value_float };
+		item.* = .{ copy_string(fileValue.name), type, assetValue.value_int };
 		table_add(map, assetValue.name, item);
 	    }
 	}

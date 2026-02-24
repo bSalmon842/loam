@@ -5,7 +5,7 @@ Author: Brock Salmon
 Created: 28AUG2025
 */
 
-init_imgui :: (window : Window_Type) {
+init_imgui :: () {
     // Create Desc Pool
     poolSizes := VkDescriptorPoolSize.[
         .{ .SAMPLER,                1000 },
@@ -27,7 +27,7 @@ init_imgui :: (window : Window_Type) {
     
     // Init ImGui library
     ImGui.CreateContext();
-    #if OS == .WINDOWS { ImGui.ImplWin32_Init(window); }
+    #if OS == .WINDOWS { ImGui.ImplWin32_Init(get_window_handle_from_sdl()); }
     
     imguiFormat := vk.swapchainFormat;
     imguiPipeline := VkPipelineRenderingCreateInfo.{ .PIPELINE_RENDERING_CREATE_INFO, null, 0, 1, *imguiFormat, 0, 0 };

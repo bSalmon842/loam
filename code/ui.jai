@@ -5,61 +5,8 @@ Author: Brock Salmon
 Created: 07JUL2025
 */
 
-MouseInteractableRegion :: struct {
-    p0 : Vector2;
-    p1 : Vector2;
-}
-
-is_point_within_region :: (point : Vector2, region : MouseInteractableRegion) -> bool {
-    if point.x < region.p0.x || point.x > region.p1.x then return false;
-    if point.y < region.p0.y || point.y > region.p1.y then return false;
-    
-    return true;
-}
-
-xy :: (v : Vector3) -> Vector2 { return v.xy; }
-xy :: (v : Vector2) -> Vector2 { return v; }
-
-get_default_interact_region :: (renderable : *$T) -> MouseInteractableRegion {
-    region : MouseInteractableRegion;
-
-    halfDims := (xy(renderable.dimensions) * xy(renderable.scale)) * 0.5;
-    region.p0 = xy(renderable.position) - halfDims;
-    
-    if renderable.alignment & .Left  then region.p0.x += halfDims.x;
-    if renderable.alignment & .Right then region.p0.x -= halfDims.x;
-
-    if renderable.alignment & .Top    then region.p0.y -= halfDims.y;
-    if renderable.alignment & .Bottom then region.p0.y += halfDims.y;
-    
-    region.p1 = region.p0 + (xy(renderable.dimensions) * xy(renderable.scale));
-    return region;
-}
-
-update_region :: (elem : *UI_Element, region : MouseInteractableRegion) {
-    elem.interact.region = region;
-}
-
-UI_ActivateMode :: enum {
-    InitialPress;
-    WhileDown;
-    OnRelease;
-}
-
-UI_InteractFunc :: #type (args : .. Any);
-UI_HoverFunc :: #type (elem : *UI_Element);
-MouseInteractionInfo :: struct {
-    interactable : bool;
-    region : MouseInteractableRegion;
-    hovered : bool;
-    hoverTint : Vector4;
-    hoverFunc : UI_HoverFunc;
-
-    activateMode  : UI_ActivateMode;
-    activateState : GameplayState;
-    activateFunc  : UI_InteractFunc;
-    activateArgs  : [] Any;
-}
+// TODO: This file used to also support interactive UI, however the system for using it was really awkward and didn't work
+//       with the new input system, so for now this only supports non-interactive UI
 
 UI_Type :: enum {
     Empty;
@@ -68,8 +15,6 @@ UI_Type :: enum {
 }
 
 UI_Element :: struct {
-    interact : MouseInteractionInfo;
-
     type : UI_Type;
     union {
 	text : *Text;
@@ -77,59 +22,20 @@ UI_Element :: struct {
     }
 }
 
-make_ui_element :: (text : *Text, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateState : GameplayState = .All, activateFunc : UI_InteractFunc = null, activateArgs : .. Any) -> *UI_Element {
+make_ui_element :: (item : *$T) -> *UI_Element {
     elem := New(UI_Element);
-    elem.type = .Text;
-    elem.text = text;
-
-    elem.interact.interactable = interactable;
-    elem.interact.region = ifx region.p0 == region.p1 then get_default_interact_region(text) else region;
-    elem.interact.hoverTint = hoverTint;
-    elem.interact.hoverFunc = hoverFunc;
-    elem.interact.activateMode = activateMode;
-    elem.interact.activateState = activateState;
-    elem.interact.activateFunc = activateFunc;
-    elem.interact.activateArgs = activateArgs;
-    
-    return elem;
-}
-
-make_ui_element :: (sprite : *Sprite, interactable : bool, hoverTint : Vector4 = .{}, region : MouseInteractableRegion = .{}, hoverFunc : UI_HoverFunc = null, activateMode := UI_ActivateMode.InitialPress, activateState : GameplayState = .All, activateFunc : UI_InteractFunc = null, activateArgs : .. Any) -> *UI_Element {
-    elem := New(UI_Element);
-    elem.type = .Sprite;
-    elem.sprite = sprite;
-
-    elem.interact.interactable = interactable;
-    elem.interact.region = ifx region.p0 == region.p1 then get_default_interact_region(sprite) else region;
-    elem.interact.hoverTint = hoverTint;
-    elem.interact.hoverFunc = hoverFunc;
-    elem.interact.activateMode = activateMode;
-    elem.interact.activateState = activateState;
-    elem.interact.activateFunc = activateFunc;
-    elem.interact.activateArgs = activateArgs;
-    
-    return elem;
-}
-
-update_ui_element :: (pointer : PointerStatus, elem : *UI_Element) {
-    if elem.interact.interactable {
-	pointerWithinRegion := is_point_within_region(pointer.position, elem.interact.region);
-        #if OS == .ANDROID {
-	    pointerWithinRegion &&= pointer.pressedThisFrame;
+    #if T == {
+	case Text; {
+	    elem.type = .Text;
+	    elem.text = item;
 	}
-	
-	if pointerWithinRegion && elem.interact.activateState & loam.gameplayState {
-	    elem.interact.hovered = true;
-	    if elem.interact.hoverFunc then elem.interact.hoverFunc(elem);
 
-	    // TODO: The way this is currently setup, we can press off the button, then move onto the button and release to activate, is that okay?
-	    if elem.interact.activateFunc {
-		if elem.interact.activateMode == .InitialPress && is_press_action(pointer) then elem.interact.activateFunc(..elem.interact.activateArgs);
-		if elem.interact.activateMode == .WhileDown && is_down_action(pointer) then elem.interact.activateFunc(..elem.interact.activateArgs);
-		if elem.interact.activateMode == .OnRelease && is_release_action(pointer) then elem.interact.activateFunc(..elem.interact.activateArgs);
-	    }
-	} else {
-	    elem.interact.hovered = false;
+	case Sprite; {
+	    elem.type = .Sprite;
+	    elem.sprite = item;
 	}
+
+	case; Invalid_Codepath();
     }
+    return elem;
 }

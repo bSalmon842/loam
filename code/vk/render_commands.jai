@@ -14,8 +14,8 @@ add_ui_render_command :: (elem : *UI_Element) {
     if #complete elem.type == {
 	case .Empty; return;
 	
-	case .Text;   for elem.text.glyphs { add_sprite_render_command(.UI_Text, it.renderable, it.transform, elem.interact.hovered, elem.interact.hoverTint); }
-	case .Sprite; add_sprite_render_command(.UI_Sprite, elem.sprite.renderable, elem.sprite.transform, elem.interact.hovered, elem.interact.hoverTint);
+	case .Text;   for elem.text.glyphs { add_sprite_render_command(.UI_Text, it.renderable, it.transform); }
+	case .Sprite; add_sprite_render_command(.UI_Sprite, elem.sprite.renderable, elem.sprite.transform);
     }
 }
 

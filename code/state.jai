@@ -43,7 +43,7 @@ SplashScreen :: struct {
 // TODO: We might want a fade to and from each screen and the main menu
 handle_splash_screen :: () {
     if loam.gameplayState == .Splash {
-	if loam.splashIndex >= loam.splashScreens.count {
+	if loam.splashIndex >= loam.splashScreens.count || get_any_button_input() {
 	    transition_state(.Splash, .Playing);
 	    return;
 	}
