@@ -39,3 +39,12 @@ convert_angle :: (angle : Degrees) -> Radians {
 log2 :: (x : float) -> float {
     return log(x) / log(2);
 }
+
+normalise_0_to_1 :: (x : float32, min : float32, max : float32) -> float32 {
+    return (x - min) / (max - min);
+}
+
+normalise_neg_1_to_1 :: (x : float32, min : float32, max : float32) -> float32 {
+    return 2.0 * normalise_0_to_1(x, min, max) - 1.0;
+}
+

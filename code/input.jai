@@ -7,8 +7,6 @@ Created: 03JUL2025
 
 // NOTE: https://www.gamedeveloper.com/design/the-5-golden-rules-of-input
 
-// TODO: Add ability to sim an axis via the keyboard for uses such as movement
-
 InputType :: enum {
     None;
 
@@ -75,13 +73,15 @@ update_input :: (event : SDL.Event) {
 //////////////////////////////////////////////////
 KeybindMap :: Table(string, *Keybind);
 Keybind :: struct {
+    buttonsAsAxis : bool; // NOTE: This changes how the bindings work so that it expect even array counts,
+    //                             positive is first and negative is the second element
     keyboard      : [] SDL.Scancode;
     keyboardMod   : [] SDL.Keymod; // NOTE: The count of this array should match keyboard
     mouseButton   : [] s32; // Match BUTTON_xx globals at the top of SDL_mouse
     mouseAxis     : [] MouseAxis;
     gamepadButton : [] SDL.Gamepad_Button;
     gamepadAxis   : [] SDL.Gamepad_Axis;
-    // TODO: SDL_joystick support
+    // TODO: SDL_joystick support (check via racing wheel or other weird controller type)
 }
 
 get_bindings_from_json :: (name : string, bindings : [..] *JSON_Value, $T : Type) -> [] T {
@@ -125,19 +125,22 @@ init_keybinds :: () -> *KeybindMap {
 	    continue;
 	}
 
+	// TODO: Add axis invert option
+	
 	bind := New(Keybind);
 	for binding : bindingSet.values {
 	    nameForLog := tprint("%: %", bindingSet.name, binding.name);
-	    if binding.type != .Array {
+	    if binding.name != "buttons_as_axis" && binding.type != .Array {
 		log(.ERROR, tprint("% bindings should be an array", nameForLog));
 	    }
 	    if binding.name == {
-		case "keyboard";       bind.keyboard      = get_bindings_from_json(nameForLog, binding.values, SDL.Scancode);
-		case "keyboard_mod";   bind.keyboardMod   = get_bindings_from_json(nameForLog, binding.values, SDL.Keymod);
-		case "mouse_button";   bind.mouseButton   = get_bindings_from_json(nameForLog, binding.values, s32);
-		case "mouse_axis";     bind.mouseAxis     = get_bindings_from_json(nameForLog, binding.values, MouseAxis);
-		case "gamepad_button"; bind.gamepadButton = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Button);
-		case "gamepad_axis";   bind.gamepadAxis   = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Axis);
+		case "buttons_as_axis"; bind.buttonsAsAxis = binding.value_bool;
+		case "keyboard";        bind.keyboard      = get_bindings_from_json(nameForLog, binding.values, SDL.Scancode);
+		case "keyboard_mod";    bind.keyboardMod   = get_bindings_from_json(nameForLog, binding.values, SDL.Keymod);
+		case "mouse_button";    bind.mouseButton   = get_bindings_from_json(nameForLog, binding.values, s32);
+		case "mouse_axis";      bind.mouseAxis     = get_bindings_from_json(nameForLog, binding.values, MouseAxis);
+		case "gamepad_button";  bind.gamepadButton = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Button);
+		case "gamepad_axis";    bind.gamepadAxis   = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Axis);
 		
 		case; log(.ERROR, tprint("% is not a valid binding field", binding.name));
 	    }
@@ -170,8 +173,16 @@ get_input :: (name : string) -> float32 {
 	keys := SDL.get_keyboard_state(*keyCount);
 	modState := SDL.get_mod_state();
 	if keys {
-	    for binding.keyboard {
-		if keys[it] && binding.keyboardMod[it_index] == modState then return 1.0;
+	    if binding.buttonsAsAxis {
+		positive := true;
+		for binding.keyboard {
+		    if keys[it] && binding.keyboardMod[it_index] == modState return ifx positive then 1.0 else -1.0;
+		    positive = !positive;
+		}
+	    } else {
+		for binding.keyboard {
+		    if keys[it] && binding.keyboardMod[it_index] == modState then return 1.0;
+		}
 	    }
 	}
     }
@@ -182,8 +193,16 @@ get_input :: (name : string) -> float32 {
 	    relX, relY : float32;
 	    mouseButtons := SDL.get_relative_mouse_state(*relX, *relY);
 
-	    for binding.mouseButton {
-		if cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(it) == mouseButtons then return 1.0;
+	    if binding.buttonsAsAxis {
+		positive := true;
+		for binding.mouseButton {
+		    if cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(it) == mouseButtons then return ifx positive then 1.0 else -1.0;
+		    positive = !positive;
+		}
+	    } else {
+		for binding.mouseButton {
+		    if cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(it) == mouseButtons then return 1.0;
+		}
 	    }
 
 	    for binding.mouseAxis {
@@ -199,18 +218,25 @@ get_input :: (name : string) -> float32 {
     
     // Check gamepad bindings
     if loam.input.gamepad {
-	for binding.gamepadButton {
-	    if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) then return 1.0;
+	if binding.buttonsAsAxis {
+	    positive := true;
+	    for binding.gamepadButton {
+		if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) {
+		    return ifx positive then 1.0 else -1.0;
+		}
+		positive = !positive;
+	    }
+	} else {
+	    for binding.gamepadButton {
+		if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) then return 1.0;
+	    }
 	}
 
+	// TODO: This is currently backwards to what's expected for Y direction (buttons are correct)
 	for binding.gamepadAxis {
 	    if SDL.gamepad_has_axis(loam.input.gamepad, it) {
 		axis := cast(float32) SDL.get_gamepad_axis(loam.input.gamepad, it);
-		if axis < 0.0 {
-		    axis /= cast(float32) S16_MIN;
-		} else {
-		    axis /= cast(float32) S16_MAX;
-		}
+		return normalise_neg_1_to_1(cast(float32) axis, cast(float32) S16_MIN, cast(float32) S16_MAX);
 	    }
 	}
     }
