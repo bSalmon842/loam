@@ -19,6 +19,9 @@ Created: 08JUN2025
     SPRITE_VERTEX_SHADER        :: #run compile_glsl_to_spirv("sprite_vertex");
     SPRITE_FRAGMENT_SHADER      :: #run compile_glsl_to_spirv("sprite_fragment");
     SPRITE_RECT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("sprite_rect_fragment");
+
+    IMGUI_VERT :: #run compile_glsl_to_spirv("imgui_vertex");
+    IMGUI_FRAG :: #run compile_glsl_to_spirv("imgui_fragment");
 } else #if OS == .ANDROID {
     MESH_VERTEX_SHADER          : CompiledShader;
     MESH_FRAGMENT_SHADER        : CompiledShader;
@@ -267,6 +270,7 @@ loam_handle_input :: () {
 	}
 	
 	update_input(event);
+	ImGui.ImplSDL3_ProcessEvent(cast(*ImGui.SDL_Event) *event);
     }
 
     if vk.resizeRequested then resize_swapchain();
@@ -284,7 +288,6 @@ EXTRA_IMPORTS :: #string DONE
 #import "File_Utilities";
 #import "freetype";
 #import "Hash_Table";
-#import "Input";
 #import "Math";
 #import "Print_Color";
 #import "Process";
@@ -346,7 +349,6 @@ DONE
 #import "File_Utilities";
 #import "freetype";
 #import "Hash_Table";
-#import "Input";
 #import "Math";
 #import "Print_Color";
 #import "Process";

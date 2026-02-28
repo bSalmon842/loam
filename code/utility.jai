@@ -115,7 +115,7 @@ get_ram_usage :: () -> u64 {
 get_window_handle_from_sdl :: () -> $T #modify {
     #if OS == .WINDOWS then T = Windows.HWND;
     else #if OS == .LINUX then T = X11.Window;
-    else #if OS == .ANDROID then T = *Android.ANativeWindow;
+    else #if OS == .ANDROID then T = *ANativeWindow;
     else return false;
 
     return true;

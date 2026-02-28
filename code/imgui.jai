@@ -5,38 +5,29 @@ Author: Brock Salmon
 Created: 28AUG2025
 */
 
+check_vk_imgui :: (result : VkResult) #c_call {
+    push_context {
+	if result != .SUCCESS {
+            log_vk(.WARN, tprint("VK CHECK FROM IMGUI: %", enum_value_to_name(result)), .{});
+	}
+    }
+}
+
 init_imgui :: () {
-    // Create Desc Pool
-    poolSizes := VkDescriptorPoolSize.[
-        .{ .SAMPLER,                1000 },
-        .{ .COMBINED_IMAGE_SAMPLER, 1000 },
-        .{ .SAMPLED_IMAGE,          1000 },
-        .{ .STORAGE_IMAGE,          1000 },
-        .{ .UNIFORM_TEXEL_BUFFER,   1000 },
-        .{ .STORAGE_TEXEL_BUFFER,   1000 },
-        .{ .UNIFORM_BUFFER,         1000 },
-        .{ .STORAGE_BUFFER,         1000 },
-        .{ .UNIFORM_BUFFER_DYNAMIC, 1000 },
-        .{ .STORAGE_BUFFER_DYNAMIC, 1000 },
-        .{ .INPUT_ATTACHMENT,       1000 }
-    ];
-    
-    poolCreateInfo := VkDescriptorPoolCreateInfo.{ .DESCRIPTOR_POOL_CREATE_INFO, null, .FREE_DESCRIPTOR_SET_BIT, 1000, cast(u32) poolSizes.count, poolSizes.data };
-    imguiPool : VkDescriptorPool;
-    check_vk(vkCreateDescriptorPool(vk.device, *poolCreateInfo, null, *imguiPool), "Failed to create ImGui Descriptor Pool");
-    
     // Init ImGui library
     ImGui.CreateContext();
-    #if OS == .WINDOWS { ImGui.ImplWin32_Init(get_window_handle_from_sdl()); }
+    ImGui.ImplSDL3_InitForVulkan(loam.window);
     
     imguiFormat := vk.swapchainFormat;
-    imguiPipeline := VkPipelineRenderingCreateInfo.{ .PIPELINE_RENDERING_CREATE_INFO, null, 0, 1, *imguiFormat, 0, 0 };
-    imguiVulkanInitInfo := ImGui.ImplVulkan_InitInfo.{ vk.instance, vk.physicalDevice, vk.device, 0, vk.graphicsQueue, imguiPool, null, 3, 3, ._1_BIT, null, 0, true, imguiPipeline, null, null, 0 };
+    imguiPipelineRendering := VkPipelineRenderingCreateInfo.{ .PIPELINE_RENDERING_CREATE_INFO, null, 0, 1, *imguiFormat, 0, 0 };
+    imguiPipeline := ImGui.ImplVulkan_PipelineInfo.{ null, 0, ._1_BIT, imguiPipelineRendering };
+
+    vertShaderCreateInfo := VkShaderModuleCreateInfo.{ codeSize = cast(u64) IMGUI_VERT.code.count, pCode = cast(*u32) IMGUI_VERT.code.data };
+    fragShaderCreateInfo := VkShaderModuleCreateInfo.{ codeSize = cast(u64) IMGUI_FRAG.code.count, pCode = cast(*u32) IMGUI_FRAG.code.data };
+    imguiVulkanInitInfo := ImGui.ImplVulkan_InitInfo.{ VK_API_VERSION_1_3, vk.instance, vk.physicalDevice, vk.device, 0, vk.graphicsQueue, null, 1024, 3, 3, null,
+						       imguiPipeline, true, null, check_vk_imgui, 1024*1024, vertShaderCreateInfo, fragShaderCreateInfo };
     ImGui.ImplVulkan_Init(*imguiVulkanInitInfo);
     
-    create_imgui_vulkan_fonts :: (cmdBuffer : VkCommandBuffer, data : *void) { ImGui.ImplVulkan_CreateFontsTexture(); }
-    add_update_command(create_imgui_vulkan_fonts, null, null);
-
     ImGui.SetNextWindowPos(.{ 0, 0 });
     ImGui.SetNextWindowSize(.{ 350, 500 });
 }
@@ -55,7 +46,7 @@ tooltipSet : VkDescriptorSet;
 // TODO: Extend this for games
 frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.ImplVulkan_NewFrame();
-    ImGui.ImplWin32_NewFrame();
+    ImGui.ImplSDL3_NewFrame();
     ImGui.NewFrame();
     
     ImGui.Begin("Dev Window");
@@ -114,6 +105,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 		    }
 		    
 		    ImGui.TextColored(colour, tprint("\t%", it.name));
+		    /*
 		    if ImGui.IsItemHovered() {
 			drawList := ImGui.GetWindowDrawList();
 			min := ImGui.GetItemRectMin();
@@ -142,10 +134,12 @@ frame_imgui :: (metrics : *DebugMetrics) {
 			    }
 			    
 			    tooltipSet = ImGui.ImplVulkan_AddTexture(vk.defaultSampler_Nearest, it.image.view, .SHADER_READ_ONLY_OPTIMAL);
-			    ImGui.Image(tooltipSet, ImGui.ImVec2.{ scaledImageWidth, scaledImageHeight });
+			    tooltipRef := ImGui.ImTextureRef.{ null, cast(ImGui.ImTextureID) tooltipSet };
+			    ImGui.Image(tooltipRef, ImGui.ImVec2.{ scaledImageWidth, scaledImageHeight });
 			    ImGui.EndTooltip();
 			}
 		    }
+*/
 		}
 	    }
 	}
