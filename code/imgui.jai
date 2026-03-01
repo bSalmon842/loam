@@ -27,6 +27,8 @@ init_imgui :: () {
     imguiVulkanInitInfo := ImGui.ImplVulkan_InitInfo.{ VK_API_VERSION_1_3, vk.instance, vk.physicalDevice, vk.device, 0, vk.graphicsQueue, null, 1024, 3, 3, null,
 						       imguiPipeline, true, null, check_vk_imgui, 1024*1024, vertShaderCreateInfo, fragShaderCreateInfo };
     ImGui.ImplVulkan_Init(*imguiVulkanInitInfo);
+
+    ImGui.StyleColorsClassic();
     
     ImGui.SetNextWindowPos(.{ 0, 0 });
     ImGui.SetNextWindowSize(.{ 350, 500 });
@@ -70,10 +72,9 @@ frame_imgui :: (metrics : *DebugMetrics) {
 		ImGui.Text(tprint("\tDraw Calls: % %", it, ifx vk.pipelines[it_index].isSpritePipeline then tprint("Rendered as Sprite Batch") else ""));
 	    }
 	}
-
-	ImGui.NewLine();
     }
 
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.2, 0.2, 0.2, 1.0 });
     if ImGui.CollapsingHeader("Config") {
 	ImGui.Checkbox("vsync", *loam.config.vsync);
 
@@ -91,125 +92,185 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	if ImGui.Button("Save Config File") {
 	    save_config();
 	}
-	
-	ImGui.NewLine();
     }
-    
-    if ImGui.CollapsingHeader("Resource Counts") {
-	if ImGui.CollapsingHeader(tprint("\tImages: %\0", loam.assets.images.count).data) {
-	    for loam.assets.images.array {
-		if it {
-		    colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
-		    if it.core {
-			colour = .{ 0.71, 0.45, 1, 1 };
-		    }
-		    
-		    ImGui.TextColored(colour, tprint("\t%", it.name));
-		    /*
-		    if ImGui.IsItemHovered() {
-			drawList := ImGui.GetWindowDrawList();
-			min := ImGui.GetItemRectMin();
-			max := ImGui.GetItemRectMax();
-			max.x = min.x + ImGui.GetWindowContentRegionMax().x;
-			ImGui.ImDrawList.AddRectFilled(drawList, min, max, 0x40808080);
-			
-			if ImGui.BeginTooltip() {
-			    if tooltipSet {
-				ImGui.ImplVulkan_RemoveTexture(tooltipSet);
-			    }
+    ImGui.PopStyleColor();
 
-			    scaledImageWidth := cast(float) it.image.extent.width;
-			    scaledImageHeight := cast(float) it.image.extent.height;
-			    imageMaxDim := 500.0;
-			    if scaledImageWidth > imageMaxDim || scaledImageHeight > imageMaxDim {
-				fitScaleX := imageMaxDim / it.image.extent.width;
-				fitScaleY := imageMaxDim / it.image.extent.height;
-				if fitScaleX < fitScaleY {
-				    scaledImageWidth *= fitScaleX;
-				    scaledImageHeight *= fitScaleX;
-				} else {
-				    scaledImageWidth *= fitScaleY;
-				    scaledImageHeight *= fitScaleY;
-				}
-			    }
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.8, 0.1, 0.1, 1.0 });
+    if ImGui.CollapsingHeader("Assets") {
+	if ImGui.CollapsingHeader("\tResource Counts") {
+	    if ImGui.CollapsingHeader(tprint("\t\tImages: %\0", loam.assets.images.count).data) {
+		for loam.assets.images.array {
+		    if it {
+			colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
+			if it.core {
+			    colour = .{ 0.71, 0.45, 1, 1 };
+			}
+			
+			ImGui.TextColored(colour, tprint("\t%", it.name));
+			
+			if ImGui.IsItemHovered() {
+			    drawList := ImGui.GetWindowDrawList();
+			    min := ImGui.GetItemRectMin();
+			    max := ImGui.GetItemRectMax();
+			    max.x = min.x + ImGui.GetWindowContentRegionMax().x;
+			    ImGui.ImDrawList.AddRectFilled(drawList, min, max, 0x40808080);
 			    
-			    tooltipSet = ImGui.ImplVulkan_AddTexture(vk.defaultSampler_Nearest, it.image.view, .SHADER_READ_ONLY_OPTIMAL);
-			    tooltipRef := ImGui.ImTextureRef.{ null, cast(ImGui.ImTextureID) tooltipSet };
-			    ImGui.Image(tooltipRef, ImGui.ImVec2.{ scaledImageWidth, scaledImageHeight });
-			    ImGui.EndTooltip();
+			    if ImGui.BeginTooltip() {
+				if tooltipSet {
+				    ImGui.ImplVulkan_RemoveTexture(tooltipSet);
+				}
+
+				scaledImageWidth := cast(float) it.image.extent.width;
+				scaledImageHeight := cast(float) it.image.extent.height;
+				imageMaxDim := 500.0;
+				if scaledImageWidth > imageMaxDim || scaledImageHeight > imageMaxDim {
+				    fitScaleX := imageMaxDim / it.image.extent.width;
+				    fitScaleY := imageMaxDim / it.image.extent.height;
+				    if fitScaleX < fitScaleY {
+					scaledImageWidth *= fitScaleX;
+					scaledImageHeight *= fitScaleX;
+				    } else {
+					scaledImageWidth *= fitScaleY;
+					scaledImageHeight *= fitScaleY;
+				    }
+				}
+				
+				tooltipSet = ImGui.ImplVulkan_AddTexture(vk.defaultSampler_Nearest, it.image.view, .SHADER_READ_ONLY_OPTIMAL);
+				tooltipRef := ImGui.ImTextureRef.{ null, cast(ImGui.ImTextureID) tooltipSet };
+				ImGui.Image(tooltipRef, ImGui.ImVec2.{ scaledImageWidth, scaledImageHeight });
+				ImGui.EndTooltip();
+			    }
 			}
 		    }
-*/
+		}
+	    }
+
+	    if ImGui.CollapsingHeader(tprint("\t\tAudio: %\0", loam.assets.audios.count).data) {
+		for loam.assets.audios.array {
+		    if it {
+			colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
+			if it.core {
+			    colour = .{ 0.71, 0.45, 1, 1 };
+			}
+			
+			ImGui.TextColored(colour, tprint("\t%", it.name));
+		    }
+		}
+	    }
+
+	    if ImGui.CollapsingHeader(tprint("\t\tJSON: %\0", loam.assets.json.count).data) {
+		for loam.assets.json.array {
+		    if it {
+			render_json_object(it.json, 0);
+		    }
 		}
 	    }
 	}
 
-	if ImGui.CollapsingHeader(tprint("\tAudio: %\0", loam.assets.audios.count).data) {
-	    for loam.assets.audios.array {
-		if it {
-		    colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
-		    if it.core {
-			colour = .{ 0.71, 0.45, 1, 1 };
+	if ImGui.CollapsingHeader("\tPlaying Audio") {
+	    ImGui.Text("Playing Audio:");
+	    ImGui.BeginTable("##audiotable", 3, .Borders);
+	    ImGui.TableSetupColumn("Name");
+	    ImGui.TableSetupColumn("Time");
+	    ImGui.TableSetupColumn("Loop", .WidthFixed, 50.0);
+	    ImGui.TableHeadersRow();
+	    
+	    for loam.activeAudio {
+		ImGui.TableNextRow();
+
+		ImGui.TableSetColumnIndex(0);
+		ImGui.Text(it.sound_data.resource.name);
+		
+		ImGui.TableSetColumnIndex(1);
+		progress := it.play_cursor / cast(float64) it.sound_data.sampling_rate;
+		duration := cast(float64) (it.sound_data.buffer.count / size_of(u16)) / cast(float64) it.sound_data.sampling_rate / cast(float64) it.sound_data.nchannels;
+		ImGui.Text(tprint("% / %", convert_duration_to_minutes(progress), convert_duration_to_minutes(duration)));
+		
+		ImGui.TableSetColumnIndex(2);
+		ImGui.Text(tprint("%", cast(bool) (it.user_flags & .REPEATING)));
+	    }
+	    
+	    ImGui.EndTable();
+	    
+	    ImGui.NewLine();
+	    ImGui.Text("Volumes");
+	    ImGui.Text("\tMaster");
+	    if ImGui.SliderFloat("##mastervolume", *loam.config.masterVolume, 0.0, 1.0, "%.2f") then Audio.set_master_volume(loam.config.masterVolume);
+	    ImGui.Text("\tBackground");
+	    ImGui.SliderFloat("##bgvolume", *loam.config.bgVolume, 0.0, 1.0, "%.2f");
+	    ImGui.Text("\tSFX");
+	    ImGui.SliderFloat("##sfxvolume", *loam.config.sfxVolume, 0.0, 1.0, "%.2f");
+	}
+    }
+    ImGui.PopStyleColor();
+
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.1, 0.1, 0.8, 1.0 });
+    if ImGui.CollapsingHeader("Input") {
+	if ImGui.CollapsingHeader("\tDevices") {
+	    if SDL.has_keyboard() {
+		if ImGui.CollapsingHeader("\t\tKeyboard") {
+		    keyCount : s32;
+		    keys := SDL.get_keyboard_state(*keyCount);
+		    ImGui.Text("Active Key Scancodes:");
+		    for enum_values_as_enum(SDL.Scancode) {
+			if keys[it] {
+			    ImGui.BulletText("%", it);
+			}
+		    }
+		}
+	    }
+
+	    if SDL.has_mouse() {
+		if ImGui.CollapsingHeader("\t\tMouse") {
+		    relX, relY : float32;
+		    mouseButtons := SDL.get_relative_mouse_state(*relX, *relY);
+		    ImGui.Text("Rel X: % | Rel Y: %", relX, relY);
+
+		    x, y : float32;
+		    SDL.get_mouse_state(*x, *y);
+		    ImGui.Text("X: % | Y: %", x, y);
+
+		    for 1 .. 5 {
+			mouseValue := SDL.BUTTON_MASK(cast(s32) it) & cast(s32) mouseButtons;
+			if mouseValue != 0 {
+			    ImGui.BulletText("%", cast(SDL.Mouse_Button_Flags) mouseValue);
+			}
+		    }
+		}
+	    }
+
+	    if loam.input.gamepad {
+		if ImGui.CollapsingHeader(tprint("\t\tGamepad (%)\0", to_string(SDL.get_gamepad_name_for_id(SDL.get_gamepad_id(loam.input.gamepad)))).data) {
+		    ImGui.Text("Buttons:");
+		    for enum_values_as_enum(SDL.Gamepad_Button) {
+			if it != .INVALID && it != .COUNT {
+			    if SDL.get_gamepad_button(loam.input.gamepad, it) {
+				ImGui.BulletText("%", to_string(SDL.get_gamepad_string_for_button(it)));
+			    }
+			}
 		    }
 		    
-		    ImGui.TextColored(colour, tprint("\t%", it.name));
+		    ImGui.NewLine();
+
+		    ImGui.Text("Axes");
+		    for enum_values_as_enum(SDL.Gamepad_Axis) {
+			// TODO: Add indication for being within deadzones and outside limits
+			if it != .INVALID && it != .COUNT && SDL.gamepad_has_axis(loam.input.gamepad, it) {
+			    axisValue := SDL.get_gamepad_axis(loam.input.gamepad, it);
+			    ImGui.BulletText("%: %", it, axisValue);
+			}
+		    }
 		}
 	    }
 	}
-
-	if ImGui.CollapsingHeader(tprint("\tJSON: %\0", loam.assets.json.count).data) {
-	    for loam.assets.json.array {
-		if it {
-		    render_json_object(it.json, 0);
-		}
-	    }
-	}
-	
-	ImGui.NewLine();
     }
+    ImGui.PopStyleColor();
 
-    if ImGui.CollapsingHeader("Playing Audio") {
-	ImGui.Text("Playing Audio:");
-	ImGui.BeginTable("##audiotable", 3, .Borders);
-	ImGui.TableSetupColumn("Name");
-	ImGui.TableSetupColumn("Time");
-	ImGui.TableSetupColumn("Loop", .WidthFixed, 50.0);
-	ImGui.TableHeadersRow();
-	
-	for loam.activeAudio {
-	    ImGui.TableNextRow();
-
-	    ImGui.TableSetColumnIndex(0);
-	    ImGui.Text(it.sound_data.resource.name);
-	    
-	    ImGui.TableSetColumnIndex(1);
-	    progress := it.play_cursor / cast(float64) it.sound_data.sampling_rate;
-	    duration := cast(float64) (it.sound_data.buffer.count / size_of(u16)) / cast(float64) it.sound_data.sampling_rate / cast(float64) it.sound_data.nchannels;
-	    ImGui.Text(tprint("% / %", convert_duration_to_minutes(progress), convert_duration_to_minutes(duration)));
-	    
-	    ImGui.TableSetColumnIndex(2);
-	    ImGui.Text(tprint("%", cast(bool) (it.user_flags & .REPEATING)));
-	}
-	
-	ImGui.EndTable();
-	
-	ImGui.NewLine();
-	ImGui.Text("Volumes");
-	ImGui.Text("\tMaster");
-	if ImGui.SliderFloat("##mastervolume", *loam.config.masterVolume, 0.0, 1.0, "%.2f") then Audio.set_master_volume(loam.config.masterVolume);
-	ImGui.Text("\tBackground");
-	ImGui.SliderFloat("##bgvolume", *loam.config.bgVolume, 0.0, 1.0, "%.2f");
-	ImGui.Text("\tSFX");
-	ImGui.SliderFloat("##sfxvolume", *loam.config.sfxVolume, 0.0, 1.0, "%.2f");
-	
-	ImGui.NewLine();
-    }
-
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.05, 0.4, 0.05, 1.0 });
     if ImGui.CollapsingHeader("Game State") {
 	ImGui.Text(tprint("Gameplay State: %", loam.gameplayState));
-	
-	ImGui.NewLine();
     }
+    ImGui.PopStyleColor();
     ImGui.End();
     
     ImGui.Render();
