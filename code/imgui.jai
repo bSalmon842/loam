@@ -254,13 +254,107 @@ frame_imgui :: (metrics : *DebugMetrics) {
 
 		    ImGui.Text("Axes");
 		    for enum_values_as_enum(SDL.Gamepad_Axis) {
-			// TODO: Add indication for being within deadzones and outside limits
 			if it != .INVALID && it != .COUNT && SDL.gamepad_has_axis(loam.input.gamepad, it) {
 			    axisValue := SDL.get_gamepad_axis(loam.input.gamepad, it);
-			    ImGui.BulletText("%: %", it, axisValue);
+			    if axisValue == S16_MIN then axisValue += 1;
+			    if it == .LEFTY || it == .RIGHTY then axisValue = -axisValue; // NOTE: SDL stick Y direction is reversed to what we expect
+			    normalAxis := normalise_neg_1_to_1(cast(float32) axisValue, cast(float32) S16_MIN + 1.0, cast(float32) S16_MAX);
+			    ImGui.BulletText("%: % (%)", it, axisValue, normalAxis);
 			}
 		    }
 		}
+	    }
+
+	    // TODO: Touch inputs
+	}
+
+	if ImGui.CollapsingHeader("\tBindings") {
+	    ImGui.NewLine();
+	    for loam.keybinds {
+		name, binding := it_index, it;
+		ImGui.Text(name);
+		
+		ImGui.Text("buttons_as_axis: %", binding.buttonsAsAxis);
+		ImGui.Text("invert_axis: %", binding.invertAxis);
+		ImGui.Text("inner_deadzone: %", binding.innerDeadzone);
+		ImGui.Text("outer_deadzone: %", binding.outerDeadzone);
+
+		// TODO: Add visuals for showing which button is pressed
+		
+		ImGui.Text("keyboard: [ ");
+		for binding.keyboard {
+		    ImGui.SameLine();
+		    if it_index == binding.keyboard.count-1 {
+			ImGui.Text("%", it);
+		    } else {
+			ImGui.Text("%, ", it);
+		    }
+		}
+		ImGui.SameLine();
+		ImGui.Text(" ]");
+		
+		ImGui.Text("keyboard_mod: [ ");
+		for binding.keyboardMod {
+		    ImGui.SameLine();
+		    if it_index == binding.keyboardMod.count-1 {
+			ImGui.Text("%", it);
+		    } else {
+			ImGui.Text("%, ", it);
+		    }
+		}
+		ImGui.SameLine();
+		ImGui.Text(" ]");
+
+		ImGui.Text("mouse_button: [ ");
+		for binding.mouseButton {
+		    ImGui.SameLine();
+		    mouseValue := cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(cast(s32) it);
+		    if it_index == binding.mouseButton.count-1 {
+			ImGui.Text("%", mouseValue);
+		    } else {
+			ImGui.Text("%, ", mouseValue);
+		    }
+		}
+		ImGui.SameLine();
+		ImGui.Text(" ]");
+		
+		ImGui.Text("mouse_axis: [ ");
+		for binding.mouseAxis {
+		    ImGui.SameLine();
+		    if it_index == binding.mouseAxis.count-1 {
+			ImGui.Text("%", it);
+		    } else {
+			ImGui.Text("%, ", it);
+		    }
+		}
+		ImGui.SameLine();
+		ImGui.Text(" ]");
+
+		ImGui.Text("gamepad_button: [ ");
+		for binding.gamepadButton {
+		    ImGui.SameLine();
+		    if it_index == binding.gamepadButton.count-1 {
+			ImGui.Text("%", it);
+		    } else {
+			ImGui.Text("%, ", it);
+		    }
+		}
+		ImGui.SameLine();
+		ImGui.Text(" ]");
+		
+		ImGui.Text("gamepad_axis: [ ");
+		for binding.gamepadAxis {
+		    ImGui.SameLine();
+		    if it_index == binding.gamepadAxis.count-1 {
+			ImGui.Text("%", it);
+		    } else {
+			ImGui.Text("%, ", it);
+		    }
+		}
+		ImGui.SameLine();
+		ImGui.Text(" ]");
+		
+		ImGui.NewLine();
 	    }
 	}
     }

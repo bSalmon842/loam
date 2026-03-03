@@ -75,12 +75,17 @@ KeybindMap :: Table(string, *Keybind);
 Keybind :: struct {
     buttonsAsAxis : bool; // NOTE: This changes how the bindings work so that it expect even array counts,
     //                             positive is first and negative is the second element
+    invertAxis    : bool;
+    innerDeadzone : s64 = 3200; // Approximately 10% of an s16 axis direction
+    outerDeadzone : s64;
+    
     keyboard      : [] SDL.Scancode;
     keyboardMod   : [] SDL.Keymod; // NOTE: The count of this array should match keyboard
     mouseButton   : [] s32; // Match BUTTON_xx globals at the top of SDL_mouse
     mouseAxis     : [] MouseAxis;
     gamepadButton : [] SDL.Gamepad_Button;
     gamepadAxis   : [] SDL.Gamepad_Axis;
+    
     // TODO: SDL_joystick support (check via racing wheel or other weird controller type)
 }
 
@@ -92,7 +97,7 @@ get_bindings_from_json :: (name : string, bindings : [..] *JSON_Value, $T : Type
     
     binds : [..] T;
     for bindings {
-	array_add(*binds, cast(T) it.value_int);	
+	array_add(*binds, cast(T) it.value_int);
     }
     
     return binds;
@@ -124,8 +129,6 @@ init_keybinds :: () -> *KeybindMap {
 	    log(.ERROR, tprint("Duplicate binding for \"%\" found", bindingSet.name));
 	    continue;
 	}
-
-	// TODO: Add axis invert option
 	
 	bind := New(Keybind);
 	for binding : bindingSet.values {
@@ -135,6 +138,10 @@ init_keybinds :: () -> *KeybindMap {
 	    }
 	    if binding.name == {
 		case "buttons_as_axis"; bind.buttonsAsAxis = binding.value_bool;
+		case "invert_axis";     bind.invertAxis    = binding.value_bool;
+		case "inner_deadzone";  bind.innerDeadzone = binding.value_int;
+		case "outer_deadzone";  bind.outerDeadzone = binding.value_int;
+		
 		case "keyboard";        bind.keyboard      = get_bindings_from_json(nameForLog, binding.values, SDL.Scancode);
 		case "keyboard_mod";    bind.keyboardMod   = get_bindings_from_json(nameForLog, binding.values, SDL.Keymod);
 		case "mouse_button";    bind.mouseButton   = get_bindings_from_json(nameForLog, binding.values, s32);
@@ -231,17 +238,32 @@ get_input :: (name : string) -> float32 {
 		if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) then return 1.0;
 	    }
 	}
-
-	// TODO: This is currently backwards to what's expected for Y direction (buttons are correct)
+	
 	for binding.gamepadAxis {
 	    if SDL.gamepad_has_axis(loam.input.gamepad, it) {
-		axis := cast(float32) SDL.get_gamepad_axis(loam.input.gamepad, it);
-		return normalise_neg_1_to_1(cast(float32) axis, cast(float32) S16_MIN, cast(float32) S16_MAX);
+		axis := SDL.get_gamepad_axis(loam.input.gamepad, it);
+		if axis == S16_MIN then axis += 1;
+		if axis < binding.innerDeadzone && axis > -binding.innerDeadzone {
+		    return 0;
+		}
+		if it == .LEFTY || it == .RIGHTY then axis = -axis; // NOTE: SDL stick Y direction is reversed to what we expect
+		if binding.invertAxis then axis = -axis;
+		min := (S16_MIN + 1) + binding.outerDeadzone;
+		max := S16_MAX - binding.outerDeadzone;
+		
+		normalAxis : float32;
+		if axis >= 0 {
+		    normalAxis = normalise_0_to_1(cast(float32) axis, cast(float32) binding.innerDeadzone, cast(float32) max);
+		} else {
+		    normalAxis = -normalise_0_to_1(cast(float32) axis, cast(float32) -binding.innerDeadzone, cast(float32) min);
+		}
+		Clamp(*normalAxis, -1, 1);
+		return normalAxis;
 	    }
 	}
     }
     
-    return 0.0;
+    return 0;
 }
 
 get_any_button_input :: () -> bool {
