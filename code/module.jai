@@ -175,6 +175,36 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 }
 
 loam_start_update :: () {
+    // INPUT HANDLING
+    loam.input.mouseWheel = .{};
+    
+    event : SDL.Event;
+    while SDL.poll_event(*event) {
+	if event.type == {
+	    case .QUIT; loam.running = false;
+
+	    case .WINDOW_RESIZED; {
+		loam.windowWidth  = event.window.data1;
+		loam.windowHeight = event.window.data2;
+	    } #through;
+	    case .WINDOW_MOVED; {
+		loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
+		print("%\n", loam.refreshRate);
+	    }
+
+	    case .MOUSE_WHEEL; {
+		loam.input.mouseWheel = .{ event.wheel.x, event.wheel.y };
+		if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
+	    }
+	}
+	
+	update_input(event);
+	ImGui.ImplSDL3_ProcessEvent(cast(*ImGui.SDL_Event) *event);
+    }
+
+    if vk.resizeRequested then resize_swapchain();
+
+    // OTHER UPDATING
     update_audio();
     
     for vk.updateCommands {
@@ -200,6 +230,11 @@ loam_finish_update :: () {
     }
 
     loam.updateActive = false;
+}
+
+// NOTE: This is just syntactic sugar so games don't need a random finish_update just before the main loop starts
+loam_finish_init :: () {
+    loam_finish_update();
 }
 
 loam_start_render :: () {
@@ -244,36 +279,6 @@ loam_handle_timing :: () {
     
     loam.deltaTime = seconds_since_init() - loam.lastTime;
     loam.lastTime = seconds_since_init();
-}
-
-loam_handle_input :: () {
-    loam.input.mouseWheel = .{};
-    
-    event : SDL.Event;
-    while SDL.poll_event(*event) {
-	if event.type == {
-	    case .QUIT; loam.running = false;
-
-	    case .WINDOW_RESIZED; {
-		loam.windowWidth  = event.window.data1;
-		loam.windowHeight = event.window.data2;
-	    } #through;
-	    case .WINDOW_MOVED; {
-		loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
-		print("%\n", loam.refreshRate);
-	    }
-
-	    case .MOUSE_WHEEL; {
-		loam.input.mouseWheel = .{ event.wheel.x, event.wheel.y };
-		if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
-	    }
-	}
-	
-	update_input(event);
-	ImGui.ImplSDL3_ProcessEvent(cast(*ImGui.SDL_Event) *event);
-    }
-
-    if vk.resizeRequested then resize_swapchain();
 }
 
 render_debug_ui :: () {
