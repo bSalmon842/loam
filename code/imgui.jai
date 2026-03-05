@@ -206,6 +206,11 @@ frame_imgui :: (metrics : *DebugMetrics) {
 
     ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.1, 0.1, 0.8, 1.0 });
     if ImGui.CollapsingHeader("Input") {
+	ImGui.Text("Active Input: %", loam.input.activeType);
+	ImGui.Text("KBM Timestamp:     %", loam.input.keyboardMouseTimestamp);
+	ImGui.Text("Gamepad Timestamp: %", loam.input.gamepadTimestamp);
+	ImGui.Text("Touch Timestamp:   %", loam.input.touchscreenTimestamp);
+	ImGui.NewLine();
 	if ImGui.CollapsingHeader("\tDevices") {
 	    if SDL.has_keyboard() {
 		if ImGui.CollapsingHeader("\t\tKeyboard") {
@@ -213,9 +218,14 @@ frame_imgui :: (metrics : *DebugMetrics) {
 		    keys := SDL.get_keyboard_state(*keyCount);
 		    ImGui.Text("Active Key Scancodes:");
 		    for enum_values_as_enum(SDL.Scancode) {
-			if keys[it] {
-			    ImGui.BulletText("%", it);
-			}
+			if keys[it] then ImGui.BulletText("%", it);
+		    }
+
+		    ImGui.NewLine();
+		    modState := SDL.get_mod_state();
+		    ImGui.Text("Active Key Mods:");
+		    for enum_values_as_enum(SDL.Keymod) {
+			if modState & it != 0 then ImGui.BulletText("%", it);
 		    }
 		}
 	    }

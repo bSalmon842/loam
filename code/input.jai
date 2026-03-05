@@ -52,7 +52,13 @@ update_input :: (event : SDL.Event) {
 	if event.mdevice.which != SDL.TOUCH_MOUSEID {
 	    keyboardMouseTimestamp = current_time_consensus();
 	}
-    } else if event.type >= .GAMEPAD_AXIS_MOTION && event.type < .FINGER_DOWN {
+    } else if event.type >= .GAMEPAD_AXIS_MOTION && event.type < .FINGER_DOWN && event.type != .GAMEPAD_UPDATE_COMPLETE {
+	if event.type == .GAMEPAD_AXIS_MOTION {
+	    threshold := S16_MAX / 2;
+	    if event.gaxis.value > -threshold && event.gaxis.value < threshold {
+		return;
+	    }
+	}
 	gamepadTimestamp = current_time_consensus();
 	gamepad = SDL.open_gamepad(event.gdevice.which);
     } else if event.type >= .FINGER_DOWN && event.type < .FINGER_MOTION {
@@ -175,7 +181,7 @@ get_input :: (name : string) -> float32 {
     }
 
     // Check keyboard binding
-    if SDL.has_keyboard() {
+    if SDL.has_keyboard() && loam.input.activeType == .Keyboard_Mouse {
 	keyCount : s32;
 	keys := SDL.get_keyboard_state(*keyCount);
 	modState := SDL.get_mod_state();
@@ -183,19 +189,21 @@ get_input :: (name : string) -> float32 {
 	    if binding.buttonsAsAxis {
 		positive := true;
 		for binding.keyboard {
-		    if keys[it] && binding.keyboardMod[it_index] == modState return ifx positive then 1.0 else -1.0;
+		    mod := binding.keyboardMod[it_index];
+		    if keys[it] && (mod == .NONE || mod & modState != 0) return ifx positive then 1.0 else -1.0;
 		    positive = !positive;
 		}
 	    } else {
 		for binding.keyboard {
-		    if keys[it] && binding.keyboardMod[it_index] == modState then return 1.0;
+		    mod := binding.keyboardMod[it_index];
+		    if keys[it] && (mod == .NONE || mod & modState != 0) then return 1.0;
 		}
 	    }
 	}
     }
 
     // Check mouse bindings
-    if SDL.has_mouse() {
+    if SDL.has_mouse() && loam.input.activeType == .Keyboard_Mouse {
 	if binding.mouseButton.count > 0 || binding.mouseAxis.count > 0 {
 	    relX, relY : float32;
 	    mouseButtons := SDL.get_relative_mouse_state(*relX, *relY);
@@ -224,7 +232,7 @@ get_input :: (name : string) -> float32 {
     }
     
     // Check gamepad bindings
-    if loam.input.gamepad {
+    if loam.input.gamepad && loam.input.activeType == .Gamepad {
 	if binding.buttonsAsAxis {
 	    positive := true;
 	    for binding.gamepadButton {
