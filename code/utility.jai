@@ -75,6 +75,24 @@ seconds_to_nanoseconds :: (seconds : u64) -> u64 {
     return seconds * 1_000_000_000;
 }
 
+vector4_to_u32 :: (vec : Vector4) -> u32 {
+    r := clamp(round_to(vec.x * 255.0, u32), 0, U8_MAX);
+    g := clamp(round_to(vec.y * 255.0, u32), 0, U8_MAX);
+    b := clamp(round_to(vec.z * 255.0, u32), 0, U8_MAX);
+    a := clamp(round_to(vec.w * 255.0, u32), 0, U8_MAX);
+    result : u32 = a << 24 | r << 16 | g << 8 | b;
+    return result;
+}
+
+u32_to_vector4 :: (val : u32) -> Vector4 {
+    a := cast(float32) (val >> 24 & 0xFF);
+    r := cast(float32) (val >> 16 & 0xFF);
+    g := cast(float32) (val >> 8 & 0xFF);
+    b := cast(float32) (val & 0xFF);
+    result := Vector4.{ r, g, b, a };
+    return result;
+}
+
 get_ram_usage :: () -> u64 {
     #if OS == .WINDOWS {
 	info : WindowsE.PROCESS_MEMORY_COUNTERS;

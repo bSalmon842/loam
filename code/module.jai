@@ -203,12 +203,12 @@ loam_start_update :: () {
     }
 
     if vk.resizeRequested then resize_swapchain();
-
+    
     // OTHER UPDATING
     update_audio();
     
     for vk.updateCommands {
-	if it then log(.FATAL, "Update Command array was not cleared, either loam_finish_update was never called, or the array has failed to clear");
+	if it then log(.FATAL, "Update Command array was not cleared, either loam_finish_update/loam_finish_init was never called, or the array has failed to clear");
     }
 
     vk.currentFrame = get_current_frame();
