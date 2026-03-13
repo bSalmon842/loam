@@ -46,10 +46,9 @@ LoamState :: struct {
     gameplayState : GameplayState;
     
     threadCount : s32;
-
-    // TODO: Hardcoded cameras probably aren't a good plan
-    sceneCamera : *Camera;
-    uiCamera : *Camera;
+    
+    cameras : *CameraMap;
+    activeGameCamera : *Camera;
     
     fonts : *Table(string, *FontAtlas);
     
@@ -131,18 +130,13 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     if !loam.window {
 	log(.FATAL, tprint("Failed to create window with SDL error: %", to_string(SDL.get_error())));
     }
-    
-    loam.sceneCamera = New(Camera);
-    #if IS_DEV then this_allocation_is_not_a_leak(loam.sceneCamera);
-    loam.sceneCamera.verticalFOV = 80.0;
-    loam.sceneCamera.dimensions = .{ xx initialWidth, xx initialHeight };
-    loam.sceneCamera.position.z = -2;
-    loam.sceneCamera.isOrthographic = false;
-    
-    loam.uiCamera = New(Camera);
-    #if IS_DEV then this_allocation_is_not_a_leak(loam.uiCamera);
-    loam.uiCamera.dimensions = .{ xx initialWidth, xx initialHeight };
-    loam.uiCamera.isOrthographic = true;
+
+    loam.windowWidth = initialWidth;
+    loam.windowHeight = initialHeight;
+    loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
+
+    loam.cameras = New(CameraMap);
+    add_camera("UI", 0, .{});
     
     loam.threadCount = get_number_of_threads_for_device();
     log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
@@ -162,10 +156,6 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     loam.input = New(InputState);
     loam.input.activeType = .Keyboard_Mouse;
     
-    loam.windowWidth = initialWidth;
-    loam.windowHeight = initialHeight;
-    loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
-    print("%\n", loam.refreshRate);
     loam.deltaTime = seconds_since_init();
     loam.lastTime = seconds_since_init();
 

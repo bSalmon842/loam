@@ -385,9 +385,12 @@ create_vk_swapchain :: () -> VkResult {
 	vk.swapchainExtent.height = cast(u32) clamp(cast(u32) loam.windowHeight, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
     }
 
-    loam.sceneCamera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
-    loam.uiCamera.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
-
+    for loam.cameras {
+	if it.isWindowSize {
+	    it.dimensions = .{ cast(float) vk.swapchainExtent.width, cast(float) vk.swapchainExtent.height };
+	}
+    }
+    
     // Get best present mode for our purposes
     presentModeCount : u32;
     check_vk(vkGetPhysicalDeviceSurfacePresentModesKHR(vk.physicalDevice, vk.surface, *presentModeCount, null), "Failed to get valid present modes for the current surface from the physical device");

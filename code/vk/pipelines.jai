@@ -166,6 +166,11 @@ RenderingPipelineInfo :: struct {
     }
 }
 
+is_ui_pipeline :: (pipeline : *RenderingPipelineInfo) -> bool {
+    return pipeline.type == .UI_Text || pipeline.type == .UI_Sprite;
+}
+
+// TODO: This doesn't work if we want to render multiple cameras at once
 draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo, drawExtent : VkExtent2D) {
     if pipeline.isSpritePipeline {
 	if pipeline.sprites.count == 0 then return;
@@ -188,8 +193,10 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
 
     vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, pipeline.layout, 0, 1, *vk.bindlessDescriptorSet, 0, null);
     if pipeline.isSpritePipeline {
-	// TODO: What if we have more than 1 scene camera?
-	camera := ifx pipeline.type == .Sprite then loam.sceneCamera else loam.uiCamera;
+	camera := ifx is_ui_pipeline(pipeline) then get_camera("UI") else loam.activeGameCamera;
+	if !camera {
+	    log(.FATAL, "Invalid camera for sprite pipeline, make sure an active game camera is set");
+	}
 	currentCameraProjection := camera.isOrthographic;
 	camera.isOrthographic = pipeline.orthographic;
 	pushConstants := SpritePushConstants.{ get_view_matrix(camera) * get_projection_matrix(camera), pipeline.sprites.buffer.bufferAddress };

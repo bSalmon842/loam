@@ -53,7 +53,7 @@ handle_splash_screen :: () {
 	renderable.texture = splash.image;
 	renderable.dimensions = extent_to_vector(splash.image.image.extent);
 	transform := make_transform(.{ cast(float) loam.windowWidth, cast(float) loam.windowHeight, 0 } / 2.0);
-	add_sprite_render_command(.Sprite, renderable, transform);
+	add_sprite_render_command(.UI_Sprite, renderable, transform);
 
 	if splash.audio {
 	    play_audio_if_not_playing(splash.audio, .MUSIC, false);

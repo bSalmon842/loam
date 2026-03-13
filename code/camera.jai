@@ -5,6 +5,8 @@ Author: Brock Salmon
 Created: 12JUN2025
 */
 
+CameraMap :: Table(string, *Camera);
+
 Camera :: struct {
     verticalFOV : float;
     dimensions : Vector2;
@@ -13,6 +15,41 @@ Camera :: struct {
     position : Vector3;
 
     isOrthographic : bool;
+    isWindowSize : bool;
+}
+
+make_camera :: (fov : float32, position : Vector3, isWindowSize := true, dimensions := Vector2.{}, ortho := true) -> *Camera {
+    camera := New(Camera);
+    camera.verticalFOV = fov;
+    if dimensions.x > 0 && dimensions.y > 0 && !isWindowSize {
+	camera.dimensions = dimensions;
+    } else {
+	camera.dimensions = .{ cast(float32) loam.windowWidth, cast(float32) loam.windowHeight };
+    }
+    camera.position = position;
+    camera.isOrthographic = ortho;
+    camera.isWindowSize = isWindowSize;
+    return camera;
+}
+
+add_camera :: (name : string, fov : float32, position : Vector3, isWindowSize := true, dimensions := Vector2.{}, ortho := true) -> *Camera {
+    camera := make_camera(fov, position, isWindowSize, dimensions, ortho);
+    if table_contains(loam.cameras, name) {
+	log(.WARN, tprint("Attempted to add camera with existing name \"%\"", name));
+	return null;
+    }
+
+    table_add(loam.cameras, name, camera);
+    return camera;
+}
+
+get_camera :: (name : string) -> *Camera {
+    found, camera := table_find(loam.cameras, name);
+    if !found {
+	log(.ERROR, tprint("Failed to get camera \"%\"", name));
+    }
+    
+    return camera;
 }
 
 get_view_matrix :: (camera : *Camera) -> Matrix4 {
