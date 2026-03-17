@@ -118,7 +118,7 @@ change_audio_device :: (name : string) {
     if newDevice.name.count {
 	change_audio_device(newDevice);
     } else {
-	log(.ERROR, tprint("Failed to find an audio device with name \"%\"", name));
+	log(.ERROR, "Failed to find an audio device with name \"%\"", name);
     }
 }
 
@@ -130,7 +130,7 @@ change_audio_device :: (newDevice : Audio.Output_Device) {
     Audio.sound_player_shutdown();
     loam.audioDevice = newDevice;
     loam.config.audioDeviceName = loam.audioDevice.name;
-    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, tprint("Failed to change audio device to %", newDevice.name));
+    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice }) then log(.FATAL, "Failed to change audio device to %", newDevice.name);
 }
 
 convert_duration_to_minutes :: (duration : float64) -> string {

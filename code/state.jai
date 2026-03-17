@@ -21,14 +21,14 @@ GameplayState :: enum_flags u8 {
 
 transition_state :: (current : GameplayState, new : GameplayState) {
     if loam.gameplayState == current && current != .Invalid && new != .Invalid {
-	log(.INFO, tprint("State transitioning from % to %", current, new));
+	log(.INFO, "State transitioning from % to %", current, new);
 	loam.gameplayState = new;
 	if current == .Splash && new != .Splash {
 	    stop_all_sounds();
 	}
     } else {
 	stateNames := enum_names(GameplayState);
-	log(.ERROR, tprint("Failed to transition from % to %", stateNames[current], stateNames[new]));
+	log(.ERROR, "Failed to transition from % to %", stateNames[current], stateNames[new]);
     }
 }
 

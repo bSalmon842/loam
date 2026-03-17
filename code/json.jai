@@ -73,7 +73,7 @@ json_get :: (value : *JSON_Value, $returnType : Type) -> returnType, bool #modif
 	if #compile_time {
 	    print("json_get failed due to invalid get type: %\n", value.type);
 	} else {
-	    log(.ERROR, tprint("json_get failed due to invalid get type: %", value.type));
+	    log(.ERROR, "json_get failed due to invalid get type: %", value.type);
 	}
 	err : returnType;
 	return err, false;
@@ -221,7 +221,7 @@ json_write_value :: (builder : *String_Builder, value : *JSON_Value, outerType :
 	}
 
 	case; {
-	    log(.ERROR, tprint("Failed to write value \"%\" to JSON file: Invalid Outer Value type", value.name));
+	    log(.ERROR, "Failed to write value \"%\" to JSON file: Invalid Outer Value type", value.name);
 	    return false;
 	}
     }

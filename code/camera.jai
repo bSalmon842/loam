@@ -40,7 +40,7 @@ make_camera :: (fov : float32, position : Vector3, isWindowSize := true, dimensi
 add_camera :: (name : string, fov : float32, position : Vector3, isWindowSize := true, dimensions := Vector2.{}, ortho := true) -> *Camera {
     camera := make_camera(fov, position, isWindowSize, dimensions, ortho);
     if table_contains(loam.cameras, name) {
-	log(.WARN, tprint("Attempted to add camera with existing name \"%\"", name));
+	log(.WARN, "Attempted to add camera with existing name \"%\"", name);
 	return null;
     }
 
@@ -51,7 +51,7 @@ add_camera :: (name : string, fov : float32, position : Vector3, isWindowSize :=
 get_camera :: (name : string) -> *Camera {
     found, camera := table_find(loam.cameras, name);
     if !found {
-	log(.ERROR, tprint("Failed to get camera \"%\"", name));
+	log(.ERROR, "Failed to get camera \"%\"", name);
     }
     
     return camera;

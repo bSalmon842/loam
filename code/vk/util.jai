@@ -505,10 +505,10 @@ vk_debug_callback :: (messageSeverity : VkDebugUtilsMessageSeverityFlagBitsEXT, 
 
 check_vk :: (result : VkResult, errMsg : string, errType := Log_Type.FATAL, callLoc := #caller_location) {
     if result != .SUCCESS {
-        log_vk(errType, tprint("%: %", errMsg, enum_value_to_name(result)), callLoc);
+        log_vk(errType, "%: %", errMsg, enum_value_to_name(result), callLoc=callLoc);
     }
 }
 
-log_vk :: (type : Log_Type, s : string, callLoc := #caller_location) {
-    log(type, tprint("[VULKAN] %", s), callLoc);
+log_vk :: (type : Log_Type, s : string, args : .. Any, callLoc := #caller_location) {
+    log(type, tprint("[VULKAN] %", s), ..args, callLoc=callLoc);
 }

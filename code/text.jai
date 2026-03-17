@@ -49,7 +49,7 @@ make_text :: (str : string, font : string, size : u32, transform : Transform, co
     atlasName := get_font_atlas_name(font, size);
     exists, font := table_find(loam.fonts, atlasName);
     if !exists {
-	log(.ERROR, tprint("Font atlas \"%\" does not exist", atlasName));
+	log(.ERROR, "Font atlas \"%\" does not exist", atlasName);
     }
     text.font = font;
     text.transform = transform;
@@ -112,7 +112,7 @@ update_text :: (text : *Text, str : string) {
 	
 	glyphFound, fontGlyph := table_find(text.font.glyphs, char);
 	if !glyphFound {
-	    log(.ERROR, tprint("Failed to get glyph for %", character_utf32_to_utf8(char)));
+	    log(.ERROR, "Failed to get glyph for %", character_utf32_to_utf8(char));
 	    continue;
 	}
 

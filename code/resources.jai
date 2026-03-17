@@ -173,7 +173,7 @@ remove_resource :: ($T : Type, name : string, core : bool = false) {
 	}
     }
 
-    log(.WARN, tprint("Failed to find resource to remove: { %, %, % }", T, name, core));
+    log(.WARN, "Failed to find resource to remove: { %, %, % }", T, name, core);
 }
 */
 

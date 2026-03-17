@@ -42,7 +42,7 @@ load_config :: () -> bool {
 	for member : ti.members {
 	    field := (cast(*u8) *loam.config) + member.offset_in_bytes;
 	    if !read_from_config(lines, member.name, member.type.type, field) {
-		log(.WARN, tprint("Failed to find config field for \"%\", config might be out of date!", member.name));
+		log(.WARN, "Failed to find config field for \"%\", config might be out of date!", member.name);
 	    }
 	}
 

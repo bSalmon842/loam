@@ -40,12 +40,12 @@ load_and_merge_asset_maps :: (gameCode : string, paths : [] string) -> string {
 	
 	rawMapContents, readRawMapSuccess := read_entire_file(it);
 	if !readRawMapSuccess {
-	    log(.FATAL, tprint("Failed to read map file: %", it));
+	    log(.FATAL, "Failed to read map file: %", it);
 	}
 
 	mapDecompSuccess, mapContents := decompress_data(rawMapContents);
 	if !mapDecompSuccess {
-	    log(.FATAL, tprint("Failed to decompress map file: %", it));
+	    log(.FATAL, "Failed to decompress map file: %", it);
 	}
 
 	append(*fusedJSON, tprint("\"%\" : ", filename));
@@ -84,7 +84,7 @@ load_asset_map :: (gameCode : string) -> *AssetMap {
     
     mapRoot, mapReadSuccess := json_build_tree(fusedMap, "Asset Map Tree");
     if mapReadSuccess != .Success {
-	log(.FATAL, tprint("Failed to read the complete asset map with error: %", mapReadSuccess));
+	log(.FATAL, "Failed to read the complete asset map with error: %", mapReadSuccess);
     }
     
     for fileValue : mapRoot.values {
@@ -94,7 +94,7 @@ load_asset_map :: (gameCode : string) -> *AssetMap {
 	    if table_contains(map, assetValue.name) {
 		existingItem := table_find_pointer(map, assetValue.name);
 		assert(existingItem && existingItem.*);
-		log(.ERROR, tprint("Failed to map asset \"%\" from file: \"%\" because there's already an asset with that name from file: \"%\"", assetValue.name, fileValue.name, existingItem.*.file));
+		log(.ERROR, "Failed to map asset \"%\" from file: \"%\" because there's already an asset with that name from file: \"%\"", assetValue.name, fileValue.name, existingItem.*.file);
 	    } else {
 		filenameParts := split(fileValue.name, "_");
 		type : AssetPackType;
@@ -177,7 +177,7 @@ get_asset :: (type : AssetType, name : string) -> *Asset {
     }
     
     if header.type != type {
-	log(.ERROR, tprint("Asset found with name \"%\" does not match requested type % (Got %)", to_string(header.name), type, header.type));
+	log(.ERROR, "Asset found with name \"%\" does not match requested type % (Got %)", to_string(header.name), type, header.type);
 	return null;
     }
 
@@ -260,7 +260,7 @@ get_asset :: (type : AssetType, name : string) -> *Asset {
 get_raw_asset_data :: (map : *AssetMap, name : string) -> fileContents : string, assetInfo : *PackagedAssetHeader {
     found, item := table_find(map, name);
     if !found {
-	log(.ERROR, tprint("Failed to find asset \"%\" in the asset map file", name));
+	log(.ERROR, "Failed to find asset \"%\" in the asset map file", name);
 	return "", null;
     }
 
@@ -280,14 +280,14 @@ get_raw_asset_data :: (map : *AssetMap, name : string) -> fileContents : string,
     }
     
     if !readSuccess {
-	log(.FATAL, tprint("Failed to read asset pack file \"%\"!", itemFilename));
+	log(.FATAL, "Failed to read asset pack file \"%\"!", itemFilename);
 	free(rawPackContents.data);
 	return "", null;
     }
     
     packDecompSuccess, packContents := decompress_data(rawPackContents);
     if !packDecompSuccess {
-	log(.FATAL, tprint("Failed to decompress asset pack \"%\"", itemFilename));
+	log(.FATAL, "Failed to decompress asset pack \"%\"", itemFilename);
     }
     free(rawPackContents.data);
 
@@ -317,7 +317,7 @@ get_ktx_texture_from_file_data :: (header : *PackagedAssetHeader, fileData : *vo
     texture : *ktxTexture2;
     createResult := ktxTexture2_CreateFromMemory(cast(*u8) fileData, header.size, .LOAD_IMAGE_DATA_BIT, *texture);
     if createResult != .SUCCESS {
-	log(.ERROR, tprint("Failed to create ktx texture for \"%\" with error: %", to_string(header.name), createResult));
+	log(.ERROR, "Failed to create ktx texture for \"%\" with error: %", to_string(header.name), createResult);
 	ktxTexture2_Destroy(texture);
 	return null;
     }
@@ -332,14 +332,14 @@ get_font_from_file_data :: (header : *PackagedAssetHeader, fileData : *void) -> 
     
     error := FT_Init_FreeType(*fontData.lib);
     if error {
-	log(.ERROR, tprint("Failed to initialise FreeType for font \"%\": %", to_string(header.name), FT_Error_String(error)));
+	log(.ERROR, "Failed to initialise FreeType for font \"%\": %", to_string(header.name), FT_Error_String(error));
 	free(fontData);
 	return null;
     }
 
     error = FT_New_Memory_Face(fontData.lib, fontData.data.data, cast(s32) fontData.data.count, 0, *fontData.face);
     if error {
-	log(.ERROR, tprint("Failed to initialise Face for font \"%\": %", to_string(header.name), FT_Error_String(error)));
+	log(.ERROR, "Failed to initialise Face for font \"%\": %", to_string(header.name), FT_Error_String(error));
 	FT_Done_FreeType(fontData.lib);
 	free(fontData);
 	return null;
@@ -373,7 +373,7 @@ compress_data :: (data : string) -> bool, string {
 	return false, .{};
     }
     
-    log(.DEV, tprint("Compressed data from % to %", to_size_string(cast(u64) data.count), to_size_string(cast(u64) bytesWritten)));
+    log(.DEV, "Compressed data from % to %", to_size_string(cast(u64) data.count), to_size_string(cast(u64) bytesWritten));
     
     compData := alloc_string(bytesWritten);
     memcpy(compData.data, compressedRawData, bytesWritten);
@@ -386,11 +386,11 @@ decompress_data :: (data : string) -> bool, string {
     decompressedRawData := alloc(MAX_ASSET_PACKAGE_SIZE);
     bytesWritten := LZ4_decompress_safe(data.data, decompressedRawData, cast(s32) data.count, cast(s32) MAX_ASSET_PACKAGE_SIZE);
     if bytesWritten <= 0 {
-	log(.ERROR, tprint("decompress_data failed with: %", bytesWritten));
+	log(.ERROR, "decompress_data failed with: %", bytesWritten);
 	return false, .{};
     }
     
-    log(.DEV, tprint("Decompressed data from % to %", to_size_string(cast(u64) data.count), to_size_string(cast(u64) bytesWritten)));
+    log(.DEV, "Decompressed data from % to %", to_size_string(cast(u64) data.count), to_size_string(cast(u64) bytesWritten));
     
     decompData := alloc_string(bytesWritten);
     memcpy(decompData.data, decompressedRawData, bytesWritten);

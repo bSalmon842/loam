@@ -128,7 +128,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     SDL.init(.VIDEO | .JOYSTICK | .HAPTIC | .GAMEPAD);
     loam.window = SDL.create_window(APP_NAME, initialWidth, initialHeight, .VULKAN);
     if !loam.window {
-	log(.FATAL, tprint("Failed to create window with SDL error: %", to_string(SDL.get_error())));
+	log(.FATAL, "Failed to create window with SDL error: %", to_string(SDL.get_error()));
     }
 
     loam.windowWidth = initialWidth;
@@ -139,7 +139,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     add_camera("UI", 0, .{});
     
     loam.threadCount = get_number_of_threads_for_device();
-    log(.INFO, tprint("Threads found on device: %\n", loam.threadCount));
+    log(.INFO, "Threads found on device: %", loam.threadCount);
     
     loam.vk = New(Vk);
     #if IS_DEV then this_allocation_is_not_a_leak(loam.vk);

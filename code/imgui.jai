@@ -8,7 +8,7 @@ Created: 28AUG2025
 check_vk_imgui :: (result : VkResult) #c_call {
     push_context {
 	if result != .SUCCESS {
-            log_vk(.WARN, tprint("VK CHECK FROM IMGUI: %", enum_value_to_name(result)), .{});
+            log_vk(.WARN, "VK CHECK FROM IMGUI: %", enum_value_to_name(result));
 	}
     }
 }

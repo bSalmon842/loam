@@ -19,7 +19,7 @@ CompiledShader :: struct {
 
 load_shader_module :: (device : VkDevice, shaderToLoad : CompiledShader) -> VkShaderModule {
     if !shaderToLoad.succeeded {
-	log(.ERROR, tprint("% was not compiled and cannot be found.", shaderToLoad.name));
+	log(.ERROR, "% was not compiled and cannot be found.", shaderToLoad.name);
 	assert(false);
     }
 
@@ -84,7 +84,7 @@ compile_glsl_to_spirv :: (glslName : string) -> CompiledShader {
     load_spirv_for_android :: (hlslName : string) -> CompiledShader {
 	file, opened := file_open(tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
 	if !opened {
-	    log(.FATAL, tprint("Failed to open %!", hlslName));
+	    log(.FATAL, "Failed to open %!", hlslName);
 	}
 	spvContents, foundFile := read_entire_file(file);
 	return CompiledShader.{ hlslName, spvContents, foundFile };

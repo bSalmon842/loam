@@ -82,7 +82,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language) {
     atlasName := get_font_atlas_name(fontName, size);
     exists := table_find(loam.fonts, atlasName);
     if exists {
-	log(.WARN, tprint("% already exists", atlasName));
+	log(.WARN, "% already exists", atlasName);
     }
     
     fontData := cast(*FontData) get_asset(.Font, fontName).data;
@@ -105,7 +105,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language) {
     cursorX, cursorY : float = 0;
 
     kerningSupported := fontData.face.face_flags & FT_FACE_FLAG_KERNING;
-    if kerningSupported then log(.DEV, tprint("Font % supports kerning", atlasName)); else log(.DEV, tprint("Font % does not support kerning", atlasName));
+    if kerningSupported then log(.DEV, "Font % supports kerning", atlasName); else log(.DEV, "Font % does not support kerning", atlasName);
     
     heightForAtlasRow := 0;
     for range : codepointRanges {
@@ -116,7 +116,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language) {
 		intFmt.value = it;
 		intFmt.base = 16;
 		intFmt.minimum_digits = 4;
-		log(.WARN, tprint("[FREETYPE] Failed to load char for codepoint 0x%: %", intFmt, FT_Error_String(charError)));
+		log(.WARN, "[FREETYPE] Failed to load char for codepoint 0x%: %", intFmt, FT_Error_String(charError));
 	    }
 	    
 	    glyphBitmap := fontData.face.glyph.bitmap;
@@ -171,11 +171,11 @@ build_font_atlas :: (fontName : string, size : u32, language : Language) {
     
     table_add(loam.fonts, copy_string(atlasName), atlas);
 
-    log(.DEV, tprint("% successfully created", atlasName));
+    log(.DEV, "% successfully created", atlasName);
 }
 
 check_ft :: (result : FT_Error, errMsg : string, errType := Log_Type.ERROR, callLoc := #caller_location) {
     if result != 0 {
-        log(errType, tprint("[FREETYPE] %: %", errMsg, FT_Error_String(result)), callLoc);
+        log(errType, "[FREETYPE] %: %", errMsg, FT_Error_String(result), callLoc=callLoc);
     }
 }

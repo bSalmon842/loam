@@ -97,7 +97,7 @@ Keybind :: struct {
 
 get_bindings_from_json :: (name : string, bindings : [..] *JSON_Value, $T : Type) -> [] T {
     if bindings.count == 0 {
-	log(.WARN, tprint("No bindings found for %", name));
+	log(.WARN, "No bindings found for %", name);
 	return .[];
     }
     
@@ -113,26 +113,26 @@ init_keybinds :: () -> *KeybindMap {
     keybindFilename := tprint("%.bind", APP_NAME);
     readData, readSuccess := read_entire_file(keybindFilename);
     if !readSuccess {
-	log(.FATAL, tprint("Failed to load %", keybindFilename));
+	log(.FATAL, "Failed to load %", keybindFilename);
 	return null;
     }
     
     map := New(KeybindMap);
     mapRoot, mapReadSuccess := json_build_tree(readData, "Keybind Map Tree");
     if mapReadSuccess != .Success {
-	log(.FATAL, tprint("Failed to read the keybind map with error: %", mapReadSuccess));
+	log(.FATAL, "Failed to read the keybind map with error: %", mapReadSuccess);
 	return null;
     }
     
     //Get binds from JSON
     for bindingSet : mapRoot.values {
 	if bindingSet.values.count == 0 {
-	    log(.WARN, tprint("No bindings found for %", bindingSet.name));
+	    log(.WARN, "No bindings found for %", bindingSet.name);
 	    continue;
 	}
 
 	if table_contains(map, bindingSet.name) {
-	    log(.ERROR, tprint("Duplicate binding for \"%\" found", bindingSet.name));
+	    log(.ERROR, "Duplicate binding for \"%\" found", bindingSet.name);
 	    continue;
 	}
 	
@@ -140,7 +140,7 @@ init_keybinds :: () -> *KeybindMap {
 	for binding : bindingSet.values {
 	    nameForLog := tprint("%: %", bindingSet.name, binding.name);
 	    if binding.name != "buttons_as_axis" && binding.type != .Array {
-		log(.ERROR, tprint("% bindings should be an array", nameForLog));
+		log(.ERROR, "% bindings should be an array", nameForLog);
 	    }
 	    if binding.name == {
 		case "buttons_as_axis"; bind.buttonsAsAxis = binding.value_bool;
@@ -155,12 +155,12 @@ init_keybinds :: () -> *KeybindMap {
 		case "gamepad_button";  bind.gamepadButton = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Button);
 		case "gamepad_axis";    bind.gamepadAxis   = get_bindings_from_json(nameForLog, binding.values, SDL.Gamepad_Axis);
 		
-		case; log(.ERROR, tprint("% is not a valid binding field", binding.name));
+		case; log(.ERROR, "% is not a valid binding field", binding.name);
 	    }
 	}
 	
 	if bind.keyboard.count != bind.keyboardMod.count {
-	    log(.ERROR, tprint("keyboard and keyboard_mod arrays were not the same length for: %", bindingSet.name));
+	    log(.ERROR, "keyboard and keyboard_mod arrays were not the same length for: %", bindingSet.name);
 	    continue;
 	}
 	
@@ -177,7 +177,7 @@ init_keybinds :: () -> *KeybindMap {
 get_input :: (name : string) -> float32 {
     foundInput, binding := table_find(loam.keybinds, name);
     if !foundInput {
-	log(.ERROR, tprint("Failed to find input with name: %", name));
+	log(.ERROR, "Failed to find input with name: %", name);
     }
 
     // Check keyboard binding
