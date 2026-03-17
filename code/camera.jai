@@ -5,6 +5,11 @@ Author: Brock Salmon
 Created: 12JUN2025
 */
 
+/* TODO: Multiple Cameras:
+Currently while we support having multiple cameras, we don't support showing multiple at the same time (only UI camera and the active game camera)
+To do this we would probably want pipelines (and game-defined pipelines by LOAM-21) to hold a camera that it renders with
+*/
+
 CameraMap :: Table(string, *Camera);
 
 Camera :: struct {
@@ -50,6 +55,14 @@ get_camera :: (name : string) -> *Camera {
     }
     
     return camera;
+}
+
+relative_to_game_camera :: (point : Vector3) -> Vector3 {
+    if !loam.activeGameCamera {
+	log(.ERROR, "No active game camera found");
+	return point;
+    }
+    return point - loam.activeGameCamera.position;
 }
 
 get_view_matrix :: (camera : *Camera) -> Matrix4 {
