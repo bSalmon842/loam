@@ -89,7 +89,7 @@ u32_to_vector4 :: (val : u32) -> Vector4 {
     r := cast(float32) (val >> 16 & 0xFF);
     g := cast(float32) (val >> 8 & 0xFF);
     b := cast(float32) (val & 0xFF);
-    result := Vector4.{ r, g, b, a };
+    result := Vector4.{ r / 255.0, g / 255.0, b / 255.0, a / 255.0 };
     return result;
 }
 
