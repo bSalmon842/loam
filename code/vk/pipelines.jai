@@ -11,6 +11,8 @@ PipelineType :: enum {
     Sprite;
     UI_Sprite;
     UI_Text;
+    Colliders_Sprite;
+    Colliders_Mesh;
 }
 PIPELINE_COUNT :: #run enum_highest_value(PipelineType) + 1;
 
@@ -238,7 +240,7 @@ init_pipelines :: () {
 		
 		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
-
+		
 		set_pipeline_shaders(*builder, vertShader, fragShader);
 		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
 		set_pipeline_polygon_mode(*builder, .FILL);
@@ -256,7 +258,7 @@ init_pipelines :: () {
 		
 		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, SPRITE_FRAGMENT_SHADER);
-
+		
 		set_pipeline_shaders(*builder, vertShader, fragShader);
 		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
 		set_pipeline_polygon_mode(*builder, .FILL);
@@ -266,10 +268,10 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
-
+		
 		init_sprite_buffer(pipeline);
 	    }
-
+	    
 	    case .Sprite_Rect; {
 		pipeline.orthographic = true;
 		pipeline.isSpritePipeline = true;
@@ -296,7 +298,7 @@ init_pipelines :: () {
 		
 		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
 		fragShader = load_shader_module(vk.device, UI_FRAGMENT_SHADER);
-
+		
 		set_pipeline_shaders(*builder, vertShader, fragShader);
 		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
 		set_pipeline_polygon_mode(*builder, .FILL);
@@ -306,7 +308,7 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
-
+		
 		init_sprite_buffer(pipeline);
 	    }
 	    
@@ -326,15 +328,52 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
-
+		
 		init_sprite_buffer(pipeline);
+	    }
+
+	    case .Colliders_Sprite; {
+		pipeline.orthographic = true;
+		pipeline.isSpritePipeline = true;
+		
+		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, SPRITE_RECT_FRAGMENT_SHADER);
+		
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .LINE);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, true, .Alpha);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+		
+		init_sprite_buffer(pipeline);
+	    }
+
+	    case .Colliders_Mesh; {
+		pipeline.orthographic = false;
+		
+		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+		
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
+		set_pipeline_polygon_mode(*builder, .LINE);
+		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, false);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
 	    }
 	}
 
 	pipeline.layout = builder.layout;
 	pipeline.type = it;
 	pipeline.pipeline = build_graphics_pipeline(*builder);
-
+	
 	vkDestroyShaderModule(vk.device, vertShader, null);
 	vkDestroyShaderModule(vk.device, fragShader, null);
     }

@@ -55,11 +55,8 @@ LoamState :: struct {
     keybinds : *KeybindMap;
     input : *InputState;
     
-    #if IS_DEV {
-	debugUIElements : [..] *UI_Element;
-    }
     uiElements : [..] *UI_Element;
-
+    
     audioDevice : Audio.Output_Device;
     activeAudio : [..] *Audio.Sound_Stream;
     
@@ -78,9 +75,18 @@ LoamState :: struct {
     splashScreens : [..] SplashScreen;
     splashIndex : u32 = 0;
     splashTimer : float64 = 0;
-
+    
     // Config
     config : Config;
+
+    // Entities
+    entities : [#run (enum_highest_value(EntityUpdateRate) + 1)] EntityMap;
+    detachedColliders : [..] *CollisionVolume;
+
+    #if IS_DEV {
+	debugUIElements : [..] *UI_Element;
+	metrics : DebugMetrics;
+    }
 }
 
 init_loam :: (initialWidth : s32, initialHeight : s32) {
@@ -207,6 +213,8 @@ loam_start_update :: () {
 }
 
 loam_finish_update :: () {
+    update_entities();
+    
     process_update_commands();
 
     for * vk.updateCommands {
@@ -229,9 +237,17 @@ loam_finish_init :: () {
 
 loam_start_render :: () {
     loam.renderActive = true;
+
+    #if IS_DEV && OS == .WINDOWS {
+	frame_imgui(*loam.metrics);
+    }
 }
 
 loam_finish_render :: () {
+    #if IS_DEV {
+	update_debug_metrics(*loam.metrics);
+    }
+    
     update_bindless_descriptor_textures();
     TIMING_MARKER("Update Bindless Descriptor");
     draw_frame();
@@ -320,7 +336,9 @@ DONE
 #load "assets.jai";
 #load "audio.jai";
 #load "camera.jai";
+#load "collision.jai";
 #load "config.jai";
+#load "entity.jai";
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";

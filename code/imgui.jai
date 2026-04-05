@@ -370,6 +370,12 @@ frame_imgui :: (metrics : *DebugMetrics) {
     }
     ImGui.PopStyleColor();
 
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.3, 0.3, 0.0, 1.0 });
+    if ImGui.CollapsingHeader("Collision") {
+	ImGui.Checkbox("Show Colliders", *__showColliders);
+    }
+    ImGui.PopStyleColor();
+	
     ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.05, 0.4, 0.05, 1.0 });
     if ImGui.CollapsingHeader("Game State") {
 	ImGui.Text(tprint("Gameplay State: %", loam.gameplayState));

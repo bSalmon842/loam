@@ -7,6 +7,8 @@ Created: 03JUL2025
 
 // NOTE: https://www.gamedeveloper.com/design/the-5-golden-rules-of-input
 
+// TODO: We currently don't handle single inputs, such as when we don't want to fire a function every frame a button is down
+
 InputType :: enum {
     None;
 
