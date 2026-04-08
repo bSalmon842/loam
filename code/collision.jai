@@ -30,6 +30,7 @@ CollisionVolume :: struct {
     origin     : Vector3;
     offset     : Vector3; // Position relative to a connected entity
     dimensions : Vector3;
+    shape      : CollisionShape;
     
     solid : bool;
     static : bool;
@@ -41,10 +42,10 @@ add_collision_trigger :: (volume : *CollisionVolume, func : CollisionTriggerFunc
     array_add(*volume.triggers, .{ func, when });
 }
 
-make_collision_volume :: (origin : Vector3, offset : Vector3, dimensions : Vector3, solid : bool, static : bool) -> *CollisionVolume {
+make_collision_volume :: (origin : Vector3, offset : Vector3, dimensions : Vector3, shape : CollisionShape, solid : bool, static : bool) -> *CollisionVolume {
     volume := New(CollisionVolume);
     triggers : [..] CollisionTrigger;
-    volume.* = .{ origin, offset, dimensions, solid, static, triggers };
+    volume.* = .{ origin, offset, dimensions, shape, solid, static, triggers };
     return volume;
 }
 
@@ -53,4 +54,5 @@ make_collision_volume :: (origin : Vector3, offset : Vector3, dimensions : Vecto
 //////////////////////
 #if IS_DEV {
     __showColliders : bool;
+    __colliderRenderable : Renderable;
 }

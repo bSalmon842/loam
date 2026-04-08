@@ -49,7 +49,7 @@ make_entity :: (name : string, sprite : *Sprite, updateRate := EntityUpdateRate.
     
     entity := New(Entity);
     colliders : [..] *CollisionVolume;
-    array_add(*colliders, make_collision_volume(.{}, .{}, make_vector3(sprite.dimensions, 1), true, false));
+    array_add(*colliders, make_collision_volume(.{}, .{}, make_vector3(sprite.dimensions, 1), .Box, true, false));
     entity.* = .{ name, sprite, colliders, .{}, 0, null, null };
     table_add(*loam.entities[updateRate], name, entity);
     return entity;
@@ -107,6 +107,11 @@ add_render_commands_for_entity :: (entity : *Entity) {
     if entity.sprite {
 	entity.sprite.transform = entity.transform;
 	add_sprite_render_command(.Sprite, entity.sprite.renderable, entity.sprite.transform);
+	#if IS_DEV {
+	    if __showColliders {
+		add_render_command(.Collider, loam.activeGameCamera, colliderRenderable, transform, true, .{0, 1, 1, 1});
+	    }
+	}
     } /* else if entity.mesh {
         
     } */

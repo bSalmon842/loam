@@ -33,22 +33,44 @@ MeshCopyData :: struct {
     buffers          : *GPUBuffers;
 }
 
-DEFAULT_PLANE_INDICES :: u32.[0, 1, 2,
-		              2, 1, 3];
-is_default_plane_indices :: (arr : [] u32) -> bool {
-    if arr.count != DEFAULT_PLANE_INDICES.count then return false;
-    for arr { if it != DEFAULT_PLANE_INDICES[it_index] then return false; }
-    
-    return true;
-}
+DEFAULT_PLANE_INDICES :: u32.[ 0, 1, 2,
+		               2, 1, 3 ];
+DEFAULT_CUBE_INDICES  :: u32.[
+    //Top
+    2, 6, 7,
+    2, 3, 7,
+    //Bottom
+    0, 4, 5,
+    0, 1, 5,
+    //Left
+    0, 2, 6,
+    0, 4, 6,
+    //Right
+    1, 3, 7,
+    1, 5, 7,
+    //Front
+    0, 2, 3,
+    0, 1, 3,
+    //Back
+    4, 6, 7,
+    4, 5, 7 ];
 
 copy_mesh_to_gpu_buffers :: (indices : [] u32, vertices : [] Vertex, buffers : *GPUBuffers) {
-    isPlane := is_default_plane_indices(indices);
-    indexBufferSize : u64 = ifx isPlane then 0 else cast(u64) (indices.count * size_of(u32));
-    vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
+    isPlane := are_array_contents_same(indices, DEFAULT_PLANE_INDICES);
+    isCube  := are_array_contents_same(indices, DEFAULT_CUBE_INDICES);
     
-    buffers.indexBuffer = ifx isPlane then vk.defaultPlaneIndexBuffer else create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
-    buffers.indexCount  = cast(u32) indices.count;
+    indexBufferSize : u64 = ifx isPlane || isCube then 0 else cast(u64) (indices.count * size_of(u32));
+    vertexBufferSize := cast(u64) (vertices.count * size_of(Vertex));
+
+    if isPlane {
+	buffers.indexBuffer = vk.defaultPlaneIndexBuffer;
+    } else if isCube {
+	buffers.indexBuffer = vk.defaultCubeIndexBuffer;
+    } else {
+	buffers.indexBuffer = create_vk_buffer(indexBufferSize, .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
+    }
+    
+    buffers.indexCount = cast(u32) indices.count;
     
     buffers.vertex.buffer = create_vk_buffer(vertexBufferSize, .STORAGE_BUFFER_BIT | .TRANSFER_DST_BIT | .SHADER_DEVICE_ADDRESS_BIT);
     deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, buffers.vertex.buffer.buffer };

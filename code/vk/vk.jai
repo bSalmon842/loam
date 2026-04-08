@@ -74,6 +74,7 @@ Vk :: struct {
     defaultSampler_Linear  : VkSampler;
 
     defaultPlaneIndexBuffer : *AllocatedBufferInfo;
+    defaultCubeIndexBuffer  : *AllocatedBufferInfo;
     
     // Built in error texture
     errorCheckerboard : *AllocatedImageInfo;
@@ -189,6 +190,9 @@ init_vk :: () {
     // Default Engine values
     vk.defaultPlaneIndexBuffer = create_vk_buffer(cast(u64) (DEFAULT_PLANE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
     memcpy(vk.defaultPlaneIndexBuffer.allocationInfo.pMappedData, cast(*u8) DEFAULT_PLANE_INDICES.data, size_of(u32) * DEFAULT_PLANE_INDICES.count);
+
+    vk.defaultCubeIndexBuffer = create_vk_buffer(cast(u64) (DEFAULT_CUBE_INDICES.count * size_of(u32)), .INDEX_BUFFER_BIT | .TRANSFER_DST_BIT);
+    memcpy(vk.defaultCubeIndexBuffer.allocationInfo.pMappedData, cast(*u8) DEFAULT_CUBE_INDICES.data, size_of(u32) * DEFAULT_CUBE_INDICES.count);
 
     // Write error checkerboard texture
     pixels : [256] u32;
