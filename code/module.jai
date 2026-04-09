@@ -20,6 +20,11 @@ Created: 08JUN2025
     SPRITE_FRAGMENT_SHADER      :: #run compile_glsl_to_spirv("sprite_fragment");
     SPRITE_RECT_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("sprite_rect_fragment");
 
+    #if IS_DEV {
+	BOX_COLLIDER_VERTEX_SHADER   :: #run compile_glsl_to_spirv("box_collider_vertex");
+	BOX_COLLIDER_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("box_collider_fragment");
+    }
+
     IMGUI_VERT :: #run compile_glsl_to_spirv("imgui_vertex");
     IMGUI_FRAG :: #run compile_glsl_to_spirv("imgui_fragment");
 } else #if OS == .ANDROID {
@@ -30,6 +35,11 @@ Created: 08JUN2025
     SPRITE_VERTEX_SHADER        : CompiledShader;
     SPRITE_FRAGMENT_SHADER      : CompiledShader;
     SPRITE_RECT_FRAGMENT_SHADER : CompiledShader;
+
+    #if IS_DEV {
+	BOX_COLLIDER_VERTEX_SHADER   : CompiledShader;
+	BOX_COLLIDER_FRAGMENT_SHADER : CompiledShader;
+    }
 }
 
 // Add the engine to the context so we don't have to pass it everywhere, then add global alias' for some main structures
@@ -106,6 +116,10 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 	SPRITE_VERTEX_SHADER        = load_spirv_for_android("sprite_vertex");
 	SPRITE_FRAGMENT_SHADER      = load_spirv_for_android("sprite_fragment");
 	SPRITE_RECT_FRAGMENT_SHADER = load_spirv_for_android("sprite_rect_fragment");
+	#if IS_DEV {
+	    BOX_COLLIDER_VERTEX_SHADER   = load_spirv_for_android("box_collider_vertex");
+	    BOX_COLLIDER_FRAGMENT_SHADER = load_spirv_for_android("box_collider_fragment");
+	}
     }
     
     make_log_file(APP_NAME, .YEAR | .MONTH | .DAY | .HOUR);
@@ -259,6 +273,11 @@ loam_finish_render :: () {
 		it.* = .{};
 	    }
 	    it.sprites.count = 0;
+	} else if it.isBoxColliderPipeline {
+	    for * it.boxColliders.array {
+		it.* = .{};
+	    }
+	    it.boxColliders.count = 0;
 	} else {
 	    for * it.renderCommands {
 		if it.* {

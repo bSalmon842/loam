@@ -11,8 +11,7 @@ PipelineType :: enum {
     Sprite;
     UI_Sprite;
     UI_Text;
-    Colliders_Sprite;
-    Colliders_Mesh;
+    Colliders_Box;
 }
 PIPELINE_COUNT :: #run enum_highest_value(PipelineType) + 1;
 
@@ -154,16 +153,25 @@ SpriteCommands :: struct {
     buffer : GPUBufferInfo;
 }
 
+BoxColliderCommands :: struct {
+    count : u32;
+    array : [MAX_VISIBLE_COLLIDERS] GPUBoxColliderInfo;
+    buffer : GPUBufferInfo;
+}
+
 MAX_RENDER_COMMANDS :: 1024;
 RenderingPipelineInfo :: struct {
-    type             : PipelineType;
-    layout           : VkPipelineLayout;
-    pipeline         : VkPipeline;
-    orthographic     : bool;
-    isSpritePipeline : bool;
+    type         : PipelineType;
+    layout       : VkPipelineLayout;
+    pipeline     : VkPipeline;
+    orthographic : bool;
+    
+    isSpritePipeline      : bool;
+    isBoxColliderPipeline : bool;
 
     union {
 	renderCommands : [MAX_RENDER_COMMANDS] *MeshRenderCommand;
+	boxColliders   : BoxColliderCommands;
 	sprites        : SpriteCommands;
     }
 }
@@ -177,6 +185,9 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
     if pipeline.isSpritePipeline {
 	if pipeline.sprites.count == 0 then return;
 	memcpy(pipeline.sprites.buffer.buffer.allocationInfo.pMappedData, cast(*u8) pipeline.sprites.array.data, pipeline.sprites.count * size_of(GPUSpriteInfo));
+    } else if pipeline.isBoxColliderPipeline {
+	if pipeline.boxColliders.count == 0 then return;
+	memcpy(pipeline.boxColliders.buffer.buffer.allocationInfo.pMappedData, cast(*u8) pipeline.boxColliders.array.data, pipeline.boxColliders.count * size_of(GPUBoxColliderInfo));
     } else {
 	if pipeline.renderCommands.count == 0 then return;
     }
@@ -205,6 +216,11 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
 	camera.isOrthographic = currentCameraProjection;
 	
 	render_sprite_batch(cmdBuffer, pushConstants, pipeline.sprites.count, pipeline.layout);
+    } else if pipeline.isBoxColliderPipeline {
+	camera := loam.activeGameCamera;
+	pushConstants := BoxColliderPushConstants.{ get_view_matrix(camera) * get_projection_matrix(camera), pipeline.boxColliders.buffer.bufferAddress };
+	
+	render_box_collider_batch(cmdBuffer, pushConstants, pipeline.boxColliders.count, pipeline.layout);
     } else {
 	for pipeline.renderCommands {
 	    if it {
@@ -220,6 +236,12 @@ init_sprite_buffer :: (pipeline : *RenderingPipelineInfo) {
     pipeline.sprites.buffer.buffer = create_vk_buffer(MAX_SPRITES * size_of(GPUSpriteInfo), .STORAGE_BUFFER_BIT | .SHADER_DEVICE_ADDRESS_BIT);
     deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, pipeline.sprites.buffer.buffer.buffer };
     pipeline.sprites.buffer.bufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
+}
+
+init_box_collider_buffer :: (pipeline : *RenderingPipelineInfo) {
+    pipeline.boxColliders.buffer.buffer = create_vk_buffer(MAX_VISIBLE_COLLIDERS * size_of(GPUBoxColliderInfo), .STORAGE_BUFFER_BIT | .SHADER_DEVICE_ADDRESS_BIT);
+    deviceAddressInfo := VkBufferDeviceAddressInfo.{ .BUFFER_DEVICE_ADDRESS_INFO, null, pipeline.boxColliders.buffer.buffer.buffer };
+    pipeline.boxColliders.buffer.bufferAddress = vkGetBufferDeviceAddress(vk.device, *deviceAddressInfo);
 }
 
 init_pipelines :: () {
@@ -332,41 +354,24 @@ init_pipelines :: () {
 		init_sprite_buffer(pipeline);
 	    }
 
-	    case .Colliders_Sprite; {
-		pipeline.orthographic = true;
-		pipeline.isSpritePipeline = true;
-		
-		vertShader = load_shader_module(vk.device, SPRITE_VERTEX_SHADER);
-		fragShader = load_shader_module(vk.device, SPRITE_RECT_FRAGMENT_SHADER);
-		
-		set_pipeline_shaders(*builder, vertShader, fragShader);
-		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
-		set_pipeline_polygon_mode(*builder, .LINE);
-		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
-		set_pipeline_multisampling_mode(*builder, .None);
-		set_pipeline_blending_mode(*builder, true, .Alpha);
-		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
-		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
-		
-		init_sprite_buffer(pipeline);
-	    }
-
-	    case .Colliders_Mesh; {
+	    case .Colliders_Box; {
 		pipeline.orthographic = false;
+		pipeline.isBoxColliderPipeline = true;
 		
-		vertShader = load_shader_module(vk.device, MESH_VERTEX_SHADER);
-		fragShader = load_shader_module(vk.device, MESH_FRAGMENT_SHADER);
+		vertShader = load_shader_module(vk.device, BOX_COLLIDER_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, BOX_COLLIDER_FRAGMENT_SHADER);
 		
 		set_pipeline_shaders(*builder, vertShader, fragShader);
 		set_pipeline_input_topology(*builder, .TRIANGLE_LIST);
 		set_pipeline_polygon_mode(*builder, .LINE);
-		set_pipeline_cull_mode(*builder, .BACK_BIT, .COUNTER_CLOCKWISE);
+		set_pipeline_cull_mode(*builder, .NONE, .COUNTER_CLOCKWISE);
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder, .UNDEFINED);
-		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+		set_pipeline_layout(*builder, size_of(BoxColliderPushConstants), it);
+
+		init_box_collider_buffer(pipeline);
 	    }
 	}
 

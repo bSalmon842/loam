@@ -107,14 +107,21 @@ add_render_commands_for_entity :: (entity : *Entity) {
     if entity.sprite {
 	entity.sprite.transform = entity.transform;
 	add_sprite_render_command(.Sprite, entity.sprite.renderable, entity.sprite.transform);
-	#if IS_DEV {
-	    if __showColliders {
-		add_render_command(.Collider, loam.activeGameCamera, colliderRenderable, transform, true, .{0, 1, 1, 1});
-	    }
-	}
     } /* else if entity.mesh {
         
     } */
+    
+    #if IS_DEV {
+	if __showColliders {
+	    for entity.colliders {
+		if it.shape == .Box {
+		    transform := entity.transform;
+		    transform.position = it.origin;
+		    add_box_collider_render_command(it.dimensions, transform, false);
+		}
+	    }
+	}
+    }
 }
 
 get_entity_data_as :: (entity : *Entity, $T : Type) -> *T {

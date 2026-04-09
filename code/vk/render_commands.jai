@@ -100,3 +100,28 @@ render_sprite_batch :: (cmdBuffer : VkCommandBuffer, pushConstants : SpritePushC
     vkCmdBindIndexBuffer(cmdBuffer, vk.defaultPlaneIndexBuffer.buffer, 0, .UINT32);
     vkCmdDrawIndexed(cmdBuffer, DEFAULT_PLANE_INDICES.count, spriteCount, 0, 0, 0);
 }
+
+#if IS_DEV {
+    add_box_collider_render_command :: (dimensions : Vector3, transform : Transform, collided : bool) {
+	assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
+	
+	pipeline := *vk.pipelines[PipelineType.Colliders_Box];
+	if pipeline.boxColliders.count == MAX_VISIBLE_COLLIDERS then return;
+
+	colliderInfo := GPUBoxColliderInfo.{
+	    get_transform_matrix(transform, dimensions),
+	    ifx collided then Vector4.{ 1, 0, 0, 1 } else Vector4.{ 0, 1, 1, 1 },
+	    dimensions, 0
+	};
+
+	pipeline.boxColliders.array[pipeline.boxColliders.count] = colliderInfo;
+	pipeline.boxColliders.count += 1;
+    }
+
+    render_box_collider_batch :: (cmdBuffer : VkCommandBuffer, pushConstants : BoxColliderPushConstants, colliderCount : u32, pipelineLayout : VkPipelineLayout) {
+	vkCmdPushConstants(cmdBuffer, pipelineLayout, .VERTEX_BIT, 0, size_of(BoxColliderPushConstants), *pushConstants);
+	
+	vkCmdBindIndexBuffer(cmdBuffer, vk.defaultCubeIndexBuffer.buffer, 0, .UINT32);
+	vkCmdDrawIndexed(cmdBuffer, DEFAULT_CUBE_INDICES.count, colliderCount, 0, 0, 0);
+    }
+}

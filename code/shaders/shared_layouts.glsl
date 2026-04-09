@@ -53,6 +53,3 @@ struct SpritePushConstants {
 // Store the 6 uvs for a basic sprite so we don't need to send them via the push constants for sprites
 const vec2 SPRITE_BASE_UVS[] = { { 1, 1 }, { 1, 0 }, { 0, 1 }, { 0, 0 } };
 const vec2 SPRITE_BASE_VERTICES[] = { { 1, 0 }, { 1, 1 }, { 0, 0 }, { 0, 1 } };
-
-const vec3 CUBE_BASE_VERTICES[] = { { -1, -1,  1 }, { 1, -1,  1 }, { -1, 1,  1 }, { 1, 1,  1 },
-				    { -1, -1, -1 }, { 1, -1, -1 }, { -1, 1, -1 }, { 1, 1, -1 } };

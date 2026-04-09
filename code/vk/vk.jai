@@ -115,6 +115,11 @@ SpritePushConstants :: struct {
     spriteBuffer : VkDeviceAddress;
 }
 
+BoxColliderPushConstants :: struct {
+    viewProj : Matrix4;
+    boxColliderBuffer : VkDeviceAddress;
+}
+
 MeshPushConstants :: struct {
     renderMatrix : Matrix4;
     colourTint   : Vector4;
@@ -305,6 +310,7 @@ get_vk_physical_device :: () -> VkResult {
 
     vk.reqFeatures_1_0.shaderInt64 = 1;
     vk.reqFeatures_1_0.samplerAnisotropy = 1;
+    vk.reqFeatures_1_0.fillModeNonSolid = 1;
     vk.reqFeatures_1_2.bufferDeviceAddress = 1;
     vk.reqFeatures_1_2.descriptorIndexing = 1;
     vk.reqFeatures_1_2.descriptorBindingPartiallyBound = 1;

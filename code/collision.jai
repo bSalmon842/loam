@@ -54,5 +54,13 @@ make_collision_volume :: (origin : Vector3, offset : Vector3, dimensions : Vecto
 //////////////////////
 #if IS_DEV {
     __showColliders : bool;
-    __colliderRenderable : Renderable;
+
+    MAX_VISIBLE_COLLIDERS : u32 : 1024;
+    
+    GPUBoxColliderInfo :: struct {
+	transform  : Matrix4;
+	colour     : Vector4;
+	dimensions : Vector3;
+	padding    : u32;
+    }
 }

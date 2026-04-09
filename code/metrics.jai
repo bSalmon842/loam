@@ -31,6 +31,8 @@ update_debug_metrics :: (metrics : *DebugMetrics) {
 	    metrics.pipelineDrawCalls[it_index] = 0;
 	    if pipeline.isSpritePipeline {
 		metrics.pipelineDrawCalls[it_index] += pipeline.sprites.count;
+	    } else if pipeline.isBoxColliderPipeline {
+		metrics.pipelineDrawCalls[it_index] += pipeline.boxColliders.count;
 	    } else {
 		for render : pipeline.renderCommands {
 		    if render {
