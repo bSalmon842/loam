@@ -28,8 +28,8 @@ struct ColliderPushConstants {
   ColliderInfoBuffer colliderBuffer;
 };
 
-const vec3 CUBE_BASE_VERTICES[] = { { -0.5, -0.5,  1 }, { 0.5, -0.5,  1 }, { -0.5, 0.5,  1 }, { 0.5, 0.5,  1 },
-				    { -0.5, -0.5, -1 }, { 0.5, -0.5, -1 }, { -0.5, 0.5, -1 }, { 0.5, 0.5, -1 } };
+const vec3 CUBE_BASE_VERTICES[] = { { 0, 0, 1 }, { 1, 0, 1 }, { 0, 1, 1 }, { 1, 1, 1 },
+				    { 0, 0, 0 }, { 1, 0, 0 }, { 0, 1, 0 }, { 1, 1, 0 } };
 
 layout (push_constant) uniform constants {
   ColliderPushConstants pc;

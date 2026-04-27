@@ -91,7 +91,6 @@ LoamState :: struct {
 
     // Entities
     entities : [#run (enum_highest_value(EntityUpdateRate) + 1)] EntityMap;
-    detachedColliders : [..] *CollisionVolume;
 
     #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
@@ -222,6 +221,12 @@ loam_start_update :: () {
     }
 
     vk.currentFrame = get_current_frame();
+
+    #if IS_DEV {
+	for loam.entities[EntityUpdateRate.Full] {
+	    it.collider.colliding = false;
+	}
+    }
 
     loam.updateActive = true;
 }
