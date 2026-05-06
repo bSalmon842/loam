@@ -83,9 +83,7 @@ move_entity :: (entity : *Entity, moveDelta : Vector3, updateRate : EntityUpdate
     // We only need to worry about collisions with those in the same update rate
     for other : loam.entities[updateRate] {
 	if other != entity {
-	    if collision_detected(entity.collider, newPosition, other.collider, other.position) {
-		handle_collision(entity, other);
-	    }
+	    newPosition = handle_collision(entity, other, newPosition);
 	}
     }
 

@@ -236,20 +236,25 @@ gjk_collision :: (a : *CollisionVolume, aPosition : Vector3, b : *CollisionVolum
     return false;
 }
 
-collision_detected :: (a : *CollisionVolume, aPosition : Vector3, b : *CollisionVolume, bPosition : Vector3) -> bool {
-    collision := gjk_collision(a, aPosition, b, bPosition);
-    
-    #if IS_DEV {
-	if collision {
-	    a.colliding = collision;
-	    b.colliding = collision;
+// a = moving entity for this call
+// b = entity being collided into
+handle_collision :: (a : *Entity, b : *Entity, newPosition : Vector3) -> Vector3 {
+    if !a.collider.solid && a.collider.triggers.count == 0 && !b.collider.solid && b.collider.triggers.count == 0 {
+	return newPosition;
+    }
+
+    if gjk_collision(a.collider, a.position, b.collider, b.position) {	
+        #if IS_DEV {
+	    a.collider.colliding = true;
+	    b.collider.colliding = true;
+	}
+	
+	if a.collider.solid && b.collider.solid {
+	    return a.position;
 	}
     }
-    return collision;
-}
 
-handle_collision :: (a : *Entity, b : *Entity) {
-    
+    return newPosition;
 }
 
 //////////////////////
