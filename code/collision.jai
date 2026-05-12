@@ -79,7 +79,7 @@ make_collision_volume :: (offset : Vector3, dimensions : Vector3, shape : Collis
     return volume;
 }
 
-broad_phase_collision_cull :: (moving : *Entity, newPosition : Vector3, entities : [] *Entity) -> [..] *Entity {
+broad_phase_collision_cull :: (moving : *Entity, newPosition : Vector3, entities : EntityMap) -> [..] *Entity {
     aMin := moving.collider.boxVertices[0] + newPosition + moving.collider.offset;
     aMax := moving.collider.boxVertices[3] + newPosition + moving.collider.offset;
     
@@ -116,7 +116,7 @@ narrow_phase_collision_cull :: (moving : *Entity, newPosition : Vector3, entitie
 }
 
 handle_collision_for_entity :: (entity : *Entity, newPosition : Vector3) -> Vector3 {
-    potentialCollisionEntities := broad_phase_collision_cull(entity, newPosition, loam.entities[.Full]);
+    potentialCollisionEntities := broad_phase_collision_cull(entity, newPosition, loam.entities[EntityUpdateRate.Full]);
     confirmedCollisionEntities := narrow_phase_collision_cull(entity, newPosition, potentialCollisionEntities);
     array_reset(*potentialCollisionEntities);
 
@@ -162,7 +162,22 @@ gjk_support :: (a : *CollisionVolume, aPosition : Vector3, b : *CollisionVolume,
 	return supportPoint;
     }
 
-    return find_support_point_in_direction(a.vertices, a.offset + aPosition, direction) - find_support_point_in_direction(b.vertices, b.offset + bPosition, -direction);
+    aSupport := Vector3.{};
+    bSupport := Vector3.{};
+    
+    if a.shape == .Box {
+	aSupport = find_support_point_in_direction(a.boxVertices, a.offset + aPosition, direction);
+    } else {
+	aSupport = find_support_point_in_direction(a.meshVertices, a.offset + aPosition, direction);
+    }
+
+    if b.shape == .Box {
+	bSupport = find_support_point_in_direction(b.boxVertices, b.offset + bPosition, -direction);
+    } else {
+	bSupport = find_support_point_in_direction(b.meshVertices, b.offset + bPosition, -direction);
+    }
+    
+    return aSupport - bSupport;
 }
 
 same_direction :: (direction : Vector3, ao : Vector3) -> bool {

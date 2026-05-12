@@ -74,7 +74,7 @@ change_entity_update_rate :: (name : string, newRate : EntityUpdateRate) {
     table_add(*loam.entities[newRate], name, entity);
 }
 
-move_entity :: (entity : *Entity, moveDelta : Vector3, updateRate : EntityUpdateRate, axisLock : Axis = .None) {
+move_entity :: (entity : *Entity, moveDelta : Vector3, updateRate : EntityUpdateRate) {
     newPosition := entity.position + moveDelta * loam.deltaTime;
     handle_collision_for_entity(entity, newPosition);
     entity.position = newPosition;
