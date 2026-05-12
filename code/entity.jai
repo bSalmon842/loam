@@ -74,19 +74,9 @@ change_entity_update_rate :: (name : string, newRate : EntityUpdateRate) {
     table_add(*loam.entities[newRate], name, entity);
 }
 
-move_entity :: (entity : *Entity, moveDelta : Vector3, updateRate : EntityUpdateRate) {
+move_entity :: (entity : *Entity, moveDelta : Vector3, updateRate : EntityUpdateRate, axisLock : Axis = .None) {
     newPosition := entity.position + moveDelta * loam.deltaTime;
-    
-    // Search for entities for collision
-    collidedEntities := [..] *Entity;
-
-    // We only need to worry about collisions with those in the same update rate
-    for other : loam.entities[updateRate] {
-	if other != entity {
-	    newPosition = handle_collision(entity, other, newPosition);
-	}
-    }
-
+    handle_collision_for_entity(entity, newPosition);
     entity.position = newPosition;
 }
 
@@ -120,7 +110,7 @@ update_entities :: () {
 	    }
 	}
     }
-}
+              }
 
 add_render_commands_for_entity :: (entity : *Entity) {
     if entity.sprite {

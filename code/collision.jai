@@ -5,6 +5,8 @@ Author: Brock Salmon
 Created: 27MAR2026
 */
 
+COLLISION_SAFE_ITERATION_TOLERANCE :: 64;
+
 // When do we want to fire the trigger function
 CollisionTriggerPoint :: enum {
     Invalid;
@@ -30,7 +32,8 @@ CollisionVolume :: struct {
     dimensions : Vector3; // Only used for box colliders
     
     shape    : CollisionShape;
-    vertices : [..] Vector3;
+    boxVertices : [..] Vector3; // Always needed for Broad-phase AABB checks
+    meshVertices : [..] Vector3; // Can have a 0 count if using a Box collider
     
     solid : bool;
     static : bool;
@@ -50,29 +53,90 @@ make_collision_volume :: (offset : Vector3, dimensions : Vector3, shape : Collis
     volume := New(CollisionVolume);
     triggers : [..] CollisionTrigger;
     
+    boxVertices : [..] Vector3;
+    halfDim := dimensions * 0.5;
+    array_add(*boxVertices, -halfDim);
+    array_add(*boxVertices, .{  halfDim.x, -halfDim.y, -halfDim.z});
+    array_add(*boxVertices, .{  halfDim.x, -halfDim.y,  halfDim.z});
+    array_add(*boxVertices, .{ -halfDim.x, -halfDim.y,  halfDim.z});
+    
+    array_add(*boxVertices,  halfDim);
+    array_add(*boxVertices, .{  halfDim.x, halfDim.y, -halfDim.z});
+    array_add(*boxVertices, .{ -halfDim.x, halfDim.y, -halfDim.z});
+    array_add(*boxVertices, .{ -halfDim.x, halfDim.y,  halfDim.z});
+
     vertices : [..] Vector3;
-    if shape == .Box {
-	halfDim := dimensions * 0.5;
-	array_add(*vertices, -halfDim);
-	array_add(*vertices, .{  halfDim.x, -halfDim.y, -halfDim.z});
-	array_add(*vertices, .{  halfDim.x, -halfDim.y,  halfDim.z});
-	array_add(*vertices, .{ -halfDim.x, -halfDim.y,  halfDim.z});
-	
-	array_add(*vertices,  halfDim);
-	array_add(*vertices, .{  halfDim.x, halfDim.y, -halfDim.z});
-	array_add(*vertices, .{  halfDim.x, halfDim.y,  halfDim.z});
-	array_add(*vertices, .{ -halfDim.x, halfDim.y,  halfDim.z});
-    } else {
+    if shape == .Mesh {
 	// TODO: Get mesh vertices
 	Invalid_Codepath();
     }
     
     #if IS_DEV {
-	volume.* = .{ offset, dimensions, shape, vertices, solid, static, triggers, false };
+	volume.* = .{ offset, dimensions, shape, boxVertices, vertices, solid, static, triggers, false };
     } else {
-	volume.* = .{ offset, dimensions, shape, vertices, solid, static, triggers };
+	volume.* = .{ offset, dimensions, shape, boxVertices, vertices, solid, static, triggers };
     }
     return volume;
+}
+
+broad_phase_collision_cull :: (moving : *Entity, newPosition : Vector3, entities : [] *Entity) -> [..] *Entity {
+    aMin := moving.collider.boxVertices[0] + newPosition + moving.collider.offset;
+    aMax := moving.collider.boxVertices[3] + newPosition + moving.collider.offset;
+    
+    culledEntityList : [..] *Entity;
+    for entities {
+	if it == moving then continue;
+	if !moving.collider.solid && moving.collider.triggers.count == 0 && !it.collider.solid && it.collider.triggers.count == 0 then continue;
+	
+	bMin := it.collider.boxVertices[0] + it.position + it.collider.offset;
+	bMax := it.collider.boxVertices[3] + it.position + it.collider.offset;
+
+	if !(bMax.x <= aMin.x ||
+	     bMin.x >= aMax.x ||
+	     bMax.y <= aMin.y ||
+	     bMin.y >= aMax.y ||
+	     bMax.z <= aMin.z ||
+	     bMin.z >= aMax.z) {
+	    array_add(*culledEntityList, it);
+	}
+    }
+
+    return culledEntityList;
+}
+
+narrow_phase_collision_cull :: (moving : *Entity, newPosition : Vector3, entities : [] *Entity) -> [..] *Entity {
+    culledEntityList : [..] *Entity;
+    for entities {
+	if gjk_collision(moving.collider, newPosition, it.collider, it.position) {
+	    array_add(*culledEntityList, it);
+	}
+    }
+    
+    return culledEntityList;
+}
+
+handle_collision_for_entity :: (entity : *Entity, newPosition : Vector3) -> Vector3 {
+    potentialCollisionEntities := broad_phase_collision_cull(entity, newPosition, loam.entities[.Full]);
+    confirmedCollisionEntities := narrow_phase_collision_cull(entity, newPosition, potentialCollisionEntities);
+    array_reset(*potentialCollisionEntities);
+
+    // TODO: Implement search in T (maybe use a returned simplex for the wall in the hh code?)
+    /*
+    closestT := FLOAT32_MAX;
+    closestEntity := null;
+    
+    if collided {
+        #if IS_DEV {
+	    a.collider.colliding = true;
+	    b.collider.colliding = true;
+	}
+	
+	if a.collider.solid && b.collider.solid {
+	    return a.position;
+	}
+    }
+*/
+    return newPosition;
 }
 
 ///////////////////////////////////////////////////////
@@ -212,14 +276,13 @@ next_simplex :: (points : *Simplex, direction : *Vector3) -> bool {
 }
 
 gjk_collision :: (a : *CollisionVolume, aPosition : Vector3, b : *CollisionVolume, bPosition : Vector3) -> bool {
-    support := gjk_support(a, aPosition, b, bPosition, aPosition - bPosition);
+    support := gjk_support(a, aPosition, b, bPosition, bPosition - aPosition);
     simplexPoints : Simplex;
     array_add(*simplexPoints, support);
 
     direction := -support;
 
     while true {
-	print("point count: %, direction: %\n", simplexPoints.count, direction);
 	support = gjk_support(a, aPosition, b, bPosition, direction);
 
 	if dot(support, direction) <= 0 {
@@ -234,27 +297,6 @@ gjk_collision :: (a : *CollisionVolume, aPosition : Vector3, b : *CollisionVolum
     }
 
     return false;
-}
-
-// a = moving entity for this call
-// b = entity being collided into
-handle_collision :: (a : *Entity, b : *Entity, newPosition : Vector3) -> Vector3 {
-    if !a.collider.solid && a.collider.triggers.count == 0 && !b.collider.solid && b.collider.triggers.count == 0 {
-	return newPosition;
-    }
-
-    if gjk_collision(a.collider, a.position, b.collider, b.position) {	
-        #if IS_DEV {
-	    a.collider.colliding = true;
-	    b.collider.colliding = true;
-	}
-	
-	if a.collider.solid && b.collider.solid {
-	    return a.position;
-	}
-    }
-
-    return newPosition;
 }
 
 //////////////////////

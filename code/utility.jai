@@ -5,6 +5,9 @@ Author: Brock Salmon
 Created: 27APR2025
 */
 
+EPSILON32 : float32 : 0.001;
+EPSILON64 : float64 : 0.0001;
+
 Invalid_Codepath :: () {
     assert(false, "Invalid Codepath");
 }
@@ -51,9 +54,9 @@ to_radians :: (degrees : float) -> float {
     return degrees * (TAU / 360.0);
 }
 
-is_in_array :: (value : $T, array : [] T) -> bool {
-    for array { if it == value then return true; }
-    return false;
+is_in_array :: (value : $T, array : [] T) -> bool, s64 {
+    for array { if it == value then return true, it_index; }
+    return false, -1;
 }
 
 are_array_contents_same :: (a : [] $T, b : [] T) -> bool {
@@ -63,6 +66,12 @@ are_array_contents_same :: (a : [] $T, b : [] T) -> bool {
     }
 
     return true;
+}
+
+array_add_unique :: (array : *[..] $T, value : T) {
+    if !is_in_array(value, array.*) {
+	array_add(array, value);
+    }
 }
 
 from_array_cstr :: (cstr : [] u8) -> string {

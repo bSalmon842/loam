@@ -9,6 +9,7 @@ Created: 08JUN2025
 #run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
 // TODO: Meshes
+// TODO: print stdout in game
 
 // Compiled Shaders
 #if OS == .WINDOWS {
