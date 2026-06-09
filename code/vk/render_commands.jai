@@ -21,7 +21,6 @@ add_ui_render_command :: (elem : *UI_Element) {
 
 add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
 		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
-    assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
     if !renderable.buffers.indexBuffer then return;
     
     pipeline := *vk.pipelines[pipelineType];
@@ -54,8 +53,6 @@ add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable
 
 add_sprite_render_command :: (pipelineType : PipelineType, renderable : Renderable2D, transform : Transform,
 			      useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
-    assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
-    
     pipeline := *vk.pipelines[pipelineType];
     if pipeline.sprites.count == MAX_SPRITES then return;
 
@@ -72,8 +69,6 @@ add_sprite_render_command :: (pipelineType : PipelineType, renderable : Renderab
 }
 
 add_rect_render_command :: (dimensions : Vector2, transform : Transform, colour : Vector4) {
-    assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
-    
     pipeline := *vk.pipelines[PipelineType.Sprite_Rect];
     if pipeline.sprites.count == MAX_SPRITES then return;
 
@@ -103,8 +98,6 @@ render_sprite_batch :: (cmdBuffer : VkCommandBuffer, pushConstants : SpritePushC
 
 #if IS_DEV {
     add_box_collider_render_command :: (dimensions : Vector3, transform : Transform, collided : bool) {
-	assert(loam.renderActive, "Not within the render section, be sure to call loam_start_render before adding and loam_finish_render after processing draw calls");
-	
 	pipeline := *vk.pipelines[PipelineType.Colliders_Box];
 	if pipeline.boxColliders.count == MAX_VISIBLE_COLLIDERS then return;
 

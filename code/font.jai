@@ -90,9 +90,7 @@ build_font_atlas :: (fontName : string, size : u32, language : Language) {
     
     atlas := New(FontAtlas);
     atlas.glyphs = New(Table(u32, FontGlyphInfo));
-    init(atlas.glyphs);
     atlas.kerning = New(Table(FontKerningKey, s32));
-    init(atlas.kerning);
     atlasBitmap, bitmapMemory := NewArray(ATLAS_MAX_SIZE * ATLAS_MAX_SIZE, u8);
     defer free(bitmapMemory);
 

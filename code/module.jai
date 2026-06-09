@@ -72,7 +72,6 @@ LoamState :: struct {
     activeAudio : [..] *Audio.Sound_Stream;
     
     updateActive : bool;
-    renderActive : bool;
 
     window       : *SDL.Window;
     windowWidth  : s32;
@@ -131,7 +130,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     loam = context.loam;
     
     time := current_time_consensus();
-    context.random_state = .{ time.low | 1, cast,no_check(u64) time.high };
+    context.random_state = { time.low | 1, cast,no_check(u64) time.high };
     
     // NOTE: Set update to true so we can setup everything for initialisation
     loam.updateActive = true;
@@ -143,7 +142,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     init_config();
     
     loam.audioDevice = get_audio_device_from_name(loam.config.audioDeviceName);
-    if !Audio.sound_player_init(.{ output_device = *loam.audioDevice, update_from_a_thread = (OS != .ANDROID) }) then log(.FATAL, "Failed to initialise Sound Player");
+    if !Audio.sound_player_init({ output_device = *loam.audioDevice, update_from_a_thread = (OS != .ANDROID) }) then log(.FATAL, "Failed to initialise Sound Player");
     
     SDL.init(.VIDEO | .JOYSTICK | .HAPTIC | .GAMEPAD);
     loam.window = SDL.create_window(APP_NAME, initialWidth, initialHeight, .VULKAN);
@@ -156,7 +155,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
 
     loam.cameras = New(CameraMap);
-    add_camera("UI", 0, .{});
+    add_camera("UI", 0, {});
     
     loam.threadCount = get_number_of_threads_for_device();
     log(.INFO, "Threads found on device: %", loam.threadCount);
@@ -170,7 +169,6 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     }
     
     loam.fonts = New(Table(string, *FontAtlas));
-    init(loam.fonts);
 
     loam.keybinds = init_keybinds();
     loam.input = New(InputState);
@@ -181,12 +179,12 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 
     loam.gameplayState = .Splash;
 
-    array_add(*loam.splashScreens, .{ get_resource(ImageResource, "__loam_splash"), get_resource(AudioResource, "__loam_splash_audio"), .{0.05, 0.05, 0.05, 1.0} });
+    array_add(*loam.splashScreens, { get_resource(ImageResource, "__loam_splash"), get_resource(AudioResource, "__loam_splash_audio"), {0.05, 0.05, 0.05, 1.0} });
 }
 
 loam_start_update :: () {
     // INPUT HANDLING
-    loam.input.mouseWheel = .{};
+    loam.input.mouseWheel = {};
     
     event : SDL.Event;
     while SDL.poll_event(*event) {
@@ -203,7 +201,7 @@ loam_start_update :: () {
 	    }
 
 	    case .MOUSE_WHEEL; {
-		loam.input.mouseWheel = .{ event.wheel.x, event.wheel.y };
+		loam.input.mouseWheel = { event.wheel.x, event.wheel.y };
 		if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
 	    }
 	}
@@ -256,8 +254,6 @@ loam_finish_init :: () {
 }
 
 loam_start_render :: () {
-    loam.renderActive = true;
-
     #if IS_DEV && OS == .WINDOWS {
 	frame_imgui(*loam.metrics);
     }
@@ -276,12 +272,12 @@ loam_finish_render :: () {
     for * vk.pipelines {
 	if it.isSpritePipeline {
 	    for * it.sprites.array {
-		it.* = .{};
+		it.* = {};
 	    }
 	    it.sprites.count = 0;
 	} else if it.isBoxColliderPipeline {
 	    for * it.boxColliders.array {
-		it.* = .{};
+		it.* = {};
 	    }
 	    it.boxColliders.count = 0;
 	} else {
@@ -293,8 +289,6 @@ loam_finish_render :: () {
 	    }
 	}
     }
-
-    loam.renderActive = false;
 }
 
 loam_handle_timing :: () {
@@ -371,6 +365,7 @@ DONE
 #load "math.jai";
 #load "metrics.jai";
 #load "resources.jai";
+#load "shapes.jai";
 #load "shared_asset_info.jai";
 #load "sprite.jai";
 #load "state.jai";

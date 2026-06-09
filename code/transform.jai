@@ -43,15 +43,7 @@ get_transform_matrix :: (t : Transform, dims : Vector3) -> Matrix4 {
     
     {
 	adj := t.position - adjDims * 0.5;
-	
-	if t.alignment & .Left  then adj.x += adjDims.x * 0.5;
-	if t.alignment & .Right then adj.x -= adjDims.x * 0.5;
-	
-	if t.alignment & .Top    then adj.y -= adjDims.y * 0.5;
-	if t.alignment & .Bottom then adj.y += adjDims.y * 0.5;
-	
-	if t.alignment & .Front then adj.z += adjDims.z * 0.5;
-	if t.alignment & .Back  then adj.z -= adjDims.z * 0.5;
+	adj = adjust_point_for_alignment(adj, adjDims, t.alignment);
 	
 	translate._41 = adj.x;
 	translate._42 = adj.y;
@@ -65,5 +57,20 @@ get_transform_matrix :: (t : Transform, dims : Vector3) -> Matrix4 {
     }
     
     return scale * rotation * translate;
+}
+
+adjust_point_for_alignment :: (point : Vector3, dimensions : Vector3, alignment : Alignment) -> Vector3 {
+    result := point;
+    
+    if alignment & .Left  then result.x += dimensions.x * 0.5;
+    if alignment & .Right then result.x -= dimensions.x * 0.5;
+    
+    if alignment & .Top    then result.y -= dimensions.y * 0.5;
+    if alignment & .Bottom then result.y += dimensions.y * 0.5;
+    
+    if alignment & .Front then result.z += dimensions.z * 0.5;
+    if alignment & .Back  then result.z -= dimensions.z * 0.5;
+    
+    return result;
 }
 

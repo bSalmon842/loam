@@ -49,7 +49,7 @@ make_entity :: (name : string, sprite : *Sprite, updateRate := EntityUpdateRate.
     }
     
     entity := New(Entity);
-    entity.* = .{ name, sprite, make_collision_volume(.{}, make_vector3(sprite.dimensions, 1), .Box, false, false), .{}, 0, null, null };
+    entity.* = .{ name, sprite, make_box_collider(.{}, make_vector3(sprite.dimensions, 1), false, false), .{}, 0, null, null };
     
     table_add(*loam.entities[updateRate], name, entity);
     return entity;
@@ -75,9 +75,10 @@ change_entity_update_rate :: (name : string, newRate : EntityUpdateRate) {
 }
 
 move_entity :: (entity : *Entity, moveDelta : Vector3, updateRate : EntityUpdateRate) {
-    newPosition := entity.position + moveDelta * loam.deltaTime;
-    handle_collision_for_entity(entity, newPosition);
-    entity.position = newPosition;
+    newTransform := entity.transform;
+    newTransform.position = entity.position + moveDelta * loam.deltaTime;
+    newTransform = handle_collision_for_entity(entity, newTransform);
+    entity.transform = newTransform;
 }
 
 update_entities :: () {
@@ -123,7 +124,7 @@ add_render_commands_for_entity :: (entity : *Entity) {
     #if IS_DEV {
 	if __showColliders {
 	    if entity.collider.shape == .Box {
-		add_box_collider_render_command(entity.collider.dimensions, entity.transform, entity.collider.colliding);
+		add_box_collider_render_command(entity.collider.boxInfo.dimensions, entity.transform, entity.collider.colliding);
 	    }
 	}
     }
