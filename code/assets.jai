@@ -38,7 +38,7 @@ load_and_merge_asset_maps :: (gameCode : string, paths : [] string) -> string {
 	}
 	assert(isCorrectType, "Third part of pack filename is expected to be the pack type (engine, game, mod, or expac");
 	
-	rawMapContents, readRawMapSuccess := read_entire_file(it);
+	rawMapContents, readRawMapSuccess := read_file(it);
 	if !readRawMapSuccess {
 	    log(.FATAL, "Failed to read map file: %", it);
 	}
@@ -61,19 +61,43 @@ load_and_merge_asset_maps :: (gameCode : string, paths : [] string) -> string {
     return builder_to_string(*fusedJSON);
 }
 
+AssetSearch :: struct {
+    mapPaths : [..] string;
+    packagePaths : [..] string;
+}
+
+get_asset_files_in_folder :: (userData : *void, dirName : *u8, fName : *u8) -> SDL.EnumerationResult #c_call {
+    push_context {
+	results := cast(*AssetSearch) userData;
+	fileName := to_string(fName);
+	dirPath := to_string(dirName);
+	log(.INFO, "Found file: % in %", fileName, dirPath);
+	if ends_with(fileName, ".lm") {
+	    fullPath := tprint("%1%2", dirPath, fileName);
+	    array_add(*results.mapPaths, fullPath);
+	} else if ends_with(fileName, ".lp") {
+	    fullPath := tprint("%1%2", dirPath, fileName);
+	    array_add(*results.packagePaths, fullPath);
+	}
+	
+	return .CONTINUE;
+    }
+}
+
 load_asset_map :: (gameCode : string) -> *AssetMap {
     basePath := get_packaged_assets_path();
     
-    packagePaths : [..] string;
-    mapPaths : [..] string;
-
-    for file_list(basePath) {
-	if path_extension(it) == {
-	    case "lm"; array_add(*mapPaths,     it);
-	    case "lp"; array_add(*packagePaths, it);
-	}
+    searchResults : AssetSearch;
+    if !SDL.enumerate_directory(to_c_string(basePath), get_asset_files_in_folder, *searchResults) {
+	log(.FATAL, "Failed to enumerate directory \"%\" with SDL error: %", basePath, to_string(SDL.get_error()));
     }
 
+    packagePaths := searchResults.packagePaths;
+    mapPaths := searchResults.mapPaths;
+
+    log(.INFO, "Found % map files: %", mapPaths.count, mapPaths);
+    log(.INFO, "Found % package files: %", packagePaths.count, packagePaths);
+    
     if packagePaths.count != mapPaths.count {
 	log(.FATAL, "Failed to find the same number of asset maps and packages");
     }
@@ -150,7 +174,7 @@ Asset :: struct {
 get_packaged_assets_path :: () -> string {
     if IS_DEV {
 	if OS == .ANDROID {
-	    return "data/packaged/";
+	    return "bin/";
 	} else if OS == .LINUX {
 	    return "";
 	} else {
@@ -265,25 +289,7 @@ get_raw_asset_data :: (map : *AssetMap, name : string) -> fileContents : string,
     }
 
     itemFilename := join(get_packaged_assets_path(), item.file, ".", ASSET_PACK_FILE_EXTENSION);
-    
-    #if OS == .ANDROID {
-	log(.FATAL, "CURRENTLY UNIMPLEMENTED");
-	// TODO: Convert
-	file, opened := file_open(itemFilename);
-	if !opened {
-	    log(.FATAL, "Failed to open asset pack file!");
-	}
-	rawPackContents, readSuccess := read_entire_file(file);
-	
-    } else {
-	rawPackContents, readSuccess := read_entire_file(itemFilename);
-    }
-    
-    if !readSuccess {
-	log(.FATAL, "Failed to read asset pack file \"%\"!", itemFilename);
-	free(rawPackContents.data);
-	return "", null;
-    }
+    rawPackContents, readSuccess := read_file(itemFilename);
     
     packDecompSuccess, packContents := decompress_data(rawPackContents);
     if !packDecompSuccess {

@@ -109,6 +109,7 @@ get_ram_usage :: () -> u64 {
 	return info.WorkingSetSize;
     } else #if OS == .ANDROID {
 	// NOTE: Doing stupid stuff to get RAM usage without the NDK because that was an entire mess
+	/*
 	usageKB : u64;
 	file := fopen("/proc/self/status", "r");
 	if file {
@@ -134,6 +135,8 @@ get_ram_usage :: () -> u64 {
 
 	fclose(file);
 	return KB(usageKB);
+*/
+return 0;
     }
 
     return 0;
@@ -142,7 +145,7 @@ get_ram_usage :: () -> u64 {
 get_window_handle_from_sdl :: () -> $T #modify {
     #if OS == .WINDOWS then T = Windows.HWND;
     else #if OS == .LINUX then T = X11.Window;
-    else #if OS == .ANDROID then T = *ANativeWindow;
+    else #if OS == .ANDROID then T = *void;
     else return false;
 
     return true;

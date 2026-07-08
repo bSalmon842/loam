@@ -106,6 +106,11 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     if ASSET_CODE.count == 0 || ASSET_CODE.count > 4 || ASSET_CODE == "LOAM" {
 	log(.FATAL, "Invalid asset code, code cannot be \"LOAM\", nor be more than 4 characters");
     }
+
+    #if OS == .WINDOWS {
+        Windows.SetProcessDPIAware();
+        Windows.timeBeginPeriod(1);
+    }
     
     #if OS == .ANDROID {
 	MESH_VERTEX_SHADER          = load_spirv_for_android("mesh_vertex");
@@ -149,11 +154,16 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     if !loam.window {
 	log(.FATAL, "Failed to create window with SDL error: %", to_string(SDL.get_error()));
     }
-
+    
     loam.windowWidth = initialWidth;
     loam.windowHeight = initialHeight;
     loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
 
+    #if OS == .ANDROID {
+	SDL.set_window_fullscreen(loam.window, true);
+	// TODO: Do a config check for fullscreen on desktop
+    }
+    
     loam.cameras = New(CameraMap);
     add_camera("UI", 0, {});
     
@@ -207,7 +217,9 @@ loam_start_update :: () {
 	}
 	
 	update_input(event);
-	ImGui.ImplSDL3_ProcessEvent(cast(*ImGui.SDL_Event) *event);
+	#if OS != .ANDROID {
+	    ImGui.ImplSDL3_ProcessEvent(cast(*ImGui.SDL_Event) *event);
+	}
     }
 
     if vk.resizeRequested then resize_swapchain();
@@ -335,11 +347,6 @@ Simp :: #import "Simp";
     WindowsE :: #import "WindowsExtras";
 } else #if OS == .LINUX {
     X11 :: #import "X11";
-} else #if OS == .ANDROID {
-    #import "Android"()(main);
-    #import "Android/File";
-    #import "Android/Jni";
-    #import "POSIX";
 }
 
 #import "ktx";
@@ -358,6 +365,7 @@ DONE
 #load "collision.jai";
 #load "config.jai";
 #load "entity.jai";
+#load "file.jai";
 #load "font.jai";
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
@@ -387,7 +395,6 @@ DONE
 #import "Process";
 #import "Random";
 #import "Reflection";
-Simp :: #import "Simp";
 #import "String";
 #import "System";
 #import "Thread";
@@ -399,11 +406,6 @@ Simp :: #import "Simp";
     WindowsE :: #import "WindowsExtras";
 } else #if OS == .LINUX {
     X11 :: #import "X11";
-} else #if OS == .ANDROID {
-    #import "Android";
-    //#import "Android/File";
-    #import "Android/Jni";
-    #import "POSIX";
 }
 
 // BS_Modules

@@ -112,8 +112,8 @@ get_bindings_from_json :: (name : string, bindings : [..] *JSON_Value, $T : Type
 }
 
 init_keybinds :: () -> *KeybindMap {
-    keybindFilename := tprint("%.bind", APP_NAME);
-    readData, readSuccess := read_entire_file(keybindFilename);
+    keybindFilename := tprint("%1%2.bind", get_packaged_assets_path(), APP_NAME);
+    readData, readSuccess := read_file(keybindFilename);
     if !readSuccess {
 	log(.FATAL, "Failed to load %", keybindFilename);
 	return null;

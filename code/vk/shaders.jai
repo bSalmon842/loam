@@ -33,10 +33,10 @@ shader_file_already_compiled :: (glslName : string) -> bool {
     lastFile := tprint("%1%2.glsl", LAST_COMPILED_GLSL_FOLDER_PATH, glslName);
     inFile := tprint("%1%2.glsl", SHADER_FOLDER_PATH, glslName);
 
-    lastContents, foundLastFile := read_entire_file(lastFile, log_errors=false);
+    lastContents, foundLastFile := read_file(lastFile, log_errors=false);
     if !foundLastFile then return false;
 
-    inContents, foundInFile := read_entire_file(inFile, log_errors=false);
+    inContents, foundInFile := read_file(inFile, log_errors=false);
     if !foundInFile {
 	print_color("%\n", tprint("\tShader \"%\" does not exist.", glslName), color=.HI_RED);
 	return false;
@@ -67,7 +67,7 @@ compile_glsl_to_spirv :: (glslName : string) -> CompiledShader {
 	}
     }
 
-    spvContents, foundFile := read_entire_file(outFile);
+    spvContents, foundFile := read_file(outFile);
     if foundFile && !alreadyCompiled {
 	print_color("%\n", tprint("\tShader \"%\" was successfully compiled.", outFile), color=.HI_GREEN);
 	copy_file(inFile, lastFile);
@@ -82,12 +82,8 @@ compile_glsl_to_spirv :: (glslName : string) -> CompiledShader {
 
 #if OS == .ANDROID {
     load_spirv_for_android :: (hlslName : string) -> CompiledShader {
-	file, opened := file_open(tprint("%1%2.spv", SHADER_FOLDER_PATH, hlslName));
-	if !opened {
-	    log(.FATAL, "Failed to open %!", hlslName);
-	}
-	spvContents, foundFile := read_entire_file(file);
-	return CompiledShader.{ hlslName, spvContents, foundFile };
+	spvContents, foundFile := read_file(tprint("%1%2.spv\0", SHADER_FOLDER_PATH, hlslName));
+	return CompiledShader.{ hlslName, spvContents, foundFile};
     }
     SHADER_FOLDER_PATH             :: "shaders/";
 } else {

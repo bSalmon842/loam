@@ -130,13 +130,24 @@ MeshPushConstants :: struct {
 init_vk :: () {
     context.vk = loam.vk;
     vk = context.vk;
+
+    #if OS == .ANDROID {
+	SDL.vulkan_load_library(null);
+    }
     
     check_vk(create_vk_instance(APP_NAME), "create_vk_instance failed: ");
     check_vk(create_vk_surface(), "create_vk_surface failed: ");
     check_vk(get_vk_physical_device(), "get_vk_physical_device failed: ");
     check_vk(create_vk_device(), "create_vk_devices failed: ");
 
-    allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
+    #if OS == .ANDROID {
+	vulkanFuncs : VmaVulkanFunctions;
+	vulkanFuncs.vkGetInstanceProcAddr = SDL.vulkan_get_vk_get_instance_proc_addr();
+	vulkanFuncs.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+	allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, *vulkanFuncs, vk.instance, VK_API_VERSION_1_3, null };
+    } else {
+	allocatorCreateInfo := VmaAllocatorCreateInfo.{ .BUFFER_DEVICE_ADDRESS_BIT, vk.physicalDevice, vk.device, 0, null, null, null, null, vk.instance, VK_API_VERSION_1_3, null };
+    }
     check_vk(vmaCreateAllocator(*allocatorCreateInfo, *vk.allocator), "Failed to create VMA Allocator: ");
     
     check_vk(create_vk_swapchain(), "create_vk_swapchain failed: ");

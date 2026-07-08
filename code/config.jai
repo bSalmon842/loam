@@ -17,7 +17,11 @@ Config :: struct {
 }
 
 init_config :: () {
-    CONFIG_FILENAME = sprint("%.cfg", APP_NAME);
+    #if OS == .ANDROID {
+	CONFIG_FILENAME = sprint("%1/%2.cfg", to_string(SDL.get_android_internal_storage_path()), APP_NAME);
+    } else {
+	CONFIG_FILENAME = sprint("%.cfg", APP_NAME);
+    }
     
     devices := Audio.get_devices();
     loam.config.audioDeviceName = devices[0].name;
@@ -35,7 +39,7 @@ init_config :: () {
 }
 
 load_config :: () -> bool {
-    readData, readSuccess := read_entire_file(CONFIG_FILENAME);
+    readData, readSuccess := read_file(CONFIG_FILENAME, false);
     if readSuccess {
 	lines := split(readData, "\n");
 	ti := type_info(Config);
@@ -62,7 +66,7 @@ save_config :: () {
 	write_to_config(*builder, member.name, member.type.type, field);
     }
     
-    write_entire_file(CONFIG_FILENAME, *builder);
+    write_file(CONFIG_FILENAME, builder_to_string(*builder));
 }
 
 read_from_config :: (lines : [] string, name : string, tag : Type_Info_Tag, ptr : *void) -> bool {
