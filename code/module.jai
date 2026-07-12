@@ -200,13 +200,14 @@ loam_start_update :: () {
     while SDL.poll_event(*event) {
 	if event.type == {
 	    case .QUIT; loam.running = false;
-
+	    
 	    case .WINDOW_RESIZED; {
 		loam.windowWidth  = event.window.data1;
 		loam.windowHeight = event.window.data2;
 	    } #through;
 	    case .WINDOW_MOVED; {
 		loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
+		vk.resizeRequested = true;
 		print("%\n", loam.refreshRate);
 	    }
 
