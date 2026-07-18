@@ -30,7 +30,8 @@ Vk :: struct {
     swapchainImageViews : [..] VkImageView;
     swapchainExtent : VkExtent2D;
     swapchainFormat : VkFormat;
-    resizeRequested : bool;
+    recreateSwapchain : bool;
+    recreateSurface : bool;
 
     allocator : VmaAllocator;
 
@@ -301,19 +302,7 @@ create_vk_instance :: (appName : string) -> VkResult {
 }
 
 create_vk_surface :: () -> VkResult {
-    window := get_window_handle_from_sdl();
-    #if OS == .WINDOWS {
-	surfaceCreateInfo := VkWin32SurfaceCreateInfoKHR.{ hinstance = Windows.GetModuleHandleW(null), hwnd = window };
-	return vkCreateWin32SurfaceKHR(vk.instance, *surfaceCreateInfo, null, *vk.surface);
-    } else #if OS == .LINUX {
-	surfaceCreateInfo := VkXlibSurfaceCreateInfoKHR.{ display = X11.x_global_display, window = window};
-	return vkCreateXlibSurfaceKHR(vk.instance, *surfaceCreateInfo, null, *vk.surface);
-    } else #if OS == .ANDROID {
-	surfaceCreateInfo := VkAndroidSurfaceCreateInfoKHR.{ window = window };
-	return vkCreateAndroidSurfaceKHR(vk.instance, *surfaceCreateInfo, null, *vk.surface);
-    }
-    
-    return .ERROR_INITIALIZATION_FAILED;
+    return ifx SDL.vulkan_create_surface(loam.window, vk.instance, null, *vk.surface) then .SUCCESS else .ERROR_INITIALIZATION_FAILED;
 }
 
 get_vk_physical_device :: () -> VkResult {
@@ -394,7 +383,7 @@ create_vk_device :: () -> VkResult {
 }
 
 create_vk_swapchain :: () -> VkResult {
-    oldSwapchain := vk.swapchain;
+    oldSwapchain := ifx vk.recreateSurface then null else vk.swapchain;
 
     surfaceCaps : VkSurfaceCapabilitiesKHR;
     check_vk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.physicalDevice, vk.surface, *surfaceCaps), "Failed to get surface capabilities");

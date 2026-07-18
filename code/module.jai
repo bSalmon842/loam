@@ -199,6 +199,7 @@ loam_start_update :: () {
     event : SDL.Event;
     while SDL.poll_event(*event) {
 	if event.type == {
+	    case .TERMINATING; #through;
 	    case .QUIT; loam.running = false;
 	    
 	    case .WINDOW_RESIZED; {
@@ -207,13 +208,21 @@ loam_start_update :: () {
 	    } #through;
 	    case .WINDOW_MOVED; {
 		loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
-		vk.resizeRequested = true;
+		vk.recreateSwapchain = true;
 		print("%\n", loam.refreshRate);
 	    }
 
 	    case .MOUSE_WHEEL; {
 		loam.input.mouseWheel = { event.wheel.x, event.wheel.y };
 		if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
+	    }
+	    
+	    // Android Events
+	    case .LOW_MEMORY; {
+		#if OS == .ANDROID {
+		    log(.WARN, "Device is running low on available memory");
+		    // TODO: Handle low memory
+		}
 	    }
 	}
 	
@@ -223,7 +232,12 @@ loam_start_update :: () {
 	}
     }
 
-    if vk.resizeRequested then resize_swapchain();
+    if vk.recreateSwapchain {
+	if vk.recreateSurface {
+	    recreate_surface();
+	}
+	recreate_swapchain();
+    }
     
     // OTHER UPDATING
     update_audio();
@@ -276,7 +290,7 @@ loam_finish_render :: () {
     #if IS_DEV {
 	update_debug_metrics(*loam.metrics);
     }
-    
+
     update_bindless_descriptor_textures();
     TIMING_MARKER("Update Bindless Descriptor");
     draw_frame();

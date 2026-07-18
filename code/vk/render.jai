@@ -38,8 +38,13 @@ draw_frame :: () {
     swapchainImageIndex : u32;
     acquireResult := vkAcquireNextImageKHR(vk.device, vk.swapchain, seconds_to_nanoseconds(1), vk.currentFrame.swapSemaphore, null, *swapchainImageIndex);
     if acquireResult == .ERROR_OUT_OF_DATE_KHR {
-	vk.resizeRequested = true;
+	vk.recreateSwapchain = true;
         log(.INFO, "Vulkan has requested a resize from vkAcquireNextImageKHR");
+	return;
+    } else if acquireResult == .ERROR_SURFACE_LOST_KHR {
+	vk.recreateSwapchain = true;
+	vk.recreateSurface = true;
+        log(.WARN, "Vulkan has lost the surface for vkAcquireNextImageKHR");
 	return;
     } else {
 	check_vk(acquireResult, "Failed to get next image from swapchain");
@@ -100,8 +105,13 @@ draw_frame :: () {
     presentInfo := VkPresentInfoKHR.{ .PRESENT_INFO_KHR, null, 1, *vk.currentFrame.renderSemaphore, 1, *vk.swapchain, *swapchainImageIndex, null };
     presentResult := vkQueuePresentKHR(vk.graphicsQueue, *presentInfo);
     if presentResult == .ERROR_OUT_OF_DATE_KHR {
-	vk.resizeRequested = true;
+	vk.recreateSwapchain = true;
         log(.INFO, "Vulkan has requested a resize from vkQueuePresentKHR");
+	return;
+    } else if presentResult == .ERROR_SURFACE_LOST_KHR {
+	vk.recreateSwapchain = true;
+	vk.recreateSurface = true;
+        log(.WARN, "Vulkan has lost the surface for vkQueuePresentKHR");
 	return;
     } else if presentResult != .SUBOPTIMAL_KHR {
 	check_vk(presentResult, tprint("Failed to present queue for frame %", vk.currentFrame));

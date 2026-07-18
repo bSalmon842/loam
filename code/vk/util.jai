@@ -7,10 +7,40 @@ Created: 27APR2025
 
 FENCE_WAIT_TIME :: #run seconds_to_nanoseconds(1);
 
-resize_swapchain :: () {
+recreate_swapchain :: () {
     vkDeviceWaitIdle(vk.device);
     check_vk(create_vk_swapchain(), "Failed to recreate swapchain when resizing window");
-    vk.resizeRequested = false;
+    if vk.recreateSurface {
+	recreate_sync_structures();
+    }
+    
+    vk.recreateSwapchain = false;
+    vk.recreateSurface = false;
+}
+
+recreate_surface :: () {
+    vkDeviceWaitIdle(vk.device);
+    vkDestroySurfaceKHR(vk.instance, vk.surface, null);
+    vkDeviceWaitIdle(vk.device);
+    create_vk_surface();
+}
+
+recreate_sync_structures :: () {
+    vkDeviceWaitIdle(vk.device);
+    
+    fenceCreateInfo := VkFenceCreateInfo.{ .FENCE_CREATE_INFO, null, .SIGNALED_BIT };
+    semaphoreCreateInfo := VkSemaphoreCreateInfo.{};
+    for * vk.frames {
+	vkDestroySemaphore(vk.device, it.swapSemaphore, null);
+	vkDestroySemaphore(vk.device, it.renderSemaphore, null);
+	vkDestroyFence(vk.device, it.renderFence, null);
+	
+	vkDeviceWaitIdle(vk.device);
+	
+	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.swapSemaphore), tprint("Failed to recreate Swap Semaphore for Frame %", it_index));
+	check_vk(vkCreateSemaphore(vk.device, *semaphoreCreateInfo, null, *it.renderSemaphore), tprint("Failed to recreate Render Semaphore for Frame %", it_index));
+	check_vk(vkCreateFence(vk.device, *fenceCreateInfo, null, *it.renderFence), tprint("Failed to recreate Render Fence for Frame %", it_index));
+    }
 }
 
 find_best_gpu_for_conditions :: (availableDevices : [] VkPhysicalDevice) -> VkPhysicalDevice {
