@@ -63,3 +63,11 @@ make_capsule :: (radius : float32, height : float32, scale := Vector3.{1,1,1}, a
     return capsule;
 }
 
+is_within_bounds_2D :: (point : Vector2, rect : Shape_Rect) -> bool {
+    min, max := get_min_max_with_offset(rect, rect.position);
+    if point.x >= min.x && point.y >= min.y && point.x <= max.x && point.y <= max.y {
+	return true;
+    }
+    
+    return false;
+}

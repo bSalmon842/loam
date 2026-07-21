@@ -195,6 +195,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 loam_start_update :: () {
     // INPUT HANDLING
     loam.input.mouseWheel = {};
+    array_reset(*loam.input.touch);
     
     event : SDL.Event;
     while SDL.poll_event(*event) {
@@ -210,11 +211,6 @@ loam_start_update :: () {
 		loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
 		vk.recreateSwapchain = true;
 		print("%\n", loam.refreshRate);
-	    }
-
-	    case .MOUSE_WHEEL; {
-		loam.input.mouseWheel = { event.wheel.x, event.wheel.y };
-		if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
 	    }
 	    
 	    // Android Events

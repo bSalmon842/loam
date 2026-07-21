@@ -26,6 +26,14 @@ MouseAxis :: enum {
     Wheel_Y;
 }
 
+TouchInfo :: struct {
+    deviceID : u64;
+    id       : u64; // Finger ID
+    type     : SDL.Event_Type;
+    point    : Vector2;
+    diff     : Vector2;
+}
+
 InputState :: struct {
     activeType : InputType;
     
@@ -37,6 +45,7 @@ InputState :: struct {
 
     mouseWheel : Vector2;
 
+    touch : [..] TouchInfo;
     // TODO: Splitscreen / Racing wheels will need support for multiple controllers at once
 }
 
@@ -54,6 +63,10 @@ update_input :: (event : SDL.Event) {
 	if event.mdevice.which != SDL.TOUCH_MOUSEID {
 	    keyboardMouseTimestamp = current_time_consensus();
 	}
+	if event.type == .MOUSE_WHEEL {
+	    loam.input.mouseWheel = { event.wheel.x, event.wheel.y };
+	    if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
+	}
     } else if event.type >= .GAMEPAD_AXIS_MOTION && event.type < .FINGER_DOWN && event.type != .GAMEPAD_UPDATE_COMPLETE {
 	if event.type == .GAMEPAD_AXIS_MOTION {
 	    threshold := S16_MAX / 2;
@@ -63,8 +76,17 @@ update_input :: (event : SDL.Event) {
 	}
 	gamepadTimestamp = current_time_consensus();
 	gamepad = SDL.open_gamepad(event.gdevice.which);
-    } else if event.type >= .FINGER_DOWN && event.type < .FINGER_MOTION {
+    } else if event.type >= .FINGER_DOWN && event.type <= .FINGER_MOTION {
 	touchscreenTimestamp = current_time_consensus();
+	
+	touch : TouchInfo;
+	touch.deviceID = event.tfinger.touchID;
+	touch.id = event.tfinger.fingerID;
+	touch.type = event.type;
+	windowDims := Vector2.{ xx loam.windowWidth, xx loam.windowHeight };
+	touch.point = .{ event.tfinger.x, 1.0 - event.tfinger.y } * windowDims;
+	touch.diff = .{ event.tfinger.dx, -event.tfinger.dy } * windowDims;
+	array_add(*loam.input.touch, touch);
     }
 
     if is_timestamp_most_recent(keyboardMouseTimestamp, gamepadTimestamp, touchscreenTimestamp) {
@@ -308,7 +330,6 @@ get_any_button_input :: () -> bool {
     }
 
     // Check touches
-    // TODO: This is yet to be verified, check with android build
     touchDeviceCount : s32;
     touchDevices := SDL.get_touch_devices(*touchDeviceCount);
     if touchDevices && touchDeviceCount > 0 {
@@ -325,4 +346,29 @@ get_any_button_input :: () -> bool {
     if touchDevices then SDL.free(touchDevices);
     
     return false;
+}
+
+get_active_touch_locations :: () -> [..] Vector2 {
+    touches : [..] Vector2;
+    
+    touchDeviceCount : s32;
+    touchDevices := SDL.get_touch_devices(*touchDeviceCount);
+    if touchDevices && touchDeviceCount > 0 {
+	for 0 .. touchDeviceCount-1 {
+	    id := touchDevices[it];
+	    fingerCount : s32;
+	    fingerData := SDL.get_touch_fingers(id, *fingerCount);
+	    if fingerData && fingerCount > 0 {
+		for 0 .. fingerCount-1 {
+		    finger := fingerData[it];
+		    windowDims := Vector2.{ xx loam.windowWidth, xx loam.windowHeight };
+		    array_add(*touches, .{ finger.x, 1.0 - finger.y } * windowDims);
+		}
+	    }
+	}
+    }
+
+    if touchDevices then SDL.free(touchDevices);
+
+    return touches;
 }

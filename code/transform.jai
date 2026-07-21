@@ -25,7 +25,7 @@ Transform :: struct {
     position : Vector3;
     orientation : Quaternion;
     scale : Vector3 = .{ 1, 1, 1 };
-    alignment : Alignment;
+    alignment : Alignment = .Center;
 }
 
 make_transform :: (position := Vector3.{}, orientation := Quaternion.{}, scale : Vector3 = .{ 1, 1, 1 }, alignment := Alignment.Center) -> Transform {
