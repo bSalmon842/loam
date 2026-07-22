@@ -20,6 +20,9 @@ UI_Element :: struct {
 	text : *Text;
 	sprite : *Sprite;
     }
+
+    // What states this UI is active during
+    activeStates : GameplayState = .All;
 }
 
 make_ui_element :: (item : *$T) -> *UI_Element {

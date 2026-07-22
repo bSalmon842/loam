@@ -5,7 +5,7 @@ Author: Brock Salmon
 Created: 08JUN2025
 */
 
-#module_parameters(APP_NAME := "", ASSET_CODE := "", IS_DEV := false);
+#module_parameters(APP_NAME := "", ASSET_CODE := "", IS_DEV := false, VERSION := "");
 #run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
 // TODO: Meshes
@@ -41,6 +41,12 @@ Created: 08JUN2025
 	BOX_COLLIDER_VERTEX_SHADER   : CompiledShader;
 	BOX_COLLIDER_FRAGMENT_SHADER : CompiledShader;
     }
+}
+
+#if IS_DEV {
+    VERSION_TEXT :: #run sprint("V:% (DEV)", VERSION);
+} else {
+    VERSION_TEXT :: #run sprint("V:%", VERSION);
 }
 
 // Add the engine to the context so we don't have to pass it everywhere, then add global alias' for some main structures
@@ -148,21 +154,25 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     
     loam.audioDevice = get_audio_device_from_name(loam.config.audioDeviceName);
     if !Audio.sound_player_init({ output_device = *loam.audioDevice, update_from_a_thread = (OS != .ANDROID) }) then log(.FATAL, "Failed to initialise Sound Player");
-    
+
+    SDL.set_hint(SDL.HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     SDL.init(.VIDEO | .JOYSTICK | .HAPTIC | .GAMEPAD);
-    loam.window = SDL.create_window(APP_NAME, initialWidth, initialHeight, .VULKAN);
+
+    flags := SDL.Window_Flags.VULKAN;
+    #if OS == .ANDROID then flags |= .FULLSCREEN;
+    loam.window = SDL.create_window(APP_NAME, initialWidth, initialHeight, flags);
     if !loam.window {
 	log(.FATAL, "Failed to create window with SDL error: %", to_string(SDL.get_error()));
     }
     
-    loam.windowWidth = initialWidth;
-    loam.windowHeight = initialHeight;
     loam.refreshRate = SDL.get_current_display_mode(SDL.get_display_for_window(loam.window)).refresh_rate;
-
+    SDL.get_window_size_in_pixels(loam.window, *loam.windowWidth, *loam.windowHeight);
     #if OS == .ANDROID {
-	SDL.set_window_fullscreen(loam.window, true);
-	// TODO: Do a config check for fullscreen on desktop
+	while (loam.windowWidth < loam.windowHeight) {
+	    SDL.get_window_size_in_pixels(loam.window, *loam.windowWidth, *loam.windowHeight);
+	}
     }
+
     
     loam.cameras = New(CameraMap);
     add_camera("UI", 0, {});
@@ -190,6 +200,12 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     loam.gameplayState = .Splash;
 
     array_add(*loam.splashScreens, { get_resource(ImageResource, "__loam_splash"), get_resource(AudioResource, "__loam_splash_audio"), {0.05, 0.05, 0.05, 1.0} });
+
+    #if IS_DEV {
+	fontSize : u32 = 32;
+	build_font_atlas("__loam_internal", fontSize, .English);
+	build_font_atlas("__loam_internal_mono", fontSize, .English);
+    }
 }
 
 loam_start_update :: () {
@@ -271,14 +287,30 @@ loam_finish_update :: () {
     loam.updateActive = false;
 }
 
-// NOTE: This is just syntactic sugar so games don't need a random finish_update just before the main loop starts
 loam_finish_init :: () {
+    #if IS_DEV {
+        text := make_text(VERSION_TEXT, "__loam_internal_mono", 32, make_transform());
+	text.alignment = .Bottom | .Right;
+	versionText := make_ui_element(text);
+	array_add(*loam.uiElements, versionText);
+	
+	update_text_position(text, .{ xx loam.windowWidth - 75.0, 10.0, 0 });
+    }
+    
     loam_finish_update();
 }
 
 loam_start_render :: () {
-    #if IS_DEV && OS == .WINDOWS {
-	frame_imgui(*loam.metrics);
+    #if IS_DEV {
+	#if OS == .WINDOWS {
+	    frame_imgui(*loam.metrics);
+	}
+    }
+
+    for loam.uiElements {
+	if it.activeStates & loam.gameplayState {
+	    add_ui_render_command(it);
+	}
     }
 }
 

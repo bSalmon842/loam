@@ -62,15 +62,14 @@ make_text :: (str : string, font : string, size : u32, transform : Transform, co
     return text;
 }
 
-update_text_position :: (text : *Text, newPosition : Vector3) {
+update_text_position :: (text : *Text, position : Vector3) {
     text.dimensions.xy = get_string_dimensions(text.str, text);
-    cursorX := newPosition.x - text.dimensions.x * 0.5;
-    cursorY := newPosition.y;
-
-    if text.transform.alignment & .Left   then cursorX += text.dimensions.x * 0.5;
-    if text.transform.alignment & .Right  then cursorX -= text.dimensions.x * 0.5;
-    if text.transform.alignment & .Top    then cursorY -= text.dimensions.y * 0.5;
-    if text.transform.alignment & .Bottom then cursorY += text.dimensions.y * 0.5;
+    newPosition := position;
+    
+    if text.transform.alignment & .Left   then newPosition.x += text.dimensions.x * 0.5;
+    if text.transform.alignment & .Right  then newPosition.x -= text.dimensions.x * 0.5;
+    if text.transform.alignment & .Top    then newPosition.y -= text.dimensions.y * 0.5;
+    if text.transform.alignment & .Bottom then newPosition.y += text.dimensions.y * 0.5;
 
     diff := newPosition - text.position;
     for text.glyphs {
