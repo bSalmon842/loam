@@ -33,10 +33,10 @@ shader_file_already_compiled :: (glslName : string) -> bool {
     lastFile := tprint("%1%2.glsl", LAST_COMPILED_GLSL_FOLDER_PATH, glslName);
     inFile := tprint("%1%2.glsl", SHADER_FOLDER_PATH, glslName);
 
-    lastContents, foundLastFile := read_file(lastFile, log_errors=false);
+    lastContents, foundLastFile := read_file(lastFile, false);
     if !foundLastFile then return false;
 
-    inContents, foundInFile := read_file(inFile, log_errors=false);
+    inContents, foundInFile := read_file(inFile, false);
     if !foundInFile {
 	print_color("%\n", tprint("\tShader \"%\" does not exist.", glslName), color=.HI_RED);
 	return false;
