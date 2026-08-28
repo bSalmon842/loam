@@ -98,12 +98,8 @@ copy_mesh_to_gpu_buffers :: (indices : [] u32, vertices : [] Vertex, buffers : *
     meshData.* = .{ vertexBufferSize, indexBufferSize, stagingBuffer, buffers };
     
     buffersToCleanup : *BuffersToCleanup;
-    if is_default_plane_indices(indices) {
-	buffersToCleanup = pack_buffers_for_cleanup(stagingBuffer);
-    } else {
-	buffersToCleanup = pack_buffers_for_cleanup(stagingBuffer, buffers.indexBuffer);
-    }
-
+    buffersToCleanup = pack_buffers_for_cleanup(stagingBuffer);
+    
     add_update_command(gpu_mesh_copy, meshData, buffersToCleanup);
 }
 

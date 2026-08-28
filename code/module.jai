@@ -8,7 +8,6 @@ Created: 08JUN2025
 #module_parameters(APP_NAME := "", ASSET_CODE := "", IS_DEV := false, VERSION := "");
 #run assert(APP_NAME.count > 0, "Need to set APP_NAME in loam's module parameters");
 
-// TODO: Meshes
 // TODO: print stdout in game
 
 // Compiled Shaders
@@ -172,7 +171,6 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 	    SDL.get_window_size_in_pixels(loam.window, *loam.windowWidth, *loam.windowHeight);
 	}
     }
-
     
     loam.cameras = New(CameraMap);
     add_camera("UI", 0, {});
@@ -262,7 +260,7 @@ loam_start_update :: () {
 
     #if IS_DEV {
 	for loam.entities[EntityUpdateRate.Full] {
-	    it.collider.colliding = false;
+	    if it.collider then it.collider.colliding = false;
 	}
     }
 
@@ -392,6 +390,7 @@ Simp :: #import "Simp";
     X11 :: #import "X11";
 }
 
+#import "gltf_parser";
 #import "ktx";
 #import "Logger" (IS_DEV);
 #import "lz4_bs842";
@@ -415,6 +414,7 @@ DONE
 #load "json.jai";
 #load "math.jai";
 #load "metrics.jai";
+#load "model.jai";
 #load "resources.jai";
 #load "shapes.jai";
 #load "shared_asset_info.jai";
@@ -452,11 +452,13 @@ DONE
 }
 
 // BS_Modules
+#import "gltf_parser";
 #import "ktx";
 #import "Logger"(IS_DEV);
 #import "lz4_bs842";
 SDL :: #import "SDL3";
 Audio :: #import "Sound_Player_bs842";
+#import "stb_image";
 #import "VMA";
 #import "Vulkan_1_3";
 #if IS_DEV && OS == .WINDOWS then ImGui :: #import "ImGui_1_9";

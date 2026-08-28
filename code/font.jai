@@ -164,7 +164,8 @@ build_font_atlas :: (fontName : string, size : u32, language : Language) {
 	}
     }
 
-    atlasImage := create_vk_image_from_data(atlasBitmap.data, .{ ATLAS_MAX_SIZE, ATLAS_MAX_SIZE }, .R8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT, bytesPerPixel=1);
+    atlasExtent := VkExtent2D.{ ATLAS_MAX_SIZE, ATLAS_MAX_SIZE };
+    atlasImage := create_vk_image(atlasBitmap.data, atlasExtent.width * atlasExtent.height, .R8_SRGB, atlasExtent);
     atlas.image = add_resource(atlasName, atlasImage);
     
     table_add(loam.fonts, copy_string(atlasName), atlas);

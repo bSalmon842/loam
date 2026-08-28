@@ -16,9 +16,10 @@ EntityUpdateFunc :: #type (*Entity, *void);
 EntityMap :: Table(string, *Entity);
 Entity :: struct {
     name : string;
-    
+
+    useModel : bool;
     sprite : *Sprite;
-    // mesh : *Mesh;
+    model : *Model;
     
     collider : *CollisionVolume;
     
@@ -29,32 +30,57 @@ Entity :: struct {
     updateData : *void;
 }
 
-make_entity :: (name : string, sprite : *Sprite, collider : *CollisionVolume, updateRate := EntityUpdateRate.Full) -> *Entity {
+make_sprite_entity :: (name : string, sprite : *Sprite, collider : *CollisionVolume, updateRate := EntityUpdateRate.Full) -> *Entity {
     if table_contains(*loam.entities[updateRate], name) {
 	log(.WARN, "Entity already exists with name \"%\"", name);
 	return null;
     }
     
     entity := New(Entity);
-    entity.* = .{ name, sprite, collider, .{}, 0, null, null };
+    entity.* = .{ name, false, sprite, null, collider, .{}, 0, null, null };
     
     table_add(*loam.entities[updateRate], name, entity);
     return entity;
 }
 
-make_entity :: (name : string, sprite : *Sprite, updateRate := EntityUpdateRate.Full) -> *Entity {
+make_sprite_entity :: (name : string, sprite : *Sprite, updateRate := EntityUpdateRate.Full) -> *Entity {
     if table_contains(*loam.entities[updateRate], name) {
 	log(.WARN, "Entity already exists with name \"%\"", name);
 	return null;
     }
     
     entity := New(Entity);
-    entity.* = .{ name, sprite, make_box_collider(.{}, make_vector3(sprite.dimensions, 1), false, false), .{}, 0, null, null };
+    entity.* = .{ name, false, sprite, null, make_box_collider(.{}, make_vector3(sprite.dimensions, 1), false, false), .{}, 0, null, null };
     
     table_add(*loam.entities[updateRate], name, entity);
     return entity;
 }
 
+make_model_entity :: (name : string, model : *Model, collider : *CollisionVolume, updateRate := EntityUpdateRate.Full) -> *Entity {
+    if table_contains(*loam.entities[updateRate], name) {
+	log(.WARN, "Entity already exists with name \"%\"", name);
+	return null;
+    }
+    
+    entity := New(Entity);
+    entity.* = .{ name, true, null, model, collider, .{}, 0, null, null };
+    
+    table_add(*loam.entities[updateRate], name, entity);
+    return entity;
+}
+
+make_model_entity :: (name : string, model : *Model, updateRate := EntityUpdateRate.Full) -> *Entity {
+    if table_contains(*loam.entities[updateRate], name) {
+	log(.WARN, "Entity already exists with name \"%\"", name);
+	return null;
+    }
+    
+    entity := New(Entity);
+    entity.* = .{ name, true, null, model, make_box_collider(.{}, model.dimensions, false, false), .{}, 0, null, null };
+    
+    table_add(*loam.entities[updateRate], name, entity);
+    return entity;
+}
 
 change_entity_update_rate :: (name : string, newRate : EntityUpdateRate) {
     entity : *Entity;
@@ -97,6 +123,10 @@ update_entities :: () {
 			if entity.sprite {
 			    update_sprite_animation(entity.sprite);
 			}
+
+			if entity.model {
+			    update_model_animation(entity.model);
+			}
 			entity.lastUpdated = seconds_since_init();
 		    }
 		}
@@ -111,15 +141,18 @@ update_entities :: () {
 	    }
 	}
     }
-              }
+}
 
 add_render_commands_for_entity :: (entity : *Entity) {
-    if entity.sprite {
+    if entity.sprite && !entity.useModel {
 	entity.sprite.transform = entity.transform;
 	add_sprite_render_command(.Sprite, entity.sprite.renderable, entity.sprite.transform);
-    } /* else if entity.mesh {
-        
-    } */
+    }
+    if entity.model && entity.useModel {
+	// TODO: We need to change the primitive transforms as well
+        entity.model.transform = entity.transform;
+	add_model_render_command(.Mesh, entity.model);
+    }
     
     #if IS_DEV {
 	if __showColliders {

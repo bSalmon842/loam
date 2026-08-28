@@ -51,6 +51,20 @@ get_transform_matrix :: (t : Transform, dims : Vector3) -> Matrix4 {
     }
 
     {
+	x := t.orientation.x;
+	y := t.orientation.y;
+	z := t.orientation.z;
+	w := t.orientation.w;
+	
+	rotation = Matrix4.{
+	    1 - 2*y*y - 2*z*z, 2*x*y - 2*w*z,     2*x*z + 2*w*y,     0,
+	    2*x*y + 2*w*z,     1 - 2*x*x - 2*z*z, 2*y*z - 2*w*x,     0,
+	    2*x*z - 2*w*y,     2*y*z + 2*w*x,     1 - 2*x*x - 2*y*y, 0,
+	    0,                 0,                 0,                 1
+	};
+    }
+
+    {
 	scale._11 = t.scale.x;
 	scale._22 = t.scale.y;
 	scale._33 = t.scale.z;
@@ -72,5 +86,12 @@ adjust_point_for_alignment :: (point : Vector3, dimensions : Vector3, alignment 
     if alignment & .Back  then result.z -= dimensions.z * 0.5;
     
     return result;
+}
+
+alter_transform :: (a : Transform, b : Transform) -> Transform {
+    position := a.position + b.position;
+    orientation := a.orientation + b.orientation;
+    scale := a.scale * b.scale;
+    return .{ position, orientation, scale, a.alignment };
 }
 

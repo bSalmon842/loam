@@ -5,6 +5,8 @@ Author: Brock Salmon
 Created: 19MAY2025
 */
 
+// TODO: In order to make the pipelines game extensible, it might be better to scrap the enum and instead have a hash table in the vk structure of pipelines with names
+
 PipelineType :: enum {
     Sprite_Rect;
     Mesh;
@@ -127,13 +129,13 @@ set_pipeline_colour_attachment_format :: (using pipelineInfo : *GraphicsPipeline
     renderInfo.pColorAttachmentFormats = *colourAttachFormat;
 }
 
-set_pipeline_depth_format :: (using pipelineInfo : *GraphicsPipelineBuildInfo, format : VkFormat) {
+set_pipeline_depth_format :: (using pipelineInfo : *GraphicsPipelineBuildInfo, format : VkFormat = .D32_SFLOAT) {
     renderInfo.depthAttachmentFormat = format;
 }
 
 set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineBuildInfo, enabled : bool, writeEnabled : bool, compareOp : VkCompareOp) {
     depthStencil = .{};
-    depthStencil.depthWriteEnable = ifx writeEnable then VK_TRUE;
+    depthStencil.depthWriteEnable = ifx writeEnabled then VK_TRUE;
     depthStencil.maxDepthBounds = 1;
     if enabled {
 	depthStencil.depthTestEnable = VK_TRUE;
@@ -193,9 +195,11 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
     }
     
     vkCmdBindPipeline(cmdBuffer, .GRAPHICS, pipeline.pipeline);
-    
+
+    clear := VkClearValue.{};
     colourAttachment := make_rendering_attachment_info(vk.drawImage.view, layout=.GENERAL);
-    renderInfo := make_rendering_info(drawExtent, *colourAttachment, null);
+    depthAttachment := make_rendering_attachment_info(vk.depthImage.view, *clear, .DEPTH_ATTACHMENT_OPTIMAL);
+    renderInfo := make_rendering_info(drawExtent, *colourAttachment, *depthAttachment);
     vkCmdBeginRendering(cmdBuffer, *renderInfo);
 
     viewport := VkViewport.{ width = cast(float) drawExtent.width, height = cast(float) drawExtent.height, minDepth = 0, maxDepth = 1 };
@@ -270,7 +274,8 @@ init_pipelines :: () {
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_depth_format(*builder);
+		set_pipeline_depth_test_enabled(*builder, true, true, .GREATER);
 		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
 	    }
 	    
@@ -288,7 +293,7 @@ init_pipelines :: () {
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_depth_format(*builder);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 		
 		init_sprite_buffer(pipeline);
@@ -308,7 +313,7 @@ init_pipelines :: () {
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_depth_format(*builder);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 		
 		init_sprite_buffer(pipeline);
@@ -328,7 +333,7 @@ init_pipelines :: () {
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_depth_format(*builder);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 		
 		init_sprite_buffer(pipeline);
@@ -348,7 +353,7 @@ init_pipelines :: () {
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_depth_format(*builder);
 		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
 		
 		init_sprite_buffer(pipeline);
@@ -368,7 +373,7 @@ init_pipelines :: () {
 		set_pipeline_multisampling_mode(*builder, .None);
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
-		set_pipeline_depth_format(*builder, .UNDEFINED);
+		set_pipeline_depth_format(*builder);
 		set_pipeline_layout(*builder, size_of(BoxColliderPushConstants), it);
 
 		init_box_collider_buffer(pipeline);

@@ -88,15 +88,15 @@ get_projection_matrix :: (camera : *Camera) -> Matrix4 {
 
 get_perspective_matrix :: (camera : *Camera) -> Matrix4 {
     aspect := camera.dimensions.x / camera.dimensions.y;
-    frustumTangent := tan(to_radians(camera.verticalFOV / 2.0));
+    frustumTangent := tan(to_radians(camera.verticalFOV) / 2.0);
     scaleY := 1.0 / frustumTangent;
     scaleX := scaleY / aspect;
 
     return Matrix4.{
-	scaleX,  0,      0,     0,
-	0,      -scaleY, 0,     0,
-	0,       0,      0,     1,
-	0,       0,      0.01,  0
+	scaleX,  0,      0,      0,
+	0,      -scaleY, 0,      0,
+	0,       0,      0,     -1,
+	0,       0,      0.01,   0
     };
 }
 

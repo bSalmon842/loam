@@ -41,6 +41,7 @@ Vk :: struct {
     frames : [FRAMES_IN_FLIGHT] FrameCommandInfo;
     currentFrame : *FrameCommandInfo;
 
+    depthImage : *AllocatedImageInfo;
     drawImage : *AllocatedImageInfo;
     
     graphicsQueue : VkQueue;
@@ -64,13 +65,13 @@ Vk :: struct {
     // Update Commands
     updateCmdPool  : VkCommandPool;
     updateCommands : [MAX_UPDATE_COMMANDS] *UpdateCommand;
-    ///////////////////
 
     // Pipelines
     pipelines : [PIPELINE_COUNT] RenderingPipelineInfo;
     pipelineCache : VkPipelineCache;
     
     // Sampler for each member of VkFilter (we don't care about CUBIC)
+    maxSamplerAnisotropy   : float32;
     defaultSampler_Nearest : VkSampler;
     defaultSampler_Linear  : VkSampler;
 
@@ -78,7 +79,7 @@ Vk :: struct {
     defaultCubeIndexBuffer  : *AllocatedBufferInfo;
     
     // Built in error texture
-    errorCheckerboard : *AllocatedImageInfo;
+    errorCheckerboard : *ImageResource;
     
     imagesToDestroyAtFrameReset : [..] *AllocatedImageInfo;
     buffersToDestroyAtFrameReset : [..] *AllocatedBufferInfo;
@@ -122,7 +123,8 @@ BoxColliderPushConstants :: struct {
 }
 
 MeshPushConstants :: struct {
-    renderMatrix : Matrix4;
+    viewProj : Matrix4;
+    transform : Matrix4;
     colourTint   : Vector4;
     textureID    : u32;
     vertexBuffer : VkDeviceAddress;
@@ -178,24 +180,11 @@ init_vk :: () {
     // Samplers
     props : VkPhysicalDeviceProperties;
     vkGetPhysicalDeviceProperties(vk.physicalDevice, *props);
-    maxSamplerAnisotropy := props.limits.maxSamplerAnisotropy;
+    vk.maxSamplerAnisotropy = props.limits.maxSamplerAnisotropy;
 
-    samplerCreateInfo : VkSamplerCreateInfo;
-
-    samplerCreateInfo.minFilter  = .NEAREST;
-    samplerCreateInfo.magFilter  = .NEAREST;
-    samplerCreateInfo.mipmapMode = .NEAREST;
-    samplerCreateInfo.anisotropyEnable = VK_TRUE;
-    samplerCreateInfo.maxAnisotropy = maxSamplerAnisotropy;
-    check_vk(vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Nearest), "Failed to create Nearest Sampler");
-
-    samplerCreateInfo.minFilter  = .LINEAR;
-    samplerCreateInfo.magFilter  = .LINEAR;
-    samplerCreateInfo.mipmapMode = .LINEAR;
-    samplerCreateInfo.anisotropyEnable = VK_TRUE;
-    samplerCreateInfo.maxAnisotropy = maxSamplerAnisotropy;
-    check_vk(vkCreateSampler(vk.device, *samplerCreateInfo, null, *vk.defaultSampler_Linear), "Failed to create Linear Sampler");
-
+    create_vk_sampler(*vk.defaultSampler_Nearest, .NEAREST, .NEAREST, .NEAREST, true);
+    create_vk_sampler(*vk.defaultSampler_Linear, .LINEAR, .LINEAR, .LINEAR, true);
+    
     // Bindless Descriptors
     vk.bindlessDescriptorPool = create_bindless_descriptor_pool();
     vk.bindlessDescriptorSet  = create_bindless_descriptor_set();
@@ -217,8 +206,8 @@ init_vk :: () {
         it.* = cast(u32) ifx (it_index % 2 == (ifx it_index % 32 >= 16 then 1 else 0)) then 0xFFFF00FF else 0xFF000000;
     }
     
-    vk.errorCheckerboard = create_vk_image_from_data(pixels.data, VkExtent2D.{ 16, 16 }, .R8G8B8A8_SRGB, .SAMPLED_BIT | .TRANSFER_DST_BIT);
-    add_resource(ERROR_TEXTURE_NAME, vk.errorCheckerboard, true);
+    errorCheckerboardImage := create_vk_image(pixels.data, pixels.count * 4, .R8G8B8A8_SRGB, VkExtent2D.{ 16, 16 });
+    vk.errorCheckerboard = add_resource(ERROR_TEXTURE_NAME, errorCheckerboardImage, true);
 }
 
 create_vk_instance :: (appName : string) -> VkResult {
@@ -508,6 +497,7 @@ create_vk_swapchain :: () -> VkResult {
 	vkDestroySwapchainKHR(vk.device, oldSwapchain, null);
 
 	destroy_vk_image(vk.drawImage);
+	destroy_vk_image(vk.depthImage);
     }
 
     imageCount : u32;
@@ -526,15 +516,16 @@ create_vk_swapchain :: () -> VkResult {
 	check_vk(vkCreateImageView(vk.device, *imgViewCreateInfo, null, *vk.swapchainImageViews[it]), tprint("Failed to create image view for swapchain image: %", it));
     }
 
-    // Make Draw Image
-    // TODO: Make Depth Image
-    vk.drawImage = create_vk_image(vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT, 0);
+    // Make Draw & Depth Image
+    vk.drawImage = create_empty_vk_image(vk.swapchainExtent, .R16G16B16A16_SFLOAT, .TRANSFER_DST_BIT | .TRANSFER_SRC_BIT | .STORAGE_BIT | .COLOR_ATTACHMENT_BIT, 0);
+    vk.depthImage = create_empty_vk_image(vk.swapchainExtent, .D32_SFLOAT, .DEPTH_STENCIL_ATTACHMENT_BIT, 0);
     
     return .SUCCESS;
 }
 
 #load "bindless_descriptors.jai";
 //#load "descriptors.jai";
+#load "gltf.jai";
 #load "mesh.jai";
 #load "pipelines.jai";
 #load "render.jai";

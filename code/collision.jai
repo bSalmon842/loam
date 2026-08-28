@@ -78,7 +78,7 @@ make_capsule_collider :: (offset : Vector3, height : float32, radius : float32, 
 handle_collision_for_entity :: (entity : *Entity, newTransform : Transform) -> Transform {
     resultTransform := newTransform;
     for loam.entities[EntityUpdateRate.Full] {
-	if it != entity {
+	if it != entity && it.collider && entity.collider {
 	    collided, simplex := gjk_collision(entity.collider, resultTransform, it.collider, it.transform);
 	    if collided {
                 #if IS_DEV {

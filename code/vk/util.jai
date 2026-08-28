@@ -329,7 +329,20 @@ get_lowest_queue_count :: () -> u32 {
     return queueCount;
 }
 
-create_vk_image :: (extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, fenceIndex : s64, mipmapped := false) -> *AllocatedImageInfo {
+create_vk_sampler :: (sampler : *VkSampler, min : VkFilter, mag : VkFilter, mipMode : VkSamplerMipmapMode, anisotropy : bool,
+		      wrapU := VkSamplerAddressMode.REPEAT, wrapV := VkSamplerAddressMode.REPEAT) {
+    createInfo : VkSamplerCreateInfo;
+    createInfo.minFilter = min;
+    createInfo.magFilter = mag;
+    createInfo.mipmapMode = mipMode;
+    createInfo.addressModeU = wrapU;
+    createInfo.addressModeV = wrapV;
+    createInfo.anisotropyEnable = ifx anisotropy then VK_TRUE else VK_FALSE;
+    createInfo.maxAnisotropy = vk.maxSamplerAnisotropy;
+    check_vk(vkCreateSampler(vk.device, *createInfo, null, sampler), "Failed to create Sampler");
+}
+
+create_empty_vk_image :: (extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, fenceIndex : s64, mipmapped := false) -> *AllocatedImageInfo {
     createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D, format, .{ extent.width, extent.height, 1 }, 1, 1, ._1_BIT, .OPTIMAL, usage, .EXCLUSIVE, 0, null, .UNDEFINED };
     if mipmapped then createInfo.mipLevels = cast(u32) floor(log2(cast(float) max(extent.width, extent.height))) + 1;
     allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .AUTO, flags = .DEDICATED_MEMORY_BIT };
@@ -347,63 +360,25 @@ create_vk_image :: (extent : VkExtent2D, format : VkFormat, usage : VkImageUsage
     return image;
 }
 
-DataCopyData :: struct {
-    buffer : *AllocatedBufferInfo;
-    image : *AllocatedImageInfo;
-    extent : VkExtent2D;
-}
-
-create_vk_image_from_data :: (data : *void, extent : VkExtent2D, format : VkFormat, usage : VkImageUsageFlags, bytesPerPixel : u64 = 4, mipmapped := false) -> *AllocatedImageInfo {
-    dataSize := extent.width * extent.height * bytesPerPixel;
-    uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
-    memcpy(uploadBuffer.allocationInfo.pMappedData, data, cast(s64) dataSize);
-    
-    image := create_vk_image(extent, format, usage, 0, mipmapped);
-    
-    imm_copy_into_image :: (cmdBuffer : VkCommandBuffer, data : *void) {
-	copyData := cast(*DataCopyData) data;
-
-	transition_image(cmdBuffer, copyData.image.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
-	copyRegion := VkBufferImageCopy.{ 0, 0, 0, VkImageSubresourceLayers.{ .COLOR_BIT, 0, 0, 1 }, .{}, .{ copyData.extent.width, copyData.extent.height, 1 } };
-	vkCmdCopyBufferToImage(cmdBuffer, copyData.buffer.buffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, 1, *copyRegion);
-	transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
-    }
-    
-    imageCopyData := New(DataCopyData);
-    imageCopyData.* = .{ uploadBuffer, image, extent };
-    
-    buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command(imm_copy_into_image, imageCopyData, buffersToCleanup);
-    
-    return image;
-}
-
 KTXCopyData :: struct {
     buffer : *AllocatedBufferInfo;
-    image : AllocatedImageInfo;
+    image : *AllocatedImageInfo;
     ktx : *ktxTexture2;
 }
 
-create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
-    createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
-				      cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight, 1 }, ktx.numLevels, ktx.numLayers * ktx.numFaces, ._1_BIT,
-				      .OPTIMAL, .SAMPLED_BIT | .TRANSFER_DST_BIT, .EXCLUSIVE, 0, null, .UNDEFINED };
-    allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .GPU_ONLY, requiredFlags = .DEVICE_LOCAL_BIT };
+DataCopyData :: struct {
+    buffer : *AllocatedBufferInfo;
+    image : *AllocatedImageInfo;
+    extent : *VkExtent2D;
+}
 
-    image := New(AllocatedImageInfo);
-    check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
-    
-    image.extent = .{ ktx.baseWidth, ktx.baseHeight };
-    image.format = cast(VkFormat) ktx.vkFormat;
-    
-    aspectMask := VkImageAspectFlags.COLOR_BIT;
-    viewCreateInfo := VkImageViewCreateInfo.{ .IMAGE_VIEW_CREATE_INFO, null, 0, image.image, ._2D, cast(VkFormat) ktx.vkFormat, .{}, make_image_subresource_range(aspectMask, 1, 1) };
-    check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
+ImageCopyData :: struct {
+    buffer : *AllocatedBufferInfo;
+    image : *AllocatedImageInfo;
+    extraData : *void;
+}
 
-    dataSize := ktxTexture_GetDataSize(ktx);
-    uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
-    memcpy(uploadBuffer.allocationInfo.pMappedData, ktx.pData, cast(s64) dataSize);
-    
+create_vk_image :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
     imm_copy_into_image :: (cmdBuffer : VkCommandBuffer, data : *void) {
 	copyData := cast(*KTXCopyData) data;
 
@@ -423,13 +398,54 @@ create_vk_image_from_ktx :: (ktx : *ktxTexture2) -> *AllocatedImageInfo {
 	}
 	
 	transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
+	
+	free(copyData);
     }
     
-    imageCopyData := New(KTXCopyData);
-    imageCopyData.* = .{ uploadBuffer, image, ktx };
+    return create_vk_image(ktx.pData, ktxTexture_GetDataSize(ktx), cast(VkFormat) ktx.vkFormat, .{ ktx.baseWidth, ktx.baseHeight }, ktx.numLevels, ktx.numLayers * ktx.numFaces,
+			  imm_copy_into_image, ktx);
+}
+
+create_vk_image :: (data : *void, dataSize : u64, format : VkFormat, extent : VkExtent2D, mipLevels : u32 = 1, arrayLayers : u32 = 1, copyFunc : UpdateCommandFunc = null, copyData : *void = null) -> *AllocatedImageInfo {
+    createInfo := VkImageCreateInfo.{ .IMAGE_CREATE_INFO, null, 0, ._2D,
+				      format, .{ extent.width, extent.height, 1 }, mipLevels, arrayLayers, ._1_BIT,
+				      .OPTIMAL, .SAMPLED_BIT | .TRANSFER_DST_BIT, .EXCLUSIVE, 0, null, .UNDEFINED };
+    allocationCreateInfo := VmaAllocationCreateInfo.{ usage = .AUTO, flags = .DEDICATED_MEMORY_BIT };
     
+    image := New(AllocatedImageInfo);
+    check_vk(vmaCreateImage(vk.allocator, *createInfo, *allocationCreateInfo, *image.image, *image.allocation, null), "Failed to create Image");
+    
+    image.extent = extent;
+    image.format = format;
+    
+    viewCreateInfo := VkImageViewCreateInfo.{ .IMAGE_VIEW_CREATE_INFO, null, 0, image.image, ._2D, format, .{}, make_image_subresource_range(.COLOR_BIT, 1, 1) };
+    check_vk(vkCreateImageView(vk.device, *viewCreateInfo, null, *image.view), "Failed to create Image View");
+    
+    uploadBuffer := create_vk_buffer(dataSize, .TRANSFER_SRC_BIT);
+    memcpy(uploadBuffer.allocationInfo.pMappedData, data, cast(s64) dataSize);
     buffersToCleanup := pack_buffers_for_cleanup(uploadBuffer);
-    add_update_command(imm_copy_into_image, imageCopyData, buffersToCleanup);
+
+    imageCopyData := New(ImageCopyData);
+    imageCopyData.* = .{ uploadBuffer, image, copyData };
+    
+    // If we don't get a custom copy function then use the default data copy and ignore the copyData
+    if !copyFunc {
+	data_copy_func :: (cmdBuffer : VkCommandBuffer, data : *void) {
+	    copyData := cast(*DataCopyData) data;
+
+	    transition_image(cmdBuffer, copyData.image.image, .UNDEFINED, .TRANSFER_DST_OPTIMAL);
+	    copyRegion := VkBufferImageCopy.{ 0, 0, 0, VkImageSubresourceLayers.{ .COLOR_BIT, 0, 0, 1 }, .{}, .{ copyData.extent.width, copyData.extent.height, 1 } };
+	    vkCmdCopyBufferToImage(cmdBuffer, copyData.buffer.buffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, 1, *copyRegion);
+	    transition_image(cmdBuffer, copyData.image.image, .TRANSFER_DST_OPTIMAL, .SHADER_READ_ONLY_OPTIMAL);
+
+	    free(copyData);
+	}
+	
+	imageCopyData.extraData = *image.extent;
+	add_update_command(data_copy_func, imageCopyData, buffersToCleanup);
+    } else {
+	add_update_command(copyFunc, imageCopyData, buffersToCleanup);
+    }
     
     return image;
 }

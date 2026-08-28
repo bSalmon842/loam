@@ -23,8 +23,10 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
     VertexInfo vertices[];
 };
 
-struct CommonPushConstants {
-  mat4 renderMatrix;
+struct MeshPushConstants {
+  mat4 viewProj;
+  // These other fields should probably be setup as a buffer like sprites
+  mat4 transform;
   vec4 colour;
   uint textureID;
   VertexBuffer vertexBuffer;

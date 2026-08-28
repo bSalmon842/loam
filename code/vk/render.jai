@@ -9,12 +9,6 @@ DEFAULT_TEXTURE_TINT :: Vector4.{1,1,1,1};
 
 Renderable :: struct {
     texture : *ImageResource;
-    vertices : [] Vertex;
-    vertexMemory : *void;
-    
-    dimensions : Vector3;
-    tint : Vector4 = DEFAULT_TEXTURE_TINT;
-
     buffers : *GPUBuffers;
 }
 
@@ -74,6 +68,7 @@ draw_frame :: () {
     }
     
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);
+    transition_image(cmdBuffer, vk.depthImage.image, .UNDEFINED, .DEPTH_ATTACHMENT_OPTIMAL);
     
     for * vk.pipelines {
 	draw_pipeline(cmdBuffer, it, drawExtent);

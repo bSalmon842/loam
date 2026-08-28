@@ -19,8 +19,7 @@ add_ui_render_command :: (elem : *UI_Element) {
     }
 }
 
-add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform,
-		       useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
+add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
     if !renderable.buffers.indexBuffer then return;
     
     pipeline := *vk.pipelines[pipelineType];
@@ -39,33 +38,55 @@ add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable
 	free(render);
 	return;
     }
+
+    render.buffers = renderable.buffers;
     
     // Save and reset the camera projection for after the command is made and use the pipeline's projection mode
     currentCameraProjection := camera.isOrthographic;
     camera.isOrthographic = pipeline.orthographic;
     
-    render.buffers = renderable.buffers;
-    render.pushConstants = .{ get_transform_matrix(transform, renderable.dimensions) * get_view_matrix(camera) * get_projection_matrix(camera),
-			      ifx useTintOverride then tintOverride else renderable.tint, renderable.texture.index, render.buffers.vertex.bufferAddress };
+    tranMatrix := get_transform_matrix(transform, .{1,1,1});
+    viewMatrix := get_view_matrix(camera);
+    projMatrix := get_projection_matrix(camera);
+    viewProj := viewMatrix * projMatrix;
+    render.pushConstants = .{ viewProj, tranMatrix, tintOverride, renderable.texture.index, render.buffers.vertex.bufferAddress };
     
     camera.isOrthographic = currentCameraProjection;
 }
 
-add_sprite_render_command :: (pipelineType : PipelineType, renderable : Renderable2D, transform : Transform,
-			      useTintOverride : bool = false, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
+add_sprite_render_command :: (pipelineType : PipelineType, renderable : Renderable2D, transform : Transform) {
     pipeline := *vk.pipelines[pipelineType];
     if pipeline.sprites.count == MAX_SPRITES then return;
 
     spriteInfo := GPUSpriteInfo.{
-	get_transform_matrix(transform, renderable.dimensions),
-	ifx useTintOverride then tintOverride else renderable.tint,
-	renderable.uv0, renderable.uv1,
-	renderable.dimensions,
-	renderable.texture.index, 0
+	get_transform_matrix(transform, renderable.dimensions),	renderable.tint, renderable.uv0, renderable.uv1, renderable.dimensions, renderable.texture.index, 0
     };
 
     pipeline.sprites.array[pipeline.sprites.count] = spriteInfo;
     pipeline.sprites.count += 1;
+}
+
+// TODO: Change this to use a draw context for transparent and opaque objects?
+// TODO: This also can't really be used long term as we might want different parts of the model rendered with different pipelines
+add_model_render_command :: (pipelineType : PipelineType, model : *Model) {
+    if model.active then add_render_commands_for_model_nodes(model.nodes, pipelineType, model);
+}
+
+add_render_commands_for_model_nodes :: (nodes : ModelNodeList, pipelineType : PipelineType, model : *Model) {
+    for node : nodes {
+	if node.active {
+	    if node.node.meshIndex != -1 {
+		mesh := model.resource.gltf.meshes[node.node.meshIndex];
+		for mesh.prims {
+		    if it.active {
+			add_render_command(pipelineType, loam.activeGameCamera, *it.renderable, alter_transform(node.node.worldTransform, model.transform));
+		    }
+		}
+	    }
+
+	    add_render_commands_for_model_nodes(node.children, pipelineType, model);
+	}
+    }
 }
 
 add_rect_render_command :: (dimensions : Vector2, transform : Transform, colour : Vector4) {

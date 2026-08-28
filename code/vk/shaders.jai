@@ -9,7 +9,7 @@ Created: 19MAY2025
 // Currently supported: "...vertex", "...fragment"
 
 FORCE_SHADER_REBUILD :: false;
-#if FORCE_SHADER_REBUILD then #run print_color("\tFORCING REBUILD OF ALL SHADERS\n\n", color=.HI_YELLOW);
+#if FORCE_SHADER_REBUILD then #run print_color("\tFORCED REBUILD OF ALL SHADERS\n\n", color=.HI_YELLOW);
 
 CompiledShader :: struct {
     name : string;

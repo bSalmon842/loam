@@ -150,6 +150,7 @@ AssetState :: struct {
     images : ResourcePool(ImageResource);
     audios : ResourcePool(AudioResource);
     json   : ResourcePool(JSONResource);
+    gltf   : ResourcePool(GLTFResource);
 }
 
 init_assets :: (assets : *AssetState, gameCode : string) {
@@ -163,6 +164,7 @@ init_assets :: (assets : *AssetState, gameCode : string) {
     setup_sentinel(*assets.images.sentinel);
     setup_sentinel(*assets.audios.sentinel);
     setup_sentinel(*assets.json.sentinel);
+    setup_sentinel(*assets.gltf.sentinel);
 }
 
 Asset :: struct {
@@ -186,6 +188,13 @@ get_packaged_assets_path :: () -> string {
 	} else {
 	    return "./bin/";
 	}
+    }
+}
+
+free_asset :: (asset : *Asset) {
+    if asset {
+	if asset.data then free(asset.data);
+	free(asset);
     }
 }
 
@@ -216,7 +225,18 @@ get_asset :: (type : AssetType, name : string) -> *Asset {
     }
     
     if #complete type == {
-	case .Mesh;  assert(false, "Not Implemented");
+	case .Mesh; {
+	    asset, assetData := make_asset_and_get_file_data(header);
+	    asset.data = get_gltf_from_file_data(header, assetData);
+	    	    
+	    free(file.data);
+	    if !asset.data {
+		free(asset);
+		return null;
+	    }
+	    
+	    return asset;
+	}
 	
 	case .Image; {
 	    asset, assetData := make_asset_and_get_file_data(header);
@@ -352,6 +372,25 @@ get_font_from_file_data :: (header : *PackagedAssetHeader, fileData : *void) -> 
     }
 
     return fontData;
+}
+
+get_gltf_from_file_data :: (header : *PackagedAssetHeader, fileData : *void) -> *GLTF_Data {
+    gltfData := New(GLTF_Data);
+    fileDataString := string.{ xx header.size, fileData };
+    gltfData.* = gltf_parse_string(fileDataString);
+    if gltfData.filepath.count == 0 {
+	gltfData.filepath = tprint("%", to_string(header.name));
+    }
+    //gltf_debug_print(gltfData.*);
+
+    if !gltfData.is_glb {
+	log(.ERROR, "Failed to load GLTF data for \"%\"", to_string(header.name));
+	gltf_free(gltfData);
+	free(gltfData);
+	return null;
+    }
+    
+    return gltfData;
 }
 
 make_asset_tags :: (header : *PackagedAssetHeader) -> [] string {

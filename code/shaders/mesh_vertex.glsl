@@ -15,13 +15,13 @@ layout (location = 1) out vec2 outUV;
 layout (location = 2) out uint outTextureID;
 
 layout (push_constant) uniform constants {
-  CommonPushConstants pc;
+  MeshPushConstants pc;
 } PushConstants;
 
 void main() {
   VertexInfo loadedVertex = PushConstants.pc.vertexBuffer.vertices[gl_VertexIndex];
   
-  gl_Position = PushConstants.pc.renderMatrix * vec4(loadedVertex.position, 1.0f);
+  gl_Position = (PushConstants.pc.viewProj * PushConstants.pc.transform) * vec4(loadedVertex.position, 1.0f);
   outColour = loadedVertex.colour * PushConstants.pc.colour;
   outUV = loadedVertex.uv;
   outTextureID = PushConstants.pc.textureID;

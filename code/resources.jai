@@ -10,6 +10,7 @@ ResourceType :: enum {
     Image;
     Audio;
     JSON;
+    GLTF;
 }
 
 MAX_RESOURCE_POOL_COUNT : u32 : 256;
@@ -44,11 +45,17 @@ JSONResource :: struct {
     json : *JSON_Value;
 }
 
+GLTFResource :: struct {
+    using _res : ResourceBase(#this);
+    gltf : *GLTFModel;
+}
+
 add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *$R
     #modify {
 	     if T == AllocatedImageInfo { R = ImageResource; }
 	else if T == Audio.Sound_Data   { R = AudioResource; }
 	else if T == JSON_Value         { R = JSONResource; }
+	else if T == GLTFModel          { R = GLTFResource; }
 	else                            { return false; }
 	
 	return true;
@@ -96,6 +103,9 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 	    
 	    resource.prev = loam.assets.audios.sentinel.prev;
 	    resource.next = *loam.assets.audios.sentinel;
+
+	    loam.assets.audios.sentinel.prev.next = resource;
+	    loam.assets.audios.sentinel.prev = resource;
 	    loam.assets.audios.count += 1;
 
 	    for * loam.assets.audios.array {
@@ -123,9 +133,40 @@ add_resource :: (name : string, resourceContent : *$T, core : bool = false) -> *
 
 	    resource.prev = loam.assets.json.sentinel.prev;
 	    resource.next = *loam.assets.json.sentinel;
+
+	    loam.assets.json.sentinel.prev.next = resource;
+	    loam.assets.json.sentinel.prev = resource;
 	    loam.assets.json.count += 1;
 
 	    for * loam.assets.json.array {
+		if !it.* {
+		    it.* = resource;
+		    resource.index = cast(u32) it_index;
+		    break;
+		}
+	    }
+
+	    return resource;
+	}
+
+	case GLTFModel; {
+	    if loam.assets.gltf.count == MAX_RESOURCE_POOL_COUNT {
+		log(.FATAL, "Failed to add resource, gltf resource cache is full");
+		return null;
+	    }
+	    resource := New(GLTFResource);
+	    resource.name = copy_string(name);
+	    resource.core = core;
+	    resource.gltf = resourceContent;
+	    
+	    resource.prev = loam.assets.gltf.sentinel.prev;
+	    resource.next = *loam.assets.gltf.sentinel;
+	    
+	    loam.assets.gltf.sentinel.prev.next = resource;
+	    loam.assets.gltf.sentinel.prev = resource;
+	    loam.assets.gltf.count += 1;
+	    
+	    for * loam.assets.gltf.array {
 		if !it.* {
 		    it.* = resource;
 		    resource.index = cast(u32) it_index;
@@ -194,10 +235,15 @@ find_resource :: ($T : Type, name : string, core : bool = false) -> *T {
 	    sentinel = *loam.assets.json.sentinel;
 	    resource = loam.assets.json.sentinel.next;
 	}
+
+	case GLTFResource; {
+	    sentinel = *loam.assets.gltf.sentinel;
+	    resource = loam.assets.gltf.sentinel.next;
+	}
     }
 
     while resource != sentinel {
-	if compare(resource.name, name) == 0 && resource.core == core {
+	if compare(resource.name, name) == 0 {
 	    return resource;
 	}
 
@@ -215,7 +261,11 @@ get_resource :: ($T : Type, name : string) -> *T {
 	case ImageResource; {
 	    asset := get_asset(.Image, name);
 	    if asset {
-		image := create_vk_image_from_ktx(cast(*ktxTexture2) asset.data);
+		image := create_vk_image(cast(*ktxTexture2) asset.data);
+		
+		// NOTE: Do not free the asset until the resource is freed as we need it
+		// TODO: Store the asset in the resource to free on resource cleanup, or store in an array to cleanup after the asset is fully loaded by vk
+		
 		return add_resource(name, image);
 	    }
 
@@ -229,6 +279,9 @@ get_resource :: ($T : Type, name : string) -> *T {
 		data := string.{ xx asset.header.size, cast(*u8) asset.data };
 		audio := New(Audio.Sound_Data);
 		audio.* = Audio.unpack_sound_data(data);
+
+		free_asset(asset);
+		
 		return add_resource(name, audio);
 	    }
 
@@ -240,9 +293,24 @@ get_resource :: ($T : Type, name : string) -> *T {
 	    if asset {
 		data := string.{ xx asset.header.size, cast(*u8) asset.data };
 		json := json_build_tree(data, name);
+
+		free_asset(asset);
+		
 		return add_resource(name, json);
 	    }
 
+	    return null;
+	}
+
+	case GLTFResource; {
+	    asset := get_asset(.Mesh, name);
+	    if asset {
+		gltf := load_gltf_to_model(cast(*GLTF_Data) asset.data, name);
+
+		free_asset(asset);
+		
+		return add_resource(name, gltf);
+	    }
 	    return null;
 	}
     }

@@ -39,6 +39,14 @@ to_size_string :: (value : u64) -> string {
     }
 }
 
+make_vector4 :: (c : [4] float) -> Vector4 {
+    return .{ c[0], c[1], c[2], c[3] };
+}
+
+make_quaternion :: (c : [4] float) -> Quaternion {
+    return .{ c[0], c[1], c[2], c[3] };
+}
+
 abs_to_u64 :: (value : s64) -> u64 {
     if value >= 0 then return cast(u64) value;
     else return cast(u64) (value * -1);

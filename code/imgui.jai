@@ -165,6 +165,19 @@ frame_imgui :: (metrics : *DebugMetrics) {
 		    }
 		}
 	    }
+	    
+	    if ImGui.CollapsingHeader(tprint("\t\tGLTF: %\0", loam.assets.gltf.count).data) {
+		for loam.assets.gltf.array {
+		    if it {
+			colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
+			if it.core {
+			    colour = .{ 0.71, 0.45, 1, 1 };
+			}
+			
+			ImGui.TextColored(colour, tprint("\t%", it.name));
+		    }
+		}
+	    }
 	}
 
 	if ImGui.CollapsingHeader("\tPlaying Audio") {
@@ -375,7 +388,29 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	ImGui.Checkbox("Show Colliders", *__showColliders);
     }
     ImGui.PopStyleColor();
-	
+    
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.3, 0.3, 0.3, 1.0 });
+    if ImGui.CollapsingHeader("Entities") {
+	for < enum_values_as_enum(EntityUpdateRate) {
+	    if ImGui.CollapsingHeader(tprint("%\0", it).data) {
+		ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.15, 0.15, 0.15, 1.0 });
+		for loam.entities[it] {
+		    if ImGui.CollapsingHeader(tprint("\t%\0", it.name).data) {
+			render_transform(*it.transform, it.name);
+			if it.useModel {
+			    ImGui.NewLine();
+			    ImGui.Text("Nodes:");
+			    render_model_nodes(it.model.nodes, it.model, 0);
+			    ImGui.NewLine();
+			}
+		    }
+		}
+		ImGui.PopStyleColor();
+	    }
+	}
+    }
+    ImGui.PopStyleColor();
+    
     ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.05, 0.4, 0.05, 1.0 });
     if ImGui.CollapsingHeader("Game State") {
 	ImGui.Text(tprint("Gameplay State: %", loam.gameplayState));
@@ -384,6 +419,35 @@ frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.End();
     
     ImGui.Render();
+}
+
+render_model_nodes :: (nodes : ModelNodeList, model : *Model, depth : u32) {
+    tabString := get_tab_level_string(depth);
+    
+    for nodes {
+	nodeName := it_index;
+	if ImGui.CollapsingHeader(tprint("%1%2\0", tabString, nodeName).data) {
+	    ImGui.Checkbox(tprint("Active##%\0", nodeName).data, *it.active);
+	    if it.node.meshIndex > -1 {
+		ImGui.Text("Mesh:");
+		mesh := model.resource.gltf.meshes[it.node.meshIndex];
+		ImGui.Text(tprint("\tName:", mesh.name));
+		for mesh.prims {
+		    ImGui.Text(tprint("\tPrim %", it_index));
+		    ImGui.SameLine();
+		    ImGui.Checkbox(tprint("\tActive##%_%\0", nodeName, it_index).data, *it.active);
+		}
+	    }
+	    ImGui.Text("Nodes:");
+	    render_model_nodes(it.children, model, depth + 1);
+	}
+    }
+}
+
+render_transform :: (transform : *Transform, name : string) {
+    ImGui.DragFloat3(tprint("Position##position_%\0", name).data, *transform.position.component, 0.001);
+    ImGui.DragFloat4(tprint("Orientation##orientation_%\0", name).data, *transform.orientation.component, 0.001);
+    ImGui.DragFloat3(tprint("Scale##scale_%\0", name).data, *transform.scale.component, 0.001);
 }
 
 render_json_object :: (value : *JSON_Value, tabLevel : u32) {
