@@ -7,7 +7,8 @@ Created: 23JUN2025
 
 MeshRenderCommand :: struct {
     buffers : *GPUBuffers;
-    pushConstants : MeshPushConstants;
+    vertexPushConstants : VertexMeshPushConstants;
+    fragmentPushConstants : FragmentMeshPushConstants;
 }
 
 add_ui_render_command :: (elem : *UI_Element) {
@@ -48,8 +49,9 @@ add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable
     tranMatrix := get_transform_matrix(transform, .{1,1,1});
     viewMatrix := get_view_matrix(camera);
     projMatrix := get_projection_matrix(camera);
-    viewProj := viewMatrix * projMatrix;
-    render.pushConstants = .{ viewProj, tranMatrix, tintOverride, renderable.texture.index, render.buffers.vertex.bufferAddress };
+    renderMatrix := tranMatrix * viewMatrix * projMatrix;
+    render.vertexPushConstants = .{ renderMatrix, tintOverride, render.buffers.vertex.bufferAddress, 0 };
+    render.fragmentPushConstants = .{ to_gpu_material(renderable.material) };
     
     camera.isOrthographic = currentCameraProjection;
 }
@@ -104,7 +106,8 @@ add_rect_render_command :: (dimensions : Vector2, transform : Transform, colour 
 }
 
 render_command :: (cmdBuffer : VkCommandBuffer, render : *MeshRenderCommand, pipelineLayout : VkPipelineLayout) {
-    vkCmdPushConstants(cmdBuffer, pipelineLayout, .VERTEX_BIT, 0, size_of(MeshPushConstants), *render.pushConstants);
+    vkCmdPushConstants(cmdBuffer, pipelineLayout, .VERTEX_BIT, 0,                                size_of(VertexMeshPushConstants), *render.vertexPushConstants);
+    vkCmdPushConstants(cmdBuffer, pipelineLayout, .FRAGMENT_BIT, size_of(VertexMeshPushConstants), size_of(FragmentMeshPushConstants), *render.fragmentPushConstants);
     
     vkCmdBindIndexBuffer(cmdBuffer, render.buffers.indexBuffer.buffer, 0, .UINT32);
     vkCmdDrawIndexed(cmdBuffer, render.buffers.indexCount, 1, 0, 0, 0);

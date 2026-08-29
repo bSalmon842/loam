@@ -8,7 +8,7 @@ Created: 19MAY2025
 // NOTE: re: Shader file names: We enforce a shader naming style where the name must end with the type of shader it is
 // Currently supported: "...vertex", "...fragment"
 
-FORCE_SHADER_REBUILD :: false;
+FORCE_SHADER_REBUILD :: true;
 #if FORCE_SHADER_REBUILD then #run print_color("\tFORCED REBUILD OF ALL SHADERS\n\n", color=.HI_YELLOW);
 
 CompiledShader :: struct {

@@ -143,9 +143,21 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineBuildI
     }
 }
 
-set_pipeline_layout :: (builder : *GraphicsPipelineBuildInfo, bufferSize : u32, pipelineType : PipelineType) {
-    bufferRange := VkPushConstantRange.{ .VERTEX_BIT, 0, bufferSize };
-    layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.bindlessDescriptorLayout, 1, *bufferRange };
+set_pipeline_layout :: (builder : *GraphicsPipelineBuildInfo, vertexPCBufferSize : u32, pipelineType : PipelineType,
+			needFragmentConstants : bool = false, fragmentPCBufferSize : u32 = 0) {
+    layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.bindlessDescriptorLayout, 0, null };
+    vertexRange := VkPushConstantRange.{ .VERTEX_BIT, 0, vertexPCBufferSize };
+    if needFragmentConstants {
+	fragmentRange := VkPushConstantRange.{ .FRAGMENT_BIT, vertexPCBufferSize, fragmentPCBufferSize };
+	ranges := VkPushConstantRange.[vertexRange, fragmentRange];
+	
+	layout.pushConstantRangeCount = 2;
+	layout.pPushConstantRanges = ranges.data;
+    } else {
+	layout.pushConstantRangeCount = 1;
+	layout.pPushConstantRanges = *vertexRange;
+    }
+    
     check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *builder.layout), tprint("Failed to create pipeline layout for %", pipelineType));
 }
 
@@ -276,7 +288,7 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
 		set_pipeline_depth_test_enabled(*builder, true, true, .GREATER);
-		set_pipeline_layout(*builder, size_of(MeshPushConstants), it);
+		set_pipeline_layout(*builder, size_of(VertexMeshPushConstants), it, true, size_of(FragmentMeshPushConstants));
 	    }
 	    
 	    case .Sprite; {

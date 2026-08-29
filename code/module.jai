@@ -412,6 +412,7 @@ DONE
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
 #load "json.jai";
+#load "material.jai";
 #load "math.jai";
 #load "metrics.jai";
 #load "model.jai";

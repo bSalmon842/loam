@@ -23,13 +23,30 @@ layout (buffer_reference, std430) readonly buffer VertexBuffer {
     VertexInfo vertices[];
 };
 
-struct MeshPushConstants {
-  mat4 viewProj;
-  // These other fields should probably be setup as a buffer like sprites
-  mat4 transform;
+struct TexWithFactor {
+  vec4 factor;
+  int index;
+  int padding[3];
+};
+
+struct MeshMaterial {
+  TexWithFactor baseColour;
+  TexWithFactor metalRough;
+  TexWithFactor emissive;
+  int normalTextureIndex;
+  bool isOpaque;
+  float alphaCutoff;
+};
+
+struct VertexPushConstants {
+  mat4 renderMatrix;
   vec4 colour;
-  uint textureID;
   VertexBuffer vertexBuffer;
+  int padding[2];
+};
+
+struct FragmentPushConstants {
+  MeshMaterial material;
 };
 
 // Sprite Info

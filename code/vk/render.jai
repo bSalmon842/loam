@@ -8,8 +8,8 @@ Created: 17MAY2025
 DEFAULT_TEXTURE_TINT :: Vector4.{1,1,1,1};
 
 Renderable :: struct {
-    texture : *ImageResource;
-    buffers : *GPUBuffers;
+    material : *Material;
+    buffers  : *GPUBuffers;
 }
 
 Renderable2D :: struct {

@@ -27,26 +27,6 @@ SceneMesh :: struct {
     prims      : [] PrimitiveInfo;
 }
 
-SceneMaterial :: struct {
-    name : string;
-
-    baseColourFactor  : Vector4;
-    baseColourTexture : *MaterialTexture;
-
-    metalRoughnessFactor  : Vector2;
-    metalRoughnessTexture : *MaterialTexture;
-
-    normalTexture    : *MaterialTexture;
-    occlusionTexture : *MaterialTexture;
-
-    emissiveFactor   : Vector3;
-    emissiveStrength : float32 = 1.0;
-    emissiveTexture  : *MaterialTexture;
-
-    alphaMode : GLTF_Alpha_Mode = .OPAQUE;
-    alphaCutoff : float32 = 0.5;
-}
-
 SceneTexture :: struct {
     samplerIndex : s64 = -1;
     imageIndex : s64 = -1;
@@ -103,10 +83,14 @@ GLTFModel :: struct {
     defaultScene : s64;
     scenes    : Table(string, *SceneGraph);
     meshes    : [] *SceneMesh;
-    materials : [] *SceneMaterial;
+    materials : [] *Material;
     textures  : [] *SceneTexture;
     images    : [] *SceneImage;
     samplers  : [] *SceneSampler;
+}
+
+get_gltf_image_name :: (gltfName : string, gltfImage : GLTF_Image) -> string {
+    return ifx gltfImage.uri.count > 0 then tprint("(%) %", gltfName, gltfImage.uri) else tprint("(%) Buffer View % (%)", gltfName, gltfImage.buffer_view, gltfImage.mime_type);
 }
 
 load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
@@ -167,7 +151,7 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
     for gltfImage : gltf.images {
 	image := New(SceneImage);
 	model.images[it_index] = image;
-	image.name = ifx gltfImage.uri.count > 0 then sprint("(%) %", name, gltfImage.uri) else sprint("(%) Buffer View % (%)", name, gltfImage.buffer_view, gltfImage.mime_type);
+	image.name = copy_string(get_gltf_image_name(name, gltfImage));
 
 	width, height, channels : s32;
 	imageData := stbi_load_from_memory(gltfImage.data.data, cast(s32) gltfImage.data.count, *width, *height, *channels, 4);
@@ -185,41 +169,32 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 	texture.imageIndex = gltfTexture.source;
     }
     
-    model.materials = NewArray(gltf.materials.count, *SceneMaterial);
+    model.materials = NewArray(gltf.materials.count, *Material);
     for gltfMaterial : gltf.materials {
-	material := New(SceneMaterial);
+	material := New(Material);
 	model.materials[it_index] = material;
 	material.name = copy_string(gltfMaterial.name);
-	material.baseColourFactor = make_vector4(gltfMaterial.metallic_roughness.base_color_factor);
+	material.baseColour.factor = make_vector4(gltfMaterial.metallic_roughness.base_color_factor);
 	if gltfMaterial.metallic_roughness.has_base_color {
-	    material.baseColourTexture = New(MaterialTexture);
-	    material.baseColourTexture.* = to_material_texture(gltfMaterial.metallic_roughness.base_color_texture);
+	    material.baseColour.texture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.metallic_roughness.base_color_texture.index]));
 	}
 
-	material.metalRoughnessFactor = .{ gltfMaterial.metallic_roughness.metallic_factor, gltfMaterial.metallic_roughness.roughness_factor };
+	material.metalRough.factor = .{ gltfMaterial.metallic_roughness.metallic_factor, gltfMaterial.metallic_roughness.roughness_factor, 0, 0 };
 	if gltfMaterial.metallic_roughness.has_metallic_roughness {
-	    material.metalRoughnessTexture = New(MaterialTexture);
-	    material.metalRoughnessTexture.* = to_material_texture(gltfMaterial.metallic_roughness.metallic_roughness_texture);
+	    material.metalRough.texture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.metallic_roughness.metallic_roughness_texture.index]));
 	}
-
-	if gltfMaterial.has_normal {
-	    material.normalTexture = New(MaterialTexture);
-	    material.normalTexture.* = to_material_texture(gltfMaterial.normal_texture);
-	}
-
-	if gltfMaterial.has_occlusion {
-	    material.occlusionTexture = New(MaterialTexture);
-	    material.occlusionTexture.* = to_material_texture(gltfMaterial.occlusion_texture);
-	}
-
-	material.emissiveFactor = make_vector3(gltfMaterial.emissive_factor);
-	material.emissiveStrength = gltfMaterial.emissive_strength;
+	
+	material.emissive.factor.xyz = make_vector3(gltfMaterial.emissive_factor);
+	material.emissive.factor.w = gltfMaterial.emissive_strength;
 	if gltfMaterial.has_emissive {
-	    material.emissiveTexture = New(MaterialTexture);
-	    material.emissiveTexture.* = to_material_texture(gltfMaterial.emissive_texture);
+	    material.emissive.texture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.emissive_texture.index]));
 	}
-
-	material.alphaMode = gltfMaterial.alpha_mode;
+	
+	if gltfMaterial.has_normal {
+	    material.normalTexture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.normal_texture.index]));
+	}
+	
+	material.isOpaque = gltfMaterial.alpha_mode == .OPAQUE;
 	material.alphaCutoff = gltfMaterial.alpha_cutoff;
     }
 
@@ -304,20 +279,12 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 		array_add(*vertices, vertex);
 	    }
 
+	    
 	    if prim.materialIndex == -1 {
-		prim.texture = get_resource(ImageResource, ERROR_TEXTURE_NAME);
+		prim.material = vk.errorMaterial;
 	    } else {
 		material := model.materials[prim.materialIndex];
-		if material.baseColourTexture && material.baseColourTexture.textureIndex != -1 {
-		    texture := model.textures[material.baseColourTexture.textureIndex];
-		    if texture.imageIndex == -1 {
-			prim.texture = get_resource(ImageResource, ERROR_TEXTURE_NAME);
-		    } else {
-			prim.texture = model.images[texture.imageIndex].image;
-		    }
-		} else {
-		    prim.texture = get_resource(ImageResource, ERROR_TEXTURE_NAME);
-		}
+		prim.material = material;
 	    }
 	    prim.buffers = New(GPUBuffers);
 	    copy_mesh_to_gpu_buffers(indices, vertices, prim.buffers);

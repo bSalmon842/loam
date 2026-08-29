@@ -80,6 +80,7 @@ Vk :: struct {
     
     // Built in error texture
     errorCheckerboard : *ImageResource;
+    errorMaterial : *Material;
     
     imagesToDestroyAtFrameReset : [..] *AllocatedImageInfo;
     buffersToDestroyAtFrameReset : [..] *AllocatedBufferInfo;
@@ -122,12 +123,15 @@ BoxColliderPushConstants :: struct {
     boxColliderBuffer : VkDeviceAddress;
 }
 
-MeshPushConstants :: struct {
-    viewProj : Matrix4;
-    transform : Matrix4;
+VertexMeshPushConstants :: struct {
+    renderMatrix : Matrix4;
     colourTint   : Vector4;
-    textureID    : u32;
     vertexBuffer : VkDeviceAddress;
+    padding : u64;
+}
+
+FragmentMeshPushConstants :: struct {
+    material : GPUMaterial;
 }
 
 init_vk :: () {
@@ -208,6 +212,8 @@ init_vk :: () {
     
     errorCheckerboardImage := create_vk_image(pixels.data, pixels.count * 4, .R8G8B8A8_SRGB, VkExtent2D.{ 16, 16 });
     vk.errorCheckerboard = add_resource(ERROR_TEXTURE_NAME, errorCheckerboardImage, true);
+    vk.errorMaterial = New(Material);
+    vk.errorMaterial.baseColour.texture = vk.errorCheckerboard;
 }
 
 create_vk_instance :: (appName : string) -> VkResult {

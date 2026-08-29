@@ -11,18 +11,19 @@ Created: 21MAY2025
 #include "shared_layouts.glsl"
 
 layout (location = 0) out vec4 outColour;
-layout (location = 1) out vec2 outUV;
-layout (location = 2) out uint outTextureID;
+layout (location = 1) out vec3 outNormal;
+layout (location = 2) out vec2 outUV;
 
-layout (push_constant) uniform constants {
-  MeshPushConstants pc;
-} PushConstants;
+layout (push_constant) uniform vertexConstants {
+  VertexPushConstants pc;
+} VertConstants;
 
 void main() {
-  VertexInfo loadedVertex = PushConstants.pc.vertexBuffer.vertices[gl_VertexIndex];
+  VertexInfo loadedVertex = VertConstants.pc.vertexBuffer.vertices[gl_VertexIndex];
   
-  gl_Position = (PushConstants.pc.viewProj * PushConstants.pc.transform) * vec4(loadedVertex.position, 1.0f);
-  outColour = loadedVertex.colour * PushConstants.pc.colour;
+  gl_Position = VertConstants.pc.renderMatrix * vec4(loadedVertex.position, 1.0f);
+  
+  outColour = loadedVertex.colour * VertConstants.pc.colour;
+  outNormal = loadedVertex.normal;
   outUV = loadedVertex.uv;
-  outTextureID = PushConstants.pc.textureID;
 }
