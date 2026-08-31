@@ -446,7 +446,10 @@ render_model_nodes :: (nodes : ModelNodeList, model : *Model, depth : u32) {
 
 render_transform :: (transform : *Transform, name : string) {
     ImGui.DragFloat3(tprint("Position##position_%\0", name).data, *transform.position.component, 0.001);
-    ImGui.DragFloat4(tprint("Orientation##orientation_%\0", name).data, *transform.orientation.component, 0.001);
+    euler := quaternion_to_euler(transform.orientation);
+    if ImGui.DragFloat3(tprint("Orientation##orientation_%\0", name).data, *euler.component, 0.001) {
+	transform.orientation = euler_to_quaternion(euler);
+    }
     ImGui.DragFloat3(tprint("Scale##scale_%\0", name).data, *transform.scale.component, 0.001);
 }
 
