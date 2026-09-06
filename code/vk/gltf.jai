@@ -234,7 +234,7 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 	    }
 
 	    // Get Bounds
-	    prim.minBound = .{  FLOAT32_MAX,  FLOAT32_MAX, FLOAT32_MAX };
+	    prim.minBound = .{ FLOAT32_MAX, FLOAT32_MAX, FLOAT32_MAX };
 	    prim.maxBound = -prim.minBound;
 
 	    for positions {
@@ -254,6 +254,16 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 	    } else {
 		read_buffer_from_accessor_using_type(gltf, gltf.accessors[it.normal_accessor], *normals);
 	    }
+
+	    tangents : [..] Vector3;
+	    // TODO: Implement mikktspace tangents if we have baked in tangents
+	    /*
+	    if it.tangent_accessor < 0 {
+		log(.ERROR, "No Tangent Accessor index for Prim % in GLTF Mesh \"%\" (%)", it_index, mesh.name, meshIndex);
+	    } else {
+		read_buffer_from_accessor_using_type(gltf, gltf.accessors[it.tangent_accessor], *tangents);
+	    }
+	    */
 	    
 	    uvs : [..] Vector2;
 	    if it.texcoord_0_accessor < 0 {
@@ -273,12 +283,18 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 	    for positions {
 		vertex : Vertex;
 		vertex.position = it;
-		vertex.normal   = ifx normals.count > 0 then normals[it_index] else .{};
-		vertex.uv       = ifx uvs.count > 0     then uvs[it_index]     else .{};
-		vertex.colour   = ifx colours.count > 0 then colours[it_index] else make_vector4(1);
+		vertex.position.z *= -1.0;
+		vertex.normal   = ifx normals.count > 0  then normals[it_index]  else .{};
+		//vertex.tangent  = ifx tangents.count > 0 then tangents[it_index] else .{};
+		vertex.uv       = ifx uvs.count > 0      then uvs[it_index]      else .{};
+		vertex.colour   = ifx colours.count > 0  then colours[it_index]  else make_vector4(1);
 		array_add(*vertices, vertex);
 	    }
-
+	    
+	    if tangents.count == 0 {
+		// Generate our own tangents/binormals
+		generate_mesh_tangents_binormals(name, indices, *vertices);
+	    }
 	    
 	    if prim.materialIndex == -1 {
 		prim.material = vk.errorMaterial;

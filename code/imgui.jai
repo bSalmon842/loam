@@ -77,9 +77,9 @@ frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.2, 0.2, 0.2, 1.0 });
     if ImGui.CollapsingHeader("Config") {
 	ImGui.Checkbox("vsync", *loam.config.vsync);
-
-	devices := Audio.get_devices();
+	
 	if ImGui.BeginCombo("##audiodevices", loam.audioDevice.name.data) {
+	    devices := Audio.get_devices();
 	    for devices {
 		selected := loam.audioDevice.device_index == it.device_index;
 		if ImGui.Selectable(it.name.data, selected) then change_audio_device(it);
@@ -94,7 +94,19 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	}
     }
     ImGui.PopStyleColor();
-
+    
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.8, 0.8, 0.1, 1.0 });
+    if ImGui.CollapsingHeader("Graphics World Data") {
+	ImGui.Text("ViewProj Matrix:");
+	for vk.worldData.viewProj.v {
+	    ImGui.Text(tprint("\t%", it));
+	}
+	
+	ImGui.DragFloat4("Light Pos & Intensity", *loam.testLightPos.component, 0.01);
+	ImGui.DragFloat("Ambient Light Level", *loam.ambientLight, 0.01, 0.0, 1.0);
+    }
+    ImGui.PopStyleColor();
+    
     ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.8, 0.1, 0.1, 1.0 });
     if ImGui.CollapsingHeader("Assets") {
 	if ImGui.CollapsingHeader("\tResource Counts") {

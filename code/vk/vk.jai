@@ -61,6 +61,9 @@ Vk :: struct {
     bindlessDescriptorSet    : VkDescriptorSet;
     bindlessDescriptorLayout : VkDescriptorSetLayout;
     bindlessTextureUpdates   : [..] *ImageResource;
+
+    worldData : GraphicsWorldData;
+    worldDataBuffer : *AllocatedBufferInfo;
     
     // Update Commands
     updateCmdPool  : VkCommandPool;
@@ -73,7 +76,7 @@ Vk :: struct {
     // Sampler for each member of VkFilter (we don't care about CUBIC)
     maxSamplerAnisotropy   : float32;
     defaultSampler_Nearest : VkSampler;
-    defaultSampler_Linear  : VkSampler;
+    defaultSampler_Linear : VkSampler;
 
     defaultPlaneIndexBuffer : *AllocatedBufferInfo;
     defaultCubeIndexBuffer  : *AllocatedBufferInfo;
@@ -87,6 +90,12 @@ Vk :: struct {
 
     // Optional Stuff
     enableVkVideo : bool;
+}
+
+GraphicsWorldData :: struct {
+    viewProj : Matrix4 #align 16;
+    lightPos : Vector4 #align 16;
+    ambience : float32 #align 16;
 }
 
 FrameCommandInfo :: struct {
@@ -124,11 +133,11 @@ BoxColliderPushConstants :: struct {
 }
 
 VertexMeshPushConstants :: struct {
-    renderMatrix : Matrix4;
-    colourTint   : Vector4;
+    transform : Matrix4;
     vertexBuffer : VkDeviceAddress;
     padding : u64;
 }
+//#run print("\n===== % =====\n\n", size_of(VertexMeshPushConstants));
 
 FragmentMeshPushConstants :: struct {
     material : GPUMaterial;
@@ -308,6 +317,7 @@ get_vk_physical_device :: () -> VkResult {
     vk.reqFeatures_1_0.fillModeNonSolid = 1;
     vk.reqFeatures_1_2.bufferDeviceAddress = 1;
     vk.reqFeatures_1_2.descriptorIndexing = 1;
+    vk.reqFeatures_1_2.descriptorBindingUniformBufferUpdateAfterBind = 1;
     vk.reqFeatures_1_2.descriptorBindingPartiallyBound = 1;
     vk.reqFeatures_1_2.descriptorBindingSampledImageUpdateAfterBind = 1;
     vk.reqFeatures_1_2.descriptorBindingVariableDescriptorCount = 1;

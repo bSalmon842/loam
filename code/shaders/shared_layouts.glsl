@@ -8,15 +8,18 @@ Created: 04JUN2025
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_GOOGLE_include_directive : require
-//#extension GL_EXT_debug_printf : enable
+// #extension GL_EXT_debug_printf : enable
 
 #include "bindless.glsl"
 
 struct VertexInfo {
   vec3 position;
   vec3 normal;
+  vec3 tangent;
+  vec3 binormal;
   vec2 uv;
   vec4 colour;
+  uint padding[2];
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
@@ -39,8 +42,7 @@ struct MeshMaterial {
 };
 
 struct VertexPushConstants {
-  mat4 renderMatrix;
-  vec4 colour;
+  mat4 transform;
   VertexBuffer vertexBuffer;
   int padding[2];
 };

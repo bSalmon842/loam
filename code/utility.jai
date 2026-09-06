@@ -58,6 +58,13 @@ round_to :: (value : $T, $type : Type) -> type #modify {
     return cast(type) (value + 0.5);
 }
 
+round_up_to_multiple :: (value : $T, multi : T) -> T {
+    if multi == 0 then return value;
+    remainder := value % multi;
+    if remainder == 0 then return value;
+    return value + multi - remainder;
+}
+
 to_radians :: (degrees : float) -> float {
     return degrees * (TAU / 360.0);
 }

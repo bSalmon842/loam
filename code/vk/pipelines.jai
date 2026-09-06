@@ -219,7 +219,7 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
     
     scissor := VkRect2D.{ .{}, drawExtent };
     vkCmdSetScissor(cmdBuffer, 0, 1, *scissor);
-
+    
     vkCmdBindDescriptorSets(cmdBuffer, .GRAPHICS, pipeline.layout, 0, 1, *vk.bindlessDescriptorSet, 0, null);
     if pipeline.isSpritePipeline {
 	camera := ifx is_ui_pipeline(pipeline) then get_camera("UI") else loam.activeGameCamera;

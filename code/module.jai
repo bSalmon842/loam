@@ -1,4 +1,4 @@
-/*
+ /*
 Project: Loam
 File: module.jai
 Author: Brock Salmon
@@ -96,6 +96,9 @@ LoamState :: struct {
 
     // Entities
     entities : [#run (enum_highest_value(EntityUpdateRate) + 1)] EntityMap;
+
+    testLightPos := Vector4.{ 0, 0, 0, 1 };
+    ambientLight : float = 0.05;
 
     #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
@@ -304,7 +307,7 @@ loam_start_render :: () {
 	    frame_imgui(*loam.metrics);
 	}
     }
-
+    
     for loam.uiElements {
 	if it.activeStates & loam.gameplayState {
 	    add_ui_render_command(it);
@@ -316,6 +319,12 @@ loam_finish_render :: () {
     #if IS_DEV {
 	update_debug_metrics(*loam.metrics);
     }
+
+    update_world_data(loam.activeGameCamera, loam.testLightPos, loam.ambientLight);
+    //destroy_vk_buffer(vk.worldDataBuffer);
+    if !vk.worldDataBuffer then vk.worldDataBuffer = create_vk_buffer(size_of(GraphicsWorldData), .UNIFORM_BUFFER_BIT);
+    memcpy(vk.worldDataBuffer.allocationInfo.pMappedData, *vk.worldData, size_of(GraphicsWorldData));
+    update_bindless_descriptor_world_data();
 
     update_bindless_descriptor_textures();
     TIMING_MARKER("Update Bindless Descriptor");

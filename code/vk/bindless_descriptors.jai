@@ -5,19 +5,19 @@ Author: Brock Salmon
 Created: 04AUG2025
 */
 
-    MAX_BINDLESS_RESOURCES : u32 : 256;
-#if OS == .ANDROID {
-    MAX_BINDLESS_SAMPLERS  : u32 : 256;
-} else {
-    MAX_BINDLESS_SAMPLERS  : u32 : 8;
-}
-BINDLESS_TEXTURE_BINDING : u32 : 0;
-BINDLESS_SAMPLER_BINDING : u32 : 1;
+MAX_BINDLESS_RESOURCES : u32 : 256;
+MAX_BINDLESS_SAMPLERS  : u32 : 256;
+
+BINDLESS_WORLD_DATA_BINDING : u32 : 0;
+BINDLESS_TEXTURE_BINDING : u32 : 1;
+BINDLESS_SAMPLER_BINDING : u32 : 2;
+
 MAX_UPDATES_PER_FRAME : u32 : 16;
 
 create_bindless_descriptor_pool :: () -> VkDescriptorPool {
-    poolSizes :: VkDescriptorPoolSize.[ .{ .SAMPLED_IMAGE, MAX_BINDLESS_RESOURCES },
-				        .{ .SAMPLER,       MAX_BINDLESS_SAMPLERS }];
+    poolSizes :: VkDescriptorPoolSize.[ .{ .SAMPLED_IMAGE,  MAX_BINDLESS_RESOURCES },
+				        .{ .SAMPLER,        MAX_BINDLESS_SAMPLERS  },
+				        .{ .UNIFORM_BUFFER, 1 } ];
     createInfo := VkDescriptorPoolCreateInfo.{ .DESCRIPTOR_POOL_CREATE_INFO, null,
 					       .UPDATE_AFTER_BIND_BIT, MAX_BINDLESS_RESOURCES * poolSizes.count, cast(u32) poolSizes.count, poolSizes.data };
 
@@ -28,11 +28,12 @@ create_bindless_descriptor_pool :: () -> VkDescriptorPool {
 
 create_bindless_descriptor_set :: () -> VkDescriptorSet {
     // Create the set layout
-    bindings := VkDescriptorSetLayoutBinding.[ .{ BINDLESS_TEXTURE_BINDING, .SAMPLED_IMAGE, MAX_BINDLESS_RESOURCES, .ALL, null },
-					       .{ BINDLESS_SAMPLER_BINDING, .SAMPLER,       MAX_BINDLESS_SAMPLERS,  .ALL, null } ];
+    bindings := VkDescriptorSetLayoutBinding.[ .{ BINDLESS_WORLD_DATA_BINDING, .UNIFORM_BUFFER, 1,                      .ALL, null },
+					       .{ BINDLESS_TEXTURE_BINDING,    .SAMPLED_IMAGE,  MAX_BINDLESS_RESOURCES, .ALL, null },
+					       .{ BINDLESS_SAMPLER_BINDING,    .SAMPLER,        MAX_BINDLESS_SAMPLERS,  .ALL, null } ];
 
     bindlessFlags : VkDescriptorBindingFlags = .PARTIALLY_BOUND_BIT | .UPDATE_AFTER_BIND_BIT;
-    bindlessFlagArray := VkDescriptorBindingFlags.[ bindlessFlags, bindlessFlags ];
+    bindlessFlagArray := VkDescriptorBindingFlags.[ bindlessFlags, bindlessFlags, bindlessFlags ];
     bindingFlagsCreateInfo := VkDescriptorSetLayoutBindingFlagsCreateInfo.{ .DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, null, cast(u32) bindlessFlagArray.count, bindlessFlagArray.data };
     layoutCreateInfo := VkDescriptorSetLayoutCreateInfo.{ .DESCRIPTOR_SET_LAYOUT_CREATE_INFO, *bindingFlagsCreateInfo, .UPDATE_AFTER_BIND_POOL_BIT, cast(u32) bindings.count, bindings.data };
     
@@ -57,7 +58,7 @@ add_bindless_descriptor_samplers :: () {
     }
 
     add_sampler(0, vk.defaultSampler_Nearest);
-    add_sampler(0, vk.defaultSampler_Linear);
+    add_sampler(1, vk.defaultSampler_Linear);
 }
 
 update_bindless_descriptor_textures :: () {
@@ -66,7 +67,7 @@ update_bindless_descriptor_textures :: () {
 	bindlessDescriptorImageInfo : [..] VkDescriptorImageInfo;
 	
 	for vk.bindlessTextureUpdates {
-	    if it_index == MAX_UPDATES_PER_FRAME - 1 then break;
+	    if it_index == MAX_UPDATES_PER_FRAME then break;
 
 	    imageInfo := array_add(*bindlessDescriptorImageInfo);
 	    imageInfo.* = .{ null, it.image.view, .READ_ONLY_OPTIMAL };
@@ -79,8 +80,9 @@ update_bindless_descriptor_textures :: () {
 	if vk.bindlessTextureUpdates.count < MAX_UPDATES_PER_FRAME {
 	    array_reset(*vk.bindlessTextureUpdates);
 	} else {
-	    for 0 .. MAX_UPDATES_PER_FRAME-1 {
-		array_ordered_remove_by_index(*vk.bindlessTextureUpdates, it);
+	    removeCount := min(vk.bindlessTextureUpdates.count, MAX_UPDATES_PER_FRAME);
+	    for 0 .. removeCount-1 {
+		array_ordered_remove_by_index(*vk.bindlessTextureUpdates, 0);
 	    }
 	}
 
@@ -91,4 +93,11 @@ update_bindless_descriptor_textures :: () {
 	array_reset(*bindlessDescriptorWrites);
 	array_reset(*bindlessDescriptorImageInfo);
     }
+}
+
+update_bindless_descriptor_world_data :: () {
+    bufferSize := round_up_to_multiple(size_of(GraphicsWorldData), 16);
+    bufferInfo := VkDescriptorBufferInfo.{ vk.worldDataBuffer.buffer, 0, cast(u64) bufferSize };
+    write := VkWriteDescriptorSet.{ .WRITE_DESCRIPTOR_SET, null, vk.bindlessDescriptorSet, BINDLESS_WORLD_DATA_BINDING, 0, 1, .UNIFORM_BUFFER, null, *bufferInfo, null };
+    vkUpdateDescriptorSets(vk.device, 1, *write, 0, null);
 }

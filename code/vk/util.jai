@@ -524,6 +524,12 @@ make_rendering_info :: (renderExtent : VkExtent2D, colourAttachment : *VkRenderi
     };
 }
 
+update_world_data :: (camera : *Camera, lightDir : Vector4, ambience : float32) {
+    viewMatrix := get_view_matrix(camera);
+    projMatrix := get_projection_matrix(camera);
+    vk.worldData = .{ viewMatrix * projMatrix, lightDir, ambience };
+}
+
 extent_to_vector :: (extent : VkExtent2D) -> Vector2 {
     return Vector2.{ cast(float) extent.width, cast(float) extent.height };
 }

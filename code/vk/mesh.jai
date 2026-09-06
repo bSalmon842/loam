@@ -8,8 +8,17 @@ Created: 20MAY2025
 Vertex :: struct {
     position : Vector3 #align 16;
     normal   : Vector3 #align 16;
+    tangent  : Vector3 #align 16;
+    binormal : Vector3 #align 16;
     uv       : Vector2 #align 16;
     colour   := Vector4.{1,1,1,1} #align 16;
+    padding  : u64 #align 16;
+}
+
+TangentCalcVertex :: struct {
+    position : Vector3;
+    normal : Vector3;
+    uv : Vector2;
 }
 
 GPUBufferInfo :: struct {

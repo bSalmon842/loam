@@ -95,7 +95,7 @@ get_perspective_matrix :: (camera : *Camera) -> Matrix4 {
     return Matrix4.{
 	scaleX,  0,      0,      0,
 	0,      -scaleY, 0,      0,
-	0,       0,      0,     -1,
+	0,       0,      0,      1,
 	0,       0,      0.01,   0
     };
 }
@@ -105,6 +105,6 @@ get_orthographic_matrix :: (camera : *Camera) -> Matrix4 {
 	 2.0 / camera.dimensions.x,  0,                         0, 0,
 	 0,                         -2.0 / camera.dimensions.y, 0, 0,
 	 0,                          0,                         0, 0,
-	-1,                          1,                         1, 1
+	-1,                          1,                         0, 1
     };
 }

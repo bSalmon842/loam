@@ -20,7 +20,7 @@ add_ui_render_command :: (elem : *UI_Element) {
     }
 }
 
-add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform, tintOverride : Vector4 = DEFAULT_TEXTURE_TINT) {
+add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable : *Renderable, transform : Transform) {
     if !renderable.buffers.indexBuffer then return;
     
     pipeline := *vk.pipelines[pipelineType];
@@ -47,10 +47,7 @@ add_render_command :: (pipelineType : PipelineType, camera : *Camera, renderable
     camera.isOrthographic = pipeline.orthographic;
     
     tranMatrix := get_transform_matrix(transform, .{1,1,1});
-    viewMatrix := get_view_matrix(camera);
-    projMatrix := get_projection_matrix(camera);
-    renderMatrix := tranMatrix * viewMatrix * projMatrix;
-    render.vertexPushConstants = .{ renderMatrix, tintOverride, render.buffers.vertex.bufferAddress, 0 };
+    render.vertexPushConstants = .{ tranMatrix, render.buffers.vertex.bufferAddress, 0 };
     render.fragmentPushConstants = .{ to_gpu_material(renderable.material) };
     
     camera.isOrthographic = currentCameraProjection;
@@ -81,7 +78,8 @@ add_render_commands_for_model_nodes :: (nodes : ModelNodeList, pipelineType : Pi
 		mesh := model.resource.gltf.meshes[node.node.meshIndex];
 		for mesh.prims {
 		    if it.active {
-			add_render_command(pipelineType, loam.activeGameCamera, *it.renderable, alter_transform(node.node.worldTransform, model.transform));
+			// TODO: The transform is screwed here due to world/local issues
+			add_render_command(pipelineType, loam.activeGameCamera, *it.renderable, model.transform);//alter_transform(node.node.worldTransform, model.transform));
 		    }
 		}
 	    }
