@@ -64,6 +64,8 @@ Vk :: struct {
 
     worldData : GraphicsWorldData;
     worldDataBuffer : *AllocatedBufferInfo;
+
+    clearColour : Vector4 = .{0.1, 0.1, 0.1, 1.0};
     
     // Update Commands
     updateCmdPool  : VkCommandPool;
@@ -93,9 +95,11 @@ Vk :: struct {
 }
 
 GraphicsWorldData :: struct {
-    viewProj : Matrix4 #align 16;
-    lightPos : Vector4 #align 16;
-    ambience : float32 #align 16;
+    viewProj  : Matrix4 #align 16;
+    lightPos  : Vector4 #align 16;
+    cameraPos : Vector3 #align 16;
+    padding   : s32;
+    ambience  : Vector4 #align 16;
 }
 
 FrameCommandInfo :: struct {

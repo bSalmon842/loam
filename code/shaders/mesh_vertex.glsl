@@ -16,6 +16,7 @@ layout (location = 2) out vec2 outUV;
 layout (location = 3) out vec3 outTangent;
 layout (location = 4) out vec3 outBinormal;
 layout (location = 5) out vec3 outLightDir;
+layout (location = 6) out vec3 outWorldPos;
 
 layout (push_constant) uniform vertexConstants {
   VertexPushConstants pc;
@@ -25,6 +26,7 @@ void main() {
   VertexInfo loadedVertex = VertConstants.pc.vertexBuffer.vertices[gl_VertexIndex];
   vec4 vertPos = vec4(loadedVertex.position, 1.0f);
   vec4 worldPos = VertConstants.pc.transform * vertPos;
+  outWorldPos = worldPos.xyz;
   gl_Position = world.viewProj * worldPos;
   
   outLightDir = normalize(world.lightPos.xyz - worldPos.xyz);

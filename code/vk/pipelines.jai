@@ -8,6 +8,7 @@ Created: 19MAY2025
 // TODO: In order to make the pipelines game extensible, it might be better to scrap the enum and instead have a hash table in the vk structure of pipelines with names
 
 PipelineType :: enum {
+    Grid;
     Sprite_Rect;
     Mesh;
     Sprite;
@@ -237,7 +238,11 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
 	pushConstants := BoxColliderPushConstants.{ get_view_matrix(camera) * get_projection_matrix(camera), pipeline.boxColliders.buffer.bufferAddress };
 	
 	render_box_collider_batch(cmdBuffer, pushConstants, pipeline.boxColliders.count, pipeline.layout);
-    } else {
+    } else if pipeline.type == .Grid {
+	if loam.devViewActive && loam.drawWorldGrid && loam.gameplayState == .Playing {
+	    vkCmdDraw(cmdBuffer, 4, 1, 0, 0);
+	}
+    }else {
 	for pipeline.renderCommands {
 	    if it {
 		render_command(cmdBuffer, it, pipeline.layout);
@@ -389,6 +394,24 @@ init_pipelines :: () {
 		set_pipeline_layout(*builder, size_of(BoxColliderPushConstants), it);
 
 		init_box_collider_buffer(pipeline);
+	    }
+	    
+	    case .Grid; {
+		pipeline.orthographic = false;
+		
+		vertShader = load_shader_module(vk.device, GRID_VERTEX_SHADER);
+		fragShader = load_shader_module(vk.device, GRID_FRAGMENT_SHADER);
+		
+		set_pipeline_shaders(*builder, vertShader, fragShader);
+		set_pipeline_input_topology(*builder, .TRIANGLE_STRIP);
+		set_pipeline_polygon_mode(*builder, .FILL);
+		set_pipeline_cull_mode(*builder, .NONE, .COUNTER_CLOCKWISE);
+		set_pipeline_multisampling_mode(*builder, .None);
+		set_pipeline_blending_mode(*builder, true, .Alpha);
+		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
+		set_pipeline_depth_format(*builder);
+		set_pipeline_depth_test_enabled(*builder, true, true, .GREATER);
+		set_pipeline_layout(*builder, 0, it);
 	    }
 	}
 

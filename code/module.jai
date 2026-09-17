@@ -23,6 +23,8 @@ Created: 08JUN2025
     #if IS_DEV {
 	BOX_COLLIDER_VERTEX_SHADER   :: #run compile_glsl_to_spirv("box_collider_vertex");
 	BOX_COLLIDER_FRAGMENT_SHADER :: #run compile_glsl_to_spirv("box_collider_fragment");
+	GRID_VERTEX_SHADER           :: #run compile_glsl_to_spirv("grid_vertex");
+	GRID_FRAGMENT_SHADER         :: #run compile_glsl_to_spirv("grid_fragment");
     }
 
     IMGUI_VERT :: #run compile_glsl_to_spirv("imgui_vertex");
@@ -39,6 +41,8 @@ Created: 08JUN2025
     #if IS_DEV {
 	BOX_COLLIDER_VERTEX_SHADER   : CompiledShader;
 	BOX_COLLIDER_FRAGMENT_SHADER : CompiledShader;
+	GRID_VERTEX_SHADER           : CompiledShader;
+	GRID_FRAGMENT_SHADER         : CompiledShader;
     }
 }
 
@@ -98,11 +102,14 @@ LoamState :: struct {
     entities : [#run (enum_highest_value(EntityUpdateRate) + 1)] EntityMap;
 
     testLightPos := Vector4.{ 0, 0, 0, 1 };
-    ambientLight : float = 0.05;
+    ambientLight := Vector4.{ 1, 1, 1, 0.1 };
 
     #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
 	metrics : DebugMetrics;
+
+	devViewActive : bool = true;
+	drawWorldGrid : bool = true;
     }
 }
 

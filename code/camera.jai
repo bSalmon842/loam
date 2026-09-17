@@ -65,6 +65,21 @@ relative_to_game_camera :: (point : Vector3) -> Vector3 {
     return point - loam.activeGameCamera.position;
 }
 
+look_at_point :: (camera : *Camera, point : Vector3) {
+    dir := point - camera.position;
+    normalize(*dir);
+
+    yaw := 0.0;
+    if length(Vector2.{ dir.x, dir.z }) > EPSILON32 then yaw = atan2(dir.x, dir.z);
+    pitch := asin(clamp(-dir.y, -1.0, 1.0));
+
+    qYaw, qPitch : Quaternion;
+    set_from_axis_and_angle(*qYaw, .{ 0, 1, 0 }, yaw);
+    set_from_axis_and_angle(*qPitch, .{ 1, 0, 0 }, pitch);
+    camera.orientation = qYaw * qPitch;
+    
+}
+
 get_view_matrix :: (camera : *Camera) -> Matrix4 {
     rotationMatrix := rotation_matrix(Matrix4, camera.orientation);
     zAxis := normalize(multiply(rotationMatrix, .{ 0, 0, 1 }));

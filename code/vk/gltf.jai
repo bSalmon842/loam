@@ -179,9 +179,9 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 	    material.baseColour.texture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.metallic_roughness.base_color_texture.index]));
 	}
 
-	material.metalRough.factor = .{ gltfMaterial.metallic_roughness.metallic_factor, gltfMaterial.metallic_roughness.roughness_factor, 0, 0 };
+	material.orm.factor = .{ gltfMaterial.metallic_roughness.metallic_factor, gltfMaterial.metallic_roughness.roughness_factor, 0, 0 };
 	if gltfMaterial.metallic_roughness.has_metallic_roughness {
-	    material.metalRough.texture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.metallic_roughness.metallic_roughness_texture.index]));
+	    material.orm.texture = find_resource(ImageResource, get_gltf_image_name(name, gltf.images[gltfMaterial.metallic_roughness.metallic_roughness_texture.index]));
 	}
 	
 	material.emissive.factor.xyz = make_vector3(gltfMaterial.emissive_factor);

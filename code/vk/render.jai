@@ -64,7 +64,7 @@ draw_frame :: () {
 	    render_clear(cmdBuffer, vk.drawImage.image, splash.clearColour);
 	}
     } else {
-	render_clear(cmdBuffer, vk.drawImage.image, .{0.1, 0.1, 0.1, 1.0});
+	render_clear(cmdBuffer, vk.drawImage.image, vk.clearColour);
     }
     
     transition_image(cmdBuffer, vk.drawImage.image, .GENERAL, .COLOR_ATTACHMENT_OPTIMAL);

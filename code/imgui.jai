@@ -52,6 +52,11 @@ frame_imgui :: (metrics : *DebugMetrics) {
     ImGui.NewFrame();
     
     ImGui.Begin("Dev Window");
+    ImGui.Checkbox("Enable Dev View", *loam.devViewActive);
+    if loam.devViewActive {
+	ImGui.Checkbox("Show World Grid", *loam.drawWorldGrid);
+    }
+    
     if ImGui.CollapsingHeader("Metrics") {
 	ImGui.Text("General:");
 	colour := ImGui.ImVec4.{ 1, 1, 1, 1 };
@@ -103,7 +108,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	}
 	
 	ImGui.DragFloat4("Light Pos & Intensity", *loam.testLightPos.component, 0.01);
-	ImGui.DragFloat("Ambient Light Level", *loam.ambientLight, 0.01, 0.0, 1.0);
+	ImGui.DragFloat4("Ambient Light", *loam.ambientLight.component, 0.001, 0.0, 1.0);
     }
     ImGui.PopStyleColor();
     
@@ -225,6 +230,27 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	    ImGui.SliderFloat("##bgvolume", *loam.config.bgVolume, 0.0, 1.0, "%.2f");
 	    ImGui.Text("\tSFX");
 	    ImGui.SliderFloat("##sfxvolume", *loam.config.sfxVolume, 0.0, 1.0, "%.2f");
+	}
+    }
+    ImGui.PopStyleColor();
+
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.05, 0.5, 0.05, 1.0 });
+    if ImGui.CollapsingHeader("Cameras") {
+	for loam.cameras {
+	    name := it_index;
+	    if it == loam.activeGameCamera {
+		ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.05, 0.3, 0.1, 1.0 });
+		name = tprint("** % **", name);
+	    }
+	    
+	    if ImGui.CollapsingHeader(tprint("\t\t%\0", name).data) {
+		ImGui.DragFloat3(tprint("Position##cam_position_%\0", name).data, *it.position.component, 0.001);
+		euler := quaternion_to_euler(it.orientation);
+		if ImGui.DragFloat3(tprint("Orientation##cam_orientation_%\0", name).data, *euler.component, 0.001) {
+		    it.orientation = euler_to_quaternion(euler);
+		}
+	    }
+	    if it == loam.activeGameCamera then ImGui.PopStyleColor();
 	}
     }
     ImGui.PopStyleColor();

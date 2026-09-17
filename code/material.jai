@@ -14,7 +14,7 @@ Material :: struct {
     name : string;
     
     baseColour    : TextureWithFactor;
-    metalRough    : TextureWithFactor;
+    orm           : TextureWithFactor;
     emissive      : TextureWithFactor; // Factor is xyz, strength is w
     normalTexture : *ImageResource;
 
@@ -31,9 +31,9 @@ GPUTextureWithFactor :: struct {
 } #no_padding;
 
 GPUMaterial :: struct {
-    baseColour : GPUTextureWithFactor;
-    metalRough : GPUTextureWithFactor;
-    emissive   : GPUTextureWithFactor; // xyz is factor, w is strength
+    baseColour  : GPUTextureWithFactor;
+    orm         : GPUTextureWithFactor;
+    emissive    : GPUTextureWithFactor; // xyz is factor, w is strength
     normalIndex : s32 = -1;
     isOpaque    : bool;
     alphaCutoff : float32;
@@ -46,7 +46,7 @@ to_gpu_tex_with_factor :: (texFactor : TextureWithFactor) -> GPUTextureWithFacto
 to_gpu_material :: (material : *Material) -> GPUMaterial {
     return .{
 	to_gpu_tex_with_factor(material.baseColour),
-	to_gpu_tex_with_factor(material.metalRough),
+	to_gpu_tex_with_factor(material.orm),
 	to_gpu_tex_with_factor(material.emissive),
 	ifx material.normalTexture then cast(s32)material.normalTexture.index else cast(s32)-1,
 	material.isOpaque, material.alphaCutoff

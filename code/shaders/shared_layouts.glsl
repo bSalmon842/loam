@@ -12,6 +12,16 @@ Created: 04JUN2025
 
 #include "bindless.glsl"
 
+// Grid Info
+const float GRID_SIZE = 10.0f;
+const float CELL_SIZE = 5.0f;
+const float HALF_CELL_SIZE = CELL_SIZE * 0.5f;
+const float SUBCELL_SIZE = 1.0f;
+const float HALF_SUBCELL_SIZE = SUBCELL_SIZE * 0.5f;
+const vec4 CELL_LINE_COLOUR = { 0.8, 0.8, 0.8, 0.25 };
+const vec4 SUBCELL_LINE_COLOUR = { 0.25, 0.25, 0.25, 0.25 };
+
+
 struct VertexInfo {
   vec3 position;
   vec3 normal;
@@ -34,7 +44,7 @@ struct TexWithFactor {
 
 struct MeshMaterial {
   TexWithFactor baseColour;
-  TexWithFactor metalRough;
+  TexWithFactor orm;
   TexWithFactor emissive;
   int normalTextureIndex;
   bool isOpaque;
@@ -74,3 +84,10 @@ struct SpritePushConstants {
 // Store the 6 uvs for a basic sprite so we don't need to send them via the push constants for sprites
 const vec2 SPRITE_BASE_UVS[] = { { 1, 1 }, { 1, 0 }, { 0, 1 }, { 0, 0 } };
 const vec2 SPRITE_BASE_VERTICES[] = { { 1, 0 }, { 1, 1 }, { 0, 0 }, { 0, 1 } };
+
+const float PI = 3.14159265359;
+
+// Utility Functions
+float sq(float a) {
+  return a * a;
+}
