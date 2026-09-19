@@ -100,9 +100,9 @@ LoamState :: struct {
 
     // Entities
     entities : [#run (enum_highest_value(EntityUpdateRate) + 1)] EntityMap;
-
-    testLightPos := Vector4.{ 0, 0, 0, 1 };
+    
     ambientLight := Vector4.{ 1, 1, 1, 0.1 };
+    lights : [MAX_LIGHTS_IN_SCENE] Light;
 
     #if IS_DEV {
 	debugUIElements : [..] *UI_Element;
@@ -110,6 +110,7 @@ LoamState :: struct {
 
 	devViewActive : bool = true;
 	drawWorldGrid : bool = true;
+	drawLights    : bool = true;
     }
 }
 
@@ -166,7 +167,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 
     SDL.set_hint(SDL.HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
     SDL.init(.VIDEO | .JOYSTICK | .HAPTIC | .GAMEPAD);
-
+    
     flags := SDL.Window_Flags.VULKAN;
     #if OS == .ANDROID then flags |= .FULLSCREEN;
     loam.window = SDL.create_window(APP_NAME, initialWidth, initialHeight, flags);
@@ -320,6 +321,16 @@ loam_start_render :: () {
 	    add_ui_render_command(it);
 	}
     }
+
+    #if IS_DEV {
+	if loam.drawLights {
+	    for loam.lights {
+		if it.intensity > EPSILON32 {
+		    add_box_collider_render_command(make_vector3(0.1), make_transform(it.position, it.orientation), false);
+		}
+	    }
+	}
+    }
 }
 
 loam_finish_render :: () {
@@ -327,7 +338,7 @@ loam_finish_render :: () {
 	update_debug_metrics(*loam.metrics);
     }
 
-    update_world_data(loam.activeGameCamera, loam.testLightPos, loam.ambientLight);
+    update_world_data(loam.activeGameCamera, loam.ambientLight);
     //destroy_vk_buffer(vk.worldDataBuffer);
     if !vk.worldDataBuffer then vk.worldDataBuffer = create_vk_buffer(size_of(GraphicsWorldData), .UNIFORM_BUFFER_BIT);
     memcpy(vk.worldDataBuffer.allocationInfo.pMappedData, *vk.worldData, size_of(GraphicsWorldData));
@@ -428,6 +439,7 @@ DONE
 #if IS_DEV then #load "imgui.jai";
 #load "input.jai";
 #load "json.jai";
+#load "lighting.jai";
 #load "material.jai";
 #load "math.jai";
 #load "metrics.jai";

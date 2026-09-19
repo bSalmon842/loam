@@ -524,10 +524,12 @@ make_rendering_info :: (renderExtent : VkExtent2D, colourAttachment : *VkRenderi
     };
 }
 
-update_world_data :: (camera : *Camera, lightDir : Vector4, ambience : Vector4) {
+update_world_data :: (camera : *Camera, ambience : Vector4) {
     viewMatrix := get_view_matrix(camera);
     projMatrix := get_projection_matrix(camera);
-    vk.worldData = .{ viewMatrix * projMatrix, lightDir, camera.position, 0, ambience };
+    lights : [MAX_LIGHTS_IN_SCENE] Light;
+    memcpy(lights.data, loam.lights.data, size_of(Light) * MAX_LIGHTS_IN_SCENE);
+    vk.worldData = .{ viewMatrix * projMatrix, camera.position, 0, ambience, lights };
 }
 
 extent_to_vector :: (extent : VkExtent2D) -> Vector2 {

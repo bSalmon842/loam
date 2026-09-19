@@ -95,12 +95,12 @@ Vk :: struct {
 }
 
 GraphicsWorldData :: struct {
-    viewProj  : Matrix4 #align 16;
-    lightPos  : Vector4 #align 16;
-    cameraPos : Vector3 #align 16;
+    viewProj  : Matrix4;
+    cameraPos : Vector3;
     padding   : s32;
-    ambience  : Vector4 #align 16;
-}
+    ambience  : Vector4;
+    lights    : [MAX_LIGHTS_IN_SCENE] Light;
+} #no_padding;
 
 FrameCommandInfo :: struct {
     cmdPool : VkCommandPool;

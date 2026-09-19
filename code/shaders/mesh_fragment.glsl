@@ -163,7 +163,7 @@ void main() {
   vec3 radiance = vec3(0.0);
   {
     vec3 invLightDir = normalize(-inLightDir);
-    vec3 incidentRadiance = vec3(1.0) * world.lightPos.a;
+    vec3 incidentRadiance = world.lights[0].colour * world.lights[0].intensity;
 
     radiance += compute_direct_light(normal, viewDir, invLightDir, alphaRoughness, normalIncidenceReflectance, diffuseAlbedo, incidentRadiance);
   }

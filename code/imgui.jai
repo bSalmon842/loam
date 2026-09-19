@@ -100,19 +100,16 @@ frame_imgui :: (metrics : *DebugMetrics) {
     }
     ImGui.PopStyleColor();
     
-    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.8, 0.8, 0.1, 1.0 });
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.4, 0.1, 0.1, 1.0 });
     if ImGui.CollapsingHeader("Graphics World Data") {
 	ImGui.Text("ViewProj Matrix:");
 	for vk.worldData.viewProj.v {
 	    ImGui.Text(tprint("\t%", it));
 	}
-	
-	ImGui.DragFloat4("Light Pos & Intensity", *loam.testLightPos.component, 0.01);
-	ImGui.DragFloat4("Ambient Light", *loam.ambientLight.component, 0.001, 0.0, 1.0);
     }
     ImGui.PopStyleColor();
     
-    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.8, 0.1, 0.1, 1.0 });
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.5, 0.1, 0.5, 1.0 });
     if ImGui.CollapsingHeader("Assets") {
 	if ImGui.CollapsingHeader("\tResource Counts") {
 	    if ImGui.CollapsingHeader(tprint("\t\tImages: %\0", loam.assets.images.count).data) {
@@ -421,9 +418,24 @@ frame_imgui :: (metrics : *DebugMetrics) {
     }
     ImGui.PopStyleColor();
 
-    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.3, 0.3, 0.0, 1.0 });
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.6, 0.3, 0.0, 1.0 });
     if ImGui.CollapsingHeader("Collision") {
 	ImGui.Checkbox("Show Colliders", *__showColliders);
+    }
+    ImGui.PopStyleColor();
+
+    ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.3, 0.3, 0.0, 1.0 });
+    if ImGui.CollapsingHeader("Lighting") {
+	ImGui.Checkbox("Show Light Positions", *loam.drawLights);
+	ImGui.DragFloat4("Ambient Light", *loam.ambientLight.component, 0.001, 0.0, 1.0);
+
+	for * loam.lights {
+	    ImGui.NewLine();
+	    ImGui.Text("Light %", it_index);
+	    ImGui.DragFloat3(tprint("Position##light_%\0", it_index).data, *it.position.component, 0.01);
+	    ImGui.DragFloat3(tprint("Colour##light_%\0", it_index).data, *it.colour.component, 0.01, 0.0, 1.0);
+	    ImGui.DragFloat(tprint("Intensity##light_%\0", it_index).data, *it.intensity, 0.01, 0.0, 1.0);
+	}
     }
     ImGui.PopStyleColor();
     

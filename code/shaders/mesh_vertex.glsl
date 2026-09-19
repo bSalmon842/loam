@@ -29,7 +29,7 @@ void main() {
   outWorldPos = worldPos.xyz;
   gl_Position = world.viewProj * worldPos;
   
-  outLightDir = normalize(world.lightPos.xyz - worldPos.xyz);
+  outLightDir = normalize(worldPos.xyz - world.lights[0].position);
   
   outColour = loadedVertex.colour;
   outUV = loadedVertex.uv;

@@ -7,12 +7,22 @@ Created: 23AUG2025
 
 #extension GL_EXT_nonuniform_qualifier : require
 
+#define MAX_LIGHTS_IN_SCENE 8
+
+struct Light {
+  vec3 position;
+  int padding;
+  vec4 orientation;
+  vec3 colour;
+  float intensity;
+};
+
 layout (set = 0, binding = 0) uniform WorldData {
   mat4 viewProj;
-  vec4 lightPos;
   vec3 cameraPos;
   int padding;
   vec4 ambience;
+  Light lights[MAX_LIGHTS_IN_SCENE];
 } world;
 layout (set = 0, binding = 1) uniform texture2D textures[];
 layout (set = 0, binding = 2) uniform sampler   samplers[];
