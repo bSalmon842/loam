@@ -44,9 +44,14 @@ InputState :: struct {
     gamepadTimestamp : Apollo_Time;
 
     mouseWheel : Vector2;
+    relativeMouseMove : Vector2;
 
     touch : [..] TouchInfo;
     // TODO: Splitscreen / Racing wheels will need support for multiple controllers at once
+
+    #if IS_DEV {
+	disableGameInput : bool;
+    }
 }
 
 is_timestamp_most_recent :: (time : Apollo_Time, check : .. Apollo_Time) -> bool {
@@ -66,6 +71,9 @@ update_input :: (event : SDL.Event) {
 	if event.type == .MOUSE_WHEEL {
 	    loam.input.mouseWheel = { event.wheel.x, event.wheel.y };
 	    if event.wheel.direction == .FLIPPED then loam.input.mouseWheel *= -1.0;
+	}
+	if event.type == .MOUSE_MOTION {
+	    loam.input.relativeMouseMove = { event.motion.xrel, event.motion.yrel };
 	}
     } else if event.type >= .GAMEPAD_AXIS_MOTION && event.type < .FINGER_DOWN && event.type != .GAMEPAD_UPDATE_COMPLETE {
 	if event.type == .GAMEPAD_AXIS_MOTION {
@@ -103,7 +111,7 @@ update_input :: (event : SDL.Event) {
 //////////////////////////////////////////////////
 KeybindMap :: Table(string, *Keybind);
 Keybind :: struct {
-    buttonsAsAxis : bool; // NOTE: This changes how the bindings work so that it expect even array counts,
+    buttonsAsAxis : bool; // NOTE: This changes how the bindings work so that it expects even array counts,
     //                             positive is first and negative is the second element
     invertAxis    : bool;
     innerDeadzone : s64 = 3200; // Approximately 10% of an s16 axis direction
@@ -194,13 +202,71 @@ init_keybinds :: () -> *KeybindMap {
     return map;
 }
 
+init_debug_keybinds :: () -> *KeybindMap {
+    map := New(KeybindMap);
+
+    {
+	bind := New(Keybind);
+	bind.keyboard = .[ .C ];
+	bind.keyboardMod = .[ .ALT ];
+	table_add(map, "Debug Camera Mode", bind);
+    }
+
+    {
+	bind := New(Keybind);
+	bind.buttonsAsAxis = true;
+	bind.keyboard = .[ .D, .A ];
+	table_add(map, "Debug Camera X", bind);
+    }
+
+    {
+	bind := New(Keybind);
+	bind.buttonsAsAxis = true;
+	bind.keyboard = .[ .E, .Q ];
+	table_add(map, "Debug Camera Y", bind);
+    }
+
+    {
+	bind := New(Keybind);
+	bind.buttonsAsAxis = true;
+	bind.keyboard = .[ .W, .S ];
+	table_add(map, "Debug Camera Z", bind);
+    }
+    
+    {
+	bind := New(Keybind);
+	bind.mouseAxis = .[ .Y ];
+	table_add(map, "Debug Camera Pitch", bind);
+    }
+
+    {
+	bind := New(Keybind);
+	bind.mouseAxis = .[ .X ];
+	table_add(map, "Debug Camera Yaw", bind);
+    }
+    
+    return map;
+}
+
+
 /////////////////////////////////////////////////////////
 // INPUT INTERFACE //////////////////////////////////////
 /////////////////////////////////////////////////////////
 
-get_input :: (name : string) -> float32 {
-    foundInput, binding := table_find(loam.keybinds, name);
-    if !foundInput {
+get_input :: (name : string, debug : bool = false) -> float32 {
+    #if IS_DEV {
+    foundInput : bool;
+    binding : *Keybind;
+    if debug {
+	foundInput, binding = table_find(loam.debugKeybinds, name);
+    } else {
+	if loam.input.disableGameInput then return 0;
+	foundInput, binding = table_find(loam.keybinds, name);
+    }
+    } else {
+	foundInput, binding = table_find(loam.keybinds, name);
+    }
+    if !foundInput && !debug {
 	log(.ERROR, "Failed to find input with name: %", name);
     }
 
@@ -213,13 +279,19 @@ get_input :: (name : string) -> float32 {
 	    if binding.buttonsAsAxis {
 		positive := true;
 		for binding.keyboard {
-		    mod := binding.keyboardMod[it_index];
+		    mod := SDL.Keymod.NONE;
+		    if binding.keyboardMod.count > 0 {
+			mod = binding.keyboardMod[it_index];
+		    }
 		    if keys[it] && (mod == .NONE || mod & modState != 0) return ifx positive then 1.0 else -1.0;
 		    positive = !positive;
 		}
 	    } else {
 		for binding.keyboard {
-		    mod := binding.keyboardMod[it_index];
+		    mod := SDL.Keymod.NONE;
+		    if binding.keyboardMod.count > 0 {
+			mod = binding.keyboardMod[it_index];
+		    }
 		    if keys[it] && (mod == .NONE || mod & modState != 0) then return 1.0;
 		}
 	    }
@@ -229,8 +301,8 @@ get_input :: (name : string) -> float32 {
     // Check mouse bindings
     if SDL.has_mouse() && loam.input.activeType == .Keyboard_Mouse {
 	if binding.mouseButton.count > 0 || binding.mouseAxis.count > 0 {
-	    relX, relY : float32;
-	    mouseButtons := SDL.get_relative_mouse_state(*relX, *relY);
+	    unusedX, unusedY : float32;
+	    mouseButtons := SDL.get_relative_mouse_state(*unusedX, *unusedY);
 
 	    if binding.buttonsAsAxis {
 		positive := true;
@@ -246,8 +318,8 @@ get_input :: (name : string) -> float32 {
 
 	    for binding.mouseAxis {
 		if it == {
-		    case .X;       return relX;
-		    case .Y;       return relY;
+		    case .X;       return loam.input.relativeMouseMove.x;
+		    case .Y;       return loam.input.relativeMouseMove.y;
 		    case .Wheel_X; return loam.input.mouseWheel.x;
 		    case .Wheel_Y; return loam.input.mouseWheel.y;
 		}

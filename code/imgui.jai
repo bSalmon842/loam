@@ -233,6 +233,10 @@ frame_imgui :: (metrics : *DebugMetrics) {
 
     ImGui.PushStyleColor(.Header, ImGui.ImVec4.{ 0.05, 0.5, 0.05, 1.0 });
     if ImGui.CollapsingHeader("Cameras") {
+	ImGui.Checkbox("Debug Camera Mode", *loam.debugCameraMode);
+	if loam.debugCameraMode {
+	    ImGui.Checkbox("Disable Game Input", *loam.input.disableGameInput);
+	}
 	for loam.cameras {
 	    name := it_index;
 	    if it == loam.activeGameCamera {

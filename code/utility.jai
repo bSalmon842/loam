@@ -24,6 +24,10 @@ GB :: (value : u64) -> u64 {
     return MB(value * 1024);
 }
 
+invert_bool :: (value : *bool) {
+    value.* = !value.*;
+}
+
 to_size_string :: (value : u64) -> string {
     if value > GB(1) {
 	floatValue := cast(float) value / cast(float) GB(1);

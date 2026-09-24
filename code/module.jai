@@ -111,6 +111,9 @@ LoamState :: struct {
 	devViewActive : bool = true;
 	drawWorldGrid : bool = true;
 	drawLights    : bool = true;
+	debugCameraMode : bool;
+	debugCameraHold : *Camera;
+	debugKeybinds : *KeybindMap;
     }
 }
 
@@ -185,6 +188,7 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     
     loam.cameras = New(CameraMap);
     add_camera("UI", 0, {});
+    loam.activeGameCamera = add_camera("Game", 60, .{}, ortho=false);
     
     loam.threadCount = get_number_of_threads_for_device();
     log(.INFO, "Threads found on device: %", loam.threadCount);
@@ -214,13 +218,17 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
 	fontSize : u32 = 32;
 	build_font_atlas("__loam_internal", fontSize, .English);
 	build_font_atlas("__loam_internal_mono", fontSize, .English);
+
+	add_camera("Debug", 60, {}, ortho=false);
+	loam.debugKeybinds = init_debug_keybinds();
     }
 }
 
 loam_start_update :: () {
     // INPUT HANDLING
-    loam.input.mouseWheel = {};
     array_reset(*loam.input.touch);
+    loam.input.mouseWheel = {};
+    loam.input.relativeMouseMove = {};
     
     event : SDL.Event;
     while SDL.poll_event(*event) {
@@ -246,13 +254,74 @@ loam_start_update :: () {
 		}
 	    }
 	}
-	
+
 	update_input(event);
+	
 	#if OS != .ANDROID {
 	    ImGui.ImplSDL3_ProcessEvent(cast(*ImGui.SDL_Event) *event);
 	}
     }
 
+    // Engine Controls
+    #if IS_DEV {
+	if get_input("Debug Camera Mode", true) > 0.5 {
+	    invert_bool(*loam.debugCameraMode);
+	}
+	if loam.debugCameraMode {
+	    debugCamera := get_camera("Debug");
+	    if !loam.debugCameraHold || loam.debugCameraHold == debugCamera {
+		debugCamera.position = loam.activeGameCamera.position;
+		debugCamera.orientation = loam.activeGameCamera.orientation;
+		
+		loam.debugCameraHold = loam.activeGameCamera;
+		loam.activeGameCamera = debugCamera;
+	    } else {
+		if SDL.get_mod_state() & .ALT == 0 {
+		    SDL.set_window_relative_mouse_mode(loam.window, true);
+		    // Orientation
+		    DEBUG_ROTATION_SPEED :: 10.0;
+		    euler := quaternion_to_euler(debugCamera.orientation);
+		    pitch := get_input("Debug Camera Pitch", true) * DEBUG_ROTATION_SPEED * cast(float32) loam.deltaTime;
+		    yaw := get_input("Debug Camera Yaw", true) * DEBUG_ROTATION_SPEED * cast(float32) loam.deltaTime;
+		    
+		    euler.x += pitch;
+		    pitchLimit := PI/2 - 0.025;
+		    Clamp(*euler.x, -pitchLimit, pitchLimit);
+		    
+		    euler.y += yaw;
+		    euler.y = fmod_cycling(euler.y, TAU);
+		    
+		    qYaw, qPitch : Quaternion;
+		    set_from_axis_and_angle(*qYaw, .{ 0, 1, 0 }, euler.y);
+		    set_from_axis_and_angle(*qPitch, .{ 1, 0, 0 }, euler.x);
+		    debugCamera.orientation = qYaw * qPitch;
+		    
+		    // Movement
+		    DEBUG_MOVE_SPEED :: 10.0;
+		    x := get_input("Debug Camera X", true);
+		    y := get_input("Debug Camera Y", true);
+		    z := get_input("Debug Camera Z", true);
+		    move := Vector3.{ x, y, z };
+		    normalize(*move);
+
+		    forward := normalize(rotate({ 0, 0, 1 }, debugCamera.orientation));
+		    debugCamera.position += (forward * move.z) * DEBUG_MOVE_SPEED * loam.deltaTime;
+
+		    right := -cross(forward, { 0, 1, 0 });
+		    debugCamera.position += (right * move.x) * DEBUG_MOVE_SPEED * loam.deltaTime;
+
+		    up := cross(forward, right);
+		    debugCamera.position += (up * move.y) * DEBUG_MOVE_SPEED * loam.deltaTime;
+		} else {
+		    SDL.set_window_relative_mouse_mode(loam.window, false);
+		}
+	    }
+	} else if loam.debugCameraHold {
+	    loam.activeGameCamera = loam.debugCameraHold;
+	    loam.debugCameraHold = null;
+	}
+    }
+    
     if vk.recreateSwapchain {
 	if vk.recreateSurface {
 	    recreate_surface();
@@ -323,7 +392,7 @@ loam_start_render :: () {
     }
 
     #if IS_DEV {
-	if loam.drawLights {
+	if loam.drawLights && loam.gameplayState != .Splash {
 	    for loam.lights {
 		if it.intensity > EPSILON32 {
 		    add_box_collider_render_command(make_vector3(0.1), make_transform(it.position, it.orientation), false);
