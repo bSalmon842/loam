@@ -64,6 +64,7 @@ LoamState :: struct {
     vk : *Vk;
 
     gameplayState : GameplayState;
+    hasFocus : bool;
     
     threadCount : s32;
     
@@ -206,6 +207,10 @@ init_loam :: (initialWidth : s32, initialHeight : s32) {
     loam.keybinds = init_keybinds();
     loam.input = New(InputState);
     loam.input.activeType = .Keyboard_Mouse;
+
+    keyCount : s32;
+    SDL.get_keyboard_state(*keyCount);
+    loam.input.lastKeyboardState = NewArray(keyCount, bool);
     
     loam.deltaTime = seconds_since_init();
     loam.lastTime = seconds_since_init();
@@ -245,6 +250,12 @@ loam_start_update :: () {
 		vk.recreateSwapchain = true;
 		print("%\n", loam.refreshRate);
 	    }
+	    case .WINDOW_FOCUS_LOST; {
+		loam.hasFocus = false;
+	    }
+	    case .WINDOW_FOCUS_GAINED; {
+		loam.hasFocus = true;
+	    }
 	    
 	    // Android Events
 	    case .LOW_MEMORY; {
@@ -264,7 +275,7 @@ loam_start_update :: () {
 
     // Engine Controls
     #if IS_DEV {
-	if get_input("Debug Camera Mode", true) > 0.5 {
+	if get_input("Debug Camera Mode", true, true) > 0.5 {
 	    invert_bool(*loam.debugCameraMode);
 	}
 	if loam.debugCameraMode {
@@ -281,8 +292,8 @@ loam_start_update :: () {
 		    // Orientation
 		    DEBUG_ROTATION_SPEED :: 10.0;
 		    euler := quaternion_to_euler(debugCamera.orientation);
-		    pitch := get_input("Debug Camera Pitch", true) * DEBUG_ROTATION_SPEED * cast(float32) loam.deltaTime;
-		    yaw := get_input("Debug Camera Yaw", true) * DEBUG_ROTATION_SPEED * cast(float32) loam.deltaTime;
+		    pitch := get_input("Debug Camera Pitch", debug=true) * DEBUG_ROTATION_SPEED * cast(float32) loam.deltaTime;
+		    yaw := get_input("Debug Camera Yaw", debug=true) * DEBUG_ROTATION_SPEED * cast(float32) loam.deltaTime;
 		    
 		    euler.x += pitch;
 		    pitchLimit := PI/2 - 0.025;
@@ -298,9 +309,9 @@ loam_start_update :: () {
 		    
 		    // Movement
 		    DEBUG_MOVE_SPEED :: 10.0;
-		    x := get_input("Debug Camera X", true);
-		    y := get_input("Debug Camera Y", true);
-		    z := get_input("Debug Camera Z", true);
+		    x := get_input("Debug Camera X", debug=true);
+		    y := get_input("Debug Camera Y", debug=true);
+		    z := get_input("Debug Camera Z", debug=true);
 		    move := Vector3.{ x, y, z };
 		    normalize(*move);
 
@@ -312,6 +323,7 @@ loam_start_update :: () {
 
 		    up := cross(forward, right);
 		    debugCamera.position += (up * move.y) * DEBUG_MOVE_SPEED * loam.deltaTime;
+		    if loam.hasFocus then SDL.warp_mouse_in_window(loam.window, loam.windowWidth * 0.5, loam.windowHeight * 0.5);
 		} else {
 		    SDL.set_window_relative_mouse_mode(loam.window, false);
 		}
@@ -330,6 +342,7 @@ loam_start_update :: () {
     }
     
     // OTHER UPDATING
+    set_last_inputs();
     update_audio();
     
     for vk.updateCommands {

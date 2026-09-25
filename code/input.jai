@@ -48,7 +48,11 @@ InputState :: struct {
 
     touch : [..] TouchInfo;
     // TODO: Splitscreen / Racing wheels will need support for multiple controllers at once
-
+    
+    lastKeyboardState : [] bool;
+    lastMouseButtonState : SDL.Mouse_Button_Flags;
+    lastGamepadState : [SDL.Gamepad_Button.COUNT] bool;
+    
     #if IS_DEV {
 	disableGameInput : bool;
     }
@@ -103,6 +107,32 @@ update_input :: (event : SDL.Event) {
 	activeType = .Gamepad;
     } else if is_timestamp_most_recent(touchscreenTimestamp, keyboardMouseTimestamp, gamepadTimestamp) {
 	activeType = .Touchscreen;
+    }
+}
+
+set_last_inputs :: () {
+    if SDL.has_keyboard() {
+	keyCount : s32;
+	keys := SDL.get_keyboard_state(*keyCount);
+	if keyCount != loam.input.lastKeyboardState.count {
+	    if loam.input.lastKeyboardState.data {
+		free(loam.input.lastKeyboardState.data);
+		loam.input.lastKeyboardState.count = 0;
+	    }
+	    loam.input.lastKeyboardState = NewArray(keyCount, bool);
+	}
+	memcpy(loam.input.lastKeyboardState.data, keys, keyCount * size_of(bool));
+    }
+
+    if SDL.has_mouse() {
+	unusedX, unusedY : float32;
+	loam.input.lastMouseButtonState = SDL.get_relative_mouse_state(*unusedX, *unusedY);
+    }
+
+    if loam.input.gamepad {
+	for 0 .. SDL.Gamepad_Button.COUNT-1 {
+	    loam.input.lastGamepadState[it] = SDL.get_gamepad_button(loam.input.gamepad, it);
+	}
     }
 }
 
@@ -253,7 +283,7 @@ init_debug_keybinds :: () -> *KeybindMap {
 // INPUT INTERFACE //////////////////////////////////////
 /////////////////////////////////////////////////////////
 
-get_input :: (name : string, debug : bool = false) -> float32 {
+get_input :: (name : string, singlePress : bool = false, debug : bool = false) -> float32 {
     #if IS_DEV {
     foundInput : bool;
     binding : *Keybind;
@@ -292,7 +322,10 @@ get_input :: (name : string, debug : bool = false) -> float32 {
 		    if binding.keyboardMod.count > 0 {
 			mod = binding.keyboardMod[it_index];
 		    }
-		    if keys[it] && (mod == .NONE || mod & modState != 0) then return 1.0;
+
+		    if !singlePress || (singlePress && !loam.input.lastKeyboardState[it]) {
+			if keys[it] && (mod == .NONE || mod & modState != 0) then return 1.0;
+		    }
 		}
 	    }
 	}
@@ -312,7 +345,10 @@ get_input :: (name : string, debug : bool = false) -> float32 {
 		}
 	    } else {
 		for binding.mouseButton {
-		    if cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(it) == mouseButtons then return 1.0;
+		    buttonFlag := cast(SDL.Mouse_Button_Flags) SDL.BUTTON_MASK(it);
+		    if !singlePress || (singlePress && (loam.input.lastMouseButtonState & buttonFlag == 0)) {
+			if buttonFlag == mouseButtons then return 1.0;
+		    }
 		}
 	    }
 
@@ -339,7 +375,9 @@ get_input :: (name : string, debug : bool = false) -> float32 {
 	    }
 	} else {
 	    for binding.gamepadButton {
-		if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) then return 1.0;
+		if !singlePress || (singlePress && !loam.input.lastGamepadState[it]) {
+		    if SDL.gamepad_has_button(loam.input.gamepad, it) && SDL.get_gamepad_button(loam.input.gamepad, it) then return 1.0;
+		}
 	    }
 	}
 	
