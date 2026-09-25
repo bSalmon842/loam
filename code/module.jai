@@ -115,6 +115,10 @@ LoamState :: struct {
 	debugCameraMode : bool;
 	debugCameraHold : *Camera;
 	debugKeybinds : *KeybindMap;
+
+	debugGridCellSize : float32 = 5.0;
+	debugGridSubcellSize : float32 = 1.0;
+	debugGridColour : Vector4 = { 0.85, 0.85, 0.85, 1.0 };
     }
 }
 

@@ -106,6 +106,10 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	for vk.worldData.viewProj.v {
 	    ImGui.Text(tprint("\t%", it));
 	}
+
+	ImGui.DragFloat(tprint("Grid Cell Size\0").data, *loam.debugGridCellSize, 0.1, loam.debugGridSubcellSize, 1000.0);
+	ImGui.DragFloat(tprint("Grid Subcell Size\0").data, *loam.debugGridSubcellSize, 0.1, 0.1, loam.debugGridCellSize);
+	ImGui.DragFloat4(tprint("Grid Colour\0").data, *loam.debugGridColour.component, 0.01, 0.0, 1.0);
     }
     ImGui.PopStyleColor();
     

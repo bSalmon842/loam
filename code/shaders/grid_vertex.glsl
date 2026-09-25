@@ -19,6 +19,8 @@ const vec3 POSITIONS[4] = {
   {  0.5, 0.0, -0.5 },
 };
 
+const float GRID_SIZE = 10.0f;
+
 void main() {
   vec3 pos = POSITIONS[gl_VertexIndex];
   pos *= GRID_SIZE;

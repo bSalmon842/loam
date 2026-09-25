@@ -136,6 +136,13 @@ BoxColliderPushConstants :: struct {
     boxColliderBuffer : VkDeviceAddress;
 }
 
+GridPushConstants :: struct {
+    cellSize : float32;
+    subcellSize : float32;
+    pad0, pad1 : s32;
+    gridColour : Vector4;
+}
+
 VertexMeshPushConstants :: struct {
     transform : Matrix4;
     vertexBuffer : VkDeviceAddress;

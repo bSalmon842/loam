@@ -144,20 +144,19 @@ set_pipeline_depth_test_enabled :: (using pipelineInfo : *GraphicsPipelineBuildI
     }
 }
 
-set_pipeline_layout :: (builder : *GraphicsPipelineBuildInfo, vertexPCBufferSize : u32, pipelineType : PipelineType,
-			needFragmentConstants : bool = false, fragmentPCBufferSize : u32 = 0) {
+set_pipeline_layout :: (builder : *GraphicsPipelineBuildInfo, vertexPCBufferSize : u32, fragmentPCBufferSize : u32, pipelineType : PipelineType) {
     layout := VkPipelineLayoutCreateInfo.{ .PIPELINE_LAYOUT_CREATE_INFO, null, 0, 1, *vk.bindlessDescriptorLayout, 0, null };
-    vertexRange := VkPushConstantRange.{ .VERTEX_BIT, 0, vertexPCBufferSize };
-    if needFragmentConstants {
-	fragmentRange := VkPushConstantRange.{ .FRAGMENT_BIT, vertexPCBufferSize, fragmentPCBufferSize };
-	ranges := VkPushConstantRange.[vertexRange, fragmentRange];
-	
-	layout.pushConstantRangeCount = 2;
-	layout.pPushConstantRanges = ranges.data;
-    } else {
-	layout.pushConstantRangeCount = 1;
-	layout.pPushConstantRanges = *vertexRange;
+
+    ranges : [..] VkPushConstantRange;
+    if vertexPCBufferSize > 0 {
+	array_add(*ranges, VkPushConstantRange.{ .VERTEX_BIT, 0, vertexPCBufferSize });
     }
+    if fragmentPCBufferSize > 0 {
+	array_add(*ranges, VkPushConstantRange.{ .FRAGMENT_BIT, vertexPCBufferSize, fragmentPCBufferSize });
+    }
+    
+    layout.pushConstantRangeCount = cast(u32) ranges.count;
+    layout.pPushConstantRanges = ranges.data;
     
     check_vk(vkCreatePipelineLayout(vk.device, *layout, null, *builder.layout), tprint("Failed to create pipeline layout for %", pipelineType));
 }
@@ -240,6 +239,8 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
 	render_box_collider_batch(cmdBuffer, pushConstants, pipeline.boxColliders.count, pipeline.layout);
     } else if pipeline.type == .Grid {
 	if loam.devViewActive && loam.drawWorldGrid && loam.gameplayState == .Playing {
+	    pushConstants := GridPushConstants.{ loam.debugGridCellSize, loam.debugGridSubcellSize, 0, 0, loam.debugGridColour };
+	    vkCmdPushConstants(cmdBuffer, pipeline.layout, .FRAGMENT_BIT, 0, size_of(GridPushConstants), *pushConstants);
 	    vkCmdDraw(cmdBuffer, 4, 1, 0, 0);
 	}
     }else {
@@ -293,7 +294,7 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
 		set_pipeline_depth_test_enabled(*builder, true, true, .GREATER);
-		set_pipeline_layout(*builder, size_of(VertexMeshPushConstants), it, true, size_of(FragmentMeshPushConstants));
+		set_pipeline_layout(*builder, size_of(VertexMeshPushConstants), size_of(FragmentMeshPushConstants), it);
 	    }
 	    
 	    case .Sprite; {
@@ -311,7 +312,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
-		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), 0, it);
 		
 		init_sprite_buffer(pipeline);
 	    }
@@ -331,7 +332,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
-		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), 0, it);
 		
 		init_sprite_buffer(pipeline);
 	    }
@@ -351,7 +352,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
-		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), 0, it);
 		
 		init_sprite_buffer(pipeline);
 	    }
@@ -371,7 +372,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, true, .Alpha);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
-		set_pipeline_layout(*builder, size_of(SpritePushConstants), it);
+		set_pipeline_layout(*builder, size_of(SpritePushConstants), 0, it);
 		
 		init_sprite_buffer(pipeline);
 	    }
@@ -391,7 +392,7 @@ init_pipelines :: () {
 		set_pipeline_blending_mode(*builder, false);
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
-		set_pipeline_layout(*builder, size_of(BoxColliderPushConstants), it);
+		set_pipeline_layout(*builder, size_of(BoxColliderPushConstants), 0, it);
 
 		init_box_collider_buffer(pipeline);
 	    }
@@ -411,7 +412,7 @@ init_pipelines :: () {
 		set_pipeline_colour_attachment_format(*builder, vk.drawImage.format);
 		set_pipeline_depth_format(*builder);
 		set_pipeline_depth_test_enabled(*builder, true, true, .GREATER);
-		set_pipeline_layout(*builder, 0, it);
+		set_pipeline_layout(*builder, 0, size_of(GridPushConstants), it);
 	    }
 	}
 

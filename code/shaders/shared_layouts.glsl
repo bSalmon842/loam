@@ -12,16 +12,6 @@ Created: 04JUN2025
 
 #include "bindless.glsl"
 
-// Grid Info
-const float GRID_SIZE = 10.0f;
-const float CELL_SIZE = 5.0f;
-const float HALF_CELL_SIZE = CELL_SIZE * 0.5f;
-const float SUBCELL_SIZE = 1.0f;
-const float HALF_SUBCELL_SIZE = SUBCELL_SIZE * 0.5f;
-const vec4 CELL_LINE_COLOUR = { 0.8, 0.8, 0.8, 0.25 };
-const vec4 SUBCELL_LINE_COLOUR = { 0.25, 0.25, 0.25, 0.25 };
-
-
 struct VertexInfo {
   vec3 position;
   vec3 normal;
