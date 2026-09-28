@@ -19,11 +19,12 @@ const vec3 POSITIONS[4] = {
   {  0.5, 0.0, -0.5 },
 };
 
-const float GRID_SIZE = 10.0f;
+const float GRID_SIZE = 250.0f;
 
 void main() {
   vec3 pos = POSITIONS[gl_VertexIndex];
   pos *= GRID_SIZE;
+  pos.xz += world.cameraPos.xz;
 
   gl_Position = world.viewProj * vec4(pos, 1.0);
   outUV = pos.xz;

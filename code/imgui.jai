@@ -93,6 +93,7 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	    
 	    ImGui.EndCombo();
 	}
+	ImGui.DragFloat(tprint("Master Volume\0").data, *loam.config.masterVolume, 0.01, 0, 1);
 	
 	if ImGui.Button("Save Config File") {
 	    save_config();
@@ -107,8 +108,13 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	    ImGui.Text(tprint("\t%", it));
 	}
 
+	ImGui.NewLine();
+	ImGui.DragFloat3(tprint("Clear Colour\0").data, *vk.clearColour.xyz.component, 0.01, 0.0, 1.0);
+	ImGui.NewLine();
+	
 	ImGui.DragFloat(tprint("Grid Cell Size\0").data, *loam.debugGridCellSize, 0.1, loam.debugGridSubcellSize, 1000.0);
 	ImGui.DragFloat(tprint("Grid Subcell Size\0").data, *loam.debugGridSubcellSize, 0.1, 0.1, loam.debugGridCellSize);
+	ImGui.DragFloat(tprint("Grid Fade Distance\0").data, *loam.debugGridFadeDistance, 1.0, 25.0, 125.0);
 	ImGui.DragFloat4(tprint("Grid Colour\0").data, *loam.debugGridColour.component, 0.01, 0.0, 1.0);
     }
     ImGui.PopStyleColor();

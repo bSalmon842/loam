@@ -62,7 +62,7 @@ vk : *Vk;
 LoamState :: struct {
     assets : *AssetState;
     vk : *Vk;
-
+    
     gameplayState : GameplayState;
     hasFocus : bool;
     
@@ -118,6 +118,7 @@ LoamState :: struct {
 
 	debugGridCellSize : float32 = 5.0;
 	debugGridSubcellSize : float32 = 1.0;
+	debugGridFadeDistance : float32 = 50.0;
 	debugGridColour : Vector4 = { 0.85, 0.85, 0.85, 1.0 };
     }
 }
@@ -571,6 +572,7 @@ DONE
 #import "ktx";
 #import "Logger"(IS_DEV);
 #import "lz4_bs842";
+#import "mikktspace";
 SDL :: #import "SDL3";
 Audio :: #import "Sound_Player_bs842";
 #import "stb_image";

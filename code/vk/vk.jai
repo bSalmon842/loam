@@ -82,6 +82,8 @@ Vk :: struct {
 
     defaultPlaneIndexBuffer : *AllocatedBufferInfo;
     defaultCubeIndexBuffer  : *AllocatedBufferInfo;
+
+    mikkInterface : *MikkInterface;
     
     // Built in error texture
     errorCheckerboard : *ImageResource;
@@ -139,7 +141,8 @@ BoxColliderPushConstants :: struct {
 GridPushConstants :: struct {
     cellSize : float32;
     subcellSize : float32;
-    pad0, pad1 : s32;
+    fadeDistance : float32;
+    padding : s32;
     gridColour : Vector4;
 }
 
@@ -161,6 +164,8 @@ init_vk :: () {
     #if OS == .ANDROID {
 	SDL.vulkan_load_library(null);
     }
+
+    vk.mikkInterface = make_mikktspace_interface();
     
     check_vk(create_vk_instance(APP_NAME), "create_vk_instance failed: ");
     check_vk(create_vk_surface(), "create_vk_surface failed: ");

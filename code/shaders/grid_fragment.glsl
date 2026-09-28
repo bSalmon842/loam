@@ -13,10 +13,15 @@ Created: 14SEP2026
 layout (location = 0) in vec2 inUV;
 layout (location = 0) out vec4 fragColour;
 
+// TODO: To get rid of the fade to hide the filtering issues, follow this:
+// TODO: https://bgolus.medium.com/the-best-darn-grid-shader-yet-727f9278b9d8
+// TODO: https://gist.github.com/bgolus/3a561077c86b5bfead0d6cc521097bae
+
 struct GridFragmentPushConstants {
   float cellSize;
   float subcellSize;
-  int padding[2];
+  float gridFadeDistance;
+  int padding;
   vec4 gridColour;
 };
 
@@ -47,8 +52,10 @@ void main() {
   vec4 colour = vec4(0.0);
   if (any(inRangeOfSubcellLine)) { colour = SUBCELL_LINE_COLOUR; }
   if (any(inRangeOfCellLine))    { colour = CELL_LINE_COLOUR; }
-
   if (colour.a < 0.05f) { discard; }
   
-  fragColour = colour;
+  float distanceToCamera = length(inUV - world.cameraPos.xz);
+  float fadeOut = smoothstep(1.0, 0.0, distanceToCamera / FragConstants.pc.gridFadeDistance);
+  
+  fragColour = colour * fadeOut;
 }

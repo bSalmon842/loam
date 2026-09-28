@@ -255,15 +255,12 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 		read_buffer_from_accessor_using_type(gltf, gltf.accessors[it.normal_accessor], *normals);
 	    }
 
-	    tangents : [..] Vector3;
-	    // TODO: Implement mikktspace tangents if we have baked in tangents
-	    /*
+	    tangents : [..] Vector4;
 	    if it.tangent_accessor < 0 {
-		log(.ERROR, "No Tangent Accessor index for Prim % in GLTF Mesh \"%\" (%)", it_index, mesh.name, meshIndex);
+		log(.INFO, "No Tangent Accessor index for Prim % in GLTF Mesh \"%\" (%), generating via mikktspace", it_index, mesh.name, meshIndex);
 	    } else {
 		read_buffer_from_accessor_using_type(gltf, gltf.accessors[it.tangent_accessor], *tangents);
 	    }
-	    */
 	    
 	    uvs : [..] Vector2;
 	    if it.texcoord_0_accessor < 0 {
@@ -285,15 +282,20 @@ load_gltf_to_model :: (gltf : *GLTF_Data, name : string) -> *GLTFModel {
 		vertex.position = it;
 		vertex.position.z *= -1.0;
 		vertex.normal   = ifx normals.count > 0  then normals[it_index]  else .{};
-		//vertex.tangent  = ifx tangents.count > 0 then tangents[it_index] else .{};
+		vertex.normal.z *= -1.0;
+		vertex.tangent  = ifx tangents.count > 0 then tangents[it_index] else .{};
 		vertex.uv       = ifx uvs.count > 0      then uvs[it_index]      else .{};
 		vertex.colour   = ifx colours.count > 0  then colours[it_index]  else make_vector4(1);
 		array_add(*vertices, vertex);
 	    }
 	    
 	    if tangents.count == 0 {
-		// Generate our own tangents/binormals
-		generate_mesh_tangents_binormals(name, indices, *vertices);
+		meshData := MikkMeshData.{ *vertices, *indices };
+		mikkCtx := make_mikktspace_context(*meshData);
+		
+		if !generate_tangents(*mikkCtx) {
+		    log(.ERROR, "Failed to generate mikktspace tangents for Prim % in GLTF Mesh \"%\" (%)", it_index, mesh.name, meshIndex);
+		}
 	    }
 	    
 	    if prim.materialIndex == -1 {
@@ -343,6 +345,69 @@ load_nodes :: (nodeIndices : [] s64, gltfNodes : [..] GLTF_Node, parent : *Scene
 	load_nodes(gltfNode.children, gltfNodes, node, *node.children);
 	table_add(nodes, copy_string(gltfNode.name), node);
     }
+}
+
+///////////////////////////
+// MIKKTSPACE /////////////
+///////////////////////////
+
+MikkMeshData :: struct {
+    vertices : *[..] Vertex;
+    indices  : *[..] u32;
+}
+
+make_mikktspace_interface :: () -> *MikkInterface {
+    mikkInterface := New(MikkInterface);
+    mikkInterface.get_num_faces = mikk_get_num_faces;
+    mikkInterface.get_num_vertices_of_face = mikk_get_num_vertices_of_face;
+    mikkInterface.get_position = mikk_get_position;
+    mikkInterface.get_normal = mikk_get_normal;
+    mikkInterface.get_tex_coord = mikk_get_uv;
+    mikkInterface.set_t_space_basic = mikk_set_tangent_space;
+    
+    return mikkInterface;
+}
+
+make_mikktspace_context :: (meshData : *MikkMeshData) -> MikkContext {
+    return MikkContext.{ vk.mikkInterface, meshData };
+}
+
+mikk_get_vertex_index :: (ctx : *MikkContext, faceIndex : int, vertIndex : int) -> int {
+    mesh := cast(*MikkMeshData) ctx.user_data;
+    indicesIndex := vertIndex + (faceIndex * mikk_get_num_vertices_of_face(ctx, faceIndex));
+    index := mesh.indices.*[indicesIndex];
+    return index;
+}
+
+mikk_get_num_faces :: (ctx : *MikkContext) -> int {
+    mesh := cast(*MikkMeshData) ctx.user_data;
+    return mesh.indices.count / 3;
+}
+
+mikk_get_num_vertices_of_face :: (ctx : *MikkContext, faceIndex : int) -> int {
+    return 3;
+}
+
+mikk_get_position :: (ctx : *MikkContext, faceIndex : int, vertIndex : int) -> Vector3 {
+    mesh := cast(*MikkMeshData) ctx.user_data;
+    return mesh.vertices.*[mikk_get_vertex_index(ctx, faceIndex, vertIndex)].position;
+}
+
+mikk_get_normal :: (ctx : *MikkContext, faceIndex : int, vertIndex : int) -> Vector3 {
+    mesh := cast(*MikkMeshData) ctx.user_data;
+    return mesh.vertices.*[mikk_get_vertex_index(ctx, faceIndex, vertIndex)].normal;
+}
+
+mikk_get_uv :: (ctx : *MikkContext, faceIndex : int, vertIndex : int) -> Vector2 {
+    mesh := cast(*MikkMeshData) ctx.user_data;
+    uv := mesh.vertices.*[mikk_get_vertex_index(ctx, faceIndex, vertIndex)].uv;
+    return { uv.x, 1.0 - uv.y };
+}
+
+mikk_set_tangent_space :: (ctx : *MikkContext, tangent : Vector3, sign : float, faceIndex : int, vertIndex : int) {
+    mesh := cast(*MikkMeshData) ctx.user_data;
+    vertex := *mesh.vertices.*[mikk_get_vertex_index(ctx, faceIndex, vertIndex)];
+    vertex.tangent = make_vector4(tangent, sign);
 }
 
 ///////////////////////////

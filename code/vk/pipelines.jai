@@ -239,7 +239,7 @@ draw_pipeline :: (cmdBuffer : VkCommandBuffer, pipeline : *RenderingPipelineInfo
 	render_box_collider_batch(cmdBuffer, pushConstants, pipeline.boxColliders.count, pipeline.layout);
     } else if pipeline.type == .Grid {
 	if loam.devViewActive && loam.drawWorldGrid && loam.gameplayState == .Playing {
-	    pushConstants := GridPushConstants.{ loam.debugGridCellSize, loam.debugGridSubcellSize, 0, 0, loam.debugGridColour };
+	    pushConstants := GridPushConstants.{ loam.debugGridCellSize, loam.debugGridSubcellSize, loam.debugGridFadeDistance, 0, loam.debugGridColour };
 	    vkCmdPushConstants(cmdBuffer, pipeline.layout, .FRAGMENT_BIT, 0, size_of(GridPushConstants), *pushConstants);
 	    vkCmdDraw(cmdBuffer, 4, 1, 0, 0);
 	}

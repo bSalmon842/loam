@@ -13,10 +13,8 @@ Created: 21MAY2025
 layout (location = 0) out vec4 outColour;
 layout (location = 1) out vec3 outNormal;
 layout (location = 2) out vec2 outUV;
-layout (location = 3) out vec3 outTangent;
-layout (location = 4) out vec3 outBinormal;
-layout (location = 5) out vec3 outLightDir;
-layout (location = 6) out vec3 outWorldPos;
+layout (location = 3) out vec4 outTangent;
+layout (location = 4) out vec3 outWorldPos;
 
 layout (push_constant) uniform vertexConstants {
   VertexPushConstants pc;
@@ -29,15 +27,12 @@ void main() {
   outWorldPos = worldPos.xyz;
   gl_Position = world.viewProj * worldPos;
   
-  outLightDir = normalize(worldPos.xyz - world.lights[0].position);
-  
   outColour = loadedVertex.colour;
   outUV = loadedVertex.uv;
+
+  mat3 modelMatrix = mat3(VertConstants.pc.transform);
+  mat3 normalMatrix = inverse(transpose(modelMatrix));
   
-  mat3 normalMatrix = inverse(transpose(mat3(VertConstants.pc.transform)));
-  vec3 n = loadedVertex.normal;
-  n.z = -n.z;
-  outNormal = normalize(normalMatrix * n);
-  outTangent = normalize(normalMatrix * loadedVertex.tangent);
-  outBinormal = normalize(normalMatrix * loadedVertex.binormal);
+  outNormal = normalize(normalMatrix * loadedVertex.normal);
+  outTangent = vec4(normalize(modelMatrix * loadedVertex.tangent.xyz), loadedVertex.tangent.w);
 }

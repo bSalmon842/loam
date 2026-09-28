@@ -15,11 +15,9 @@ Created: 04JUN2025
 struct VertexInfo {
   vec3 position;
   vec3 normal;
-  vec3 tangent;
-  vec3 binormal;
+  vec4 tangent;
   vec2 uv;
   vec4 colour;
-  uint padding[2];
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
