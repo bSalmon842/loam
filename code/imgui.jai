@@ -93,7 +93,9 @@ frame_imgui :: (metrics : *DebugMetrics) {
 	    
 	    ImGui.EndCombo();
 	}
-	ImGui.DragFloat(tprint("Master Volume\0").data, *loam.config.masterVolume, 0.01, 0, 1);
+	if ImGui.DragFloat(tprint("Master Volume\0").data, *loam.config.masterVolume, 0.01, 0, 1) {
+	    Audio.set_master_volume(loam.config.masterVolume);
+	}
 	
 	if ImGui.Button("Save Config File") {
 	    save_config();
